@@ -1190,6 +1190,89 @@ export const breakGlassLog = pgTable(
   })
 );
 
+// Module CAS: Intervention Plan (CAS-03)
+export const interventionPlan = pgTable(
+  'intervention_plan',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    tenantId: uuid('tenant_id').notNull(),
+    caseFileId: uuid('case_file_id').notNull(),
+    title: text('title').notNull(),
+    description: text('description'),
+    status: text('status', { enum: ['draft', 'active', 'completed', 'archived'] })
+      .notNull()
+      .default('active'),
+    startDate: date('start_date'),
+    reviewDate: date('review_date'),
+    createdByUserId: uuid('created_by_user_id')
+      .notNull()
+      .references(() => userAccount.id),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => ({
+    caseFk: foreignKey({
+      columns: [table.tenantId, table.caseFileId],
+      foreignColumns: [caseFile.tenantId, caseFile.id],
+    }).onDelete('cascade'),
+    tenantIdIdUk: unique().on(table.tenantId, table.id),
+  })
+);
+
+// Module CAS: Intervention Goal / Action Steps (CAS-03B)
+export const interventionGoal = pgTable(
+  'intervention_goal',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    tenantId: uuid('tenant_id').notNull(),
+    planId: uuid('plan_id').notNull(),
+    title: text('title').notNull(),
+    description: text('description'),
+    targetDate: date('target_date'),
+    status: text('status', { enum: ['not_started', 'in_progress', 'achieved', 'abandoned'] })
+      .notNull()
+      .default('in_progress'),
+    achievedAt: timestamp('achieved_at', { withTimezone: true }),
+    notes: text('notes'),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => ({
+    planFk: foreignKey({
+      columns: [table.tenantId, table.planId],
+      foreignColumns: [interventionPlan.tenantId, interventionPlan.id],
+    }).onDelete('cascade'),
+    tenantIdIdUk: unique().on(table.tenantId, table.id),
+  })
+);
+
+// Module CAS: External Referrals / Aiguillage (CAS-06)
+export const caseReferral = pgTable(
+  'case_referral',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    tenantId: uuid('tenant_id').notNull(),
+    caseFileId: uuid('case_file_id').notNull(),
+    organizationName: text('organization_name').notNull(),
+    serviceType: text('service_type').notNull(),
+    contactPerson: text('contact_person'),
+    contactPhone: text('contact_phone'),
+    contactEmail: text('contact_email'),
+    reason: text('reason').notNull(),
+    status: text('status', { enum: ['pending', 'accepted', 'rejected', 'completed'] })
+      .notNull()
+      .default('pending'),
+    referredAt: timestamp('referred_at', { withTimezone: true }).notNull().defaultNow(),
+    outcomeNotes: text('outcome_notes'),
+  },
+  (table) => ({
+    caseFk: foreignKey({
+      columns: [table.tenantId, table.caseFileId],
+      foreignColumns: [caseFile.tenantId, caseFile.id],
+    }).onDelete('cascade'),
+    tenantIdIdUk: unique().on(table.tenantId, table.id),
+  })
+);
+
 // Module IND: Indicator Definition (IND-01)
 export const indicator = pgTable(
   'indicator',
