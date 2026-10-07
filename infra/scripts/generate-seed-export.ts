@@ -1,6 +1,8 @@
 import pg from 'pg';
 import * as fs from 'fs';
 import * as path from 'path';
+import * as schema from '../../packages/shared/src/db/schema';
+import { getTableConfig, PgTable } from 'drizzle-orm/pg-core';
 
 async function generateSeedExport() {
   const connectionString =
@@ -11,6 +13,19 @@ async function generateSeedExport() {
   await client.connect();
 
   console.log('📦 Extraction des données de la base de test locale...');
+
+  // Map schema tables and their exact columns
+  const schemaTableColumns = new Map<string, Set<string>>();
+  for (const [_, tableObj] of Object.entries(schema) as [string, any][]) {
+    if (tableObj instanceof PgTable) {
+      const config = getTableConfig(tableObj);
+      const tableName = config.name;
+      const colNames = new Set(config.columns.map((c) => c.name));
+      schemaTableColumns.set(tableName, colNames);
+    }
+  }
+
+  console.log(`📋 ${schemaTableColumns.size} tables identifiées dans le schéma TypeScript.`);
 
   // Ensure seeds directory exists
   const seedsDir = path.resolve(process.cwd(), 'infra/seeds');
@@ -39,19 +54,32 @@ async function generateSeedExport() {
   sqlStatements.push('SET session_replication_role = \'replica\';\n');
 
   for (const table of tables) {
+    const validCols = schemaTableColumns.get(table);
+    if (!validCols) continue; // Skip tables not defined in schema
+
     const rowsRes = await client.query(`SELECT * FROM "${table}";`);
     const rows = rowsRes.rows;
 
     if (rows.length === 0) continue;
 
-    fullData[table] = rows;
-    console.log(`✓ Table "${table}": ${rows.length} lignes extraites.`);
+    // Only keep columns present in schema.ts
+    const columns = Object.keys(rows[0]).filter((c) => validCols.has(c));
+    if (columns.length === 0) continue;
+
+    const filteredRows = rows.map((row) => {
+      const filtered: Record<string, any> = {};
+      for (const col of columns) {
+        filtered[col] = row[col];
+      }
+      return filtered;
+    });
+
+    fullData[table] = filteredRows;
+    console.log(`✓ Table "${table}": ${rows.length} lignes extraites (${columns.length} colonnes conformes au schéma).`);
 
     sqlStatements.push(`-- Table: ${table} (${rows.length} rows)`);
     sqlStatements.push(`TRUNCATE TABLE "${table}" CASCADE;`);
 
-    // Get columns
-    const columns = Object.keys(rows[0]);
     const colsList = columns.map((c) => `"${c}"`).join(', ');
 
     for (const row of rows) {
