@@ -88,7 +88,30 @@ export function Navbar() {
   };
 
   return (
-    <header className="border-b bg-white px-4 py-2 shadow-sm sticky top-0 z-40">
+    <>
+      {user?.isPlatformAdmin && (
+        <div className="bg-slate-900 text-slate-200 border-b border-amber-500/40 px-4 py-1.5 text-xs font-medium flex items-center justify-between shadow-inner">
+          <div className="flex items-center space-x-2">
+            <span className="bg-amber-400 text-slate-950 px-2 py-0.5 rounded text-[10px] font-black uppercase tracking-wider">
+              Mode Super-Admin
+            </span>
+            <span className="text-slate-300">
+              Espace de travail actif : <strong className="text-white font-bold">{tenantName}</strong>
+            </span>
+          </div>
+          <div className="flex items-center space-x-2">
+            <Link
+              to="/platform/dashboard"
+              className="bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold px-2.5 py-0.5 rounded text-xs transition inline-flex items-center gap-1"
+            >
+              <Shield className="h-3.5 w-3.5" />
+              Console Super-Admin SaaS ➔
+            </Link>
+          </div>
+        </div>
+      )}
+
+      <header className="border-b bg-white px-4 py-2 shadow-sm sticky top-0 z-40">
       <div className="mx-auto flex max-w-7xl items-center justify-between">
         {/* Left: Organization Brand (White-Label - No OrgDashio branding) */}
         <Link to="/dashboard" className="flex items-center space-x-3 group shrink-0">
@@ -197,6 +220,16 @@ export function Navbar() {
 
                 {/* Profile & Settings Links */}
                 <div className="py-1 text-xs">
+                  {user?.isPlatformAdmin && (
+                    <Link
+                      to="/platform/dashboard"
+                      onClick={() => setProfileDropdownOpen(false)}
+                      className="flex items-center px-4 py-2 text-amber-700 bg-amber-50 hover:bg-amber-100 font-bold transition-colors border-b border-amber-200"
+                    >
+                      <Shield className="mr-2.5 h-4 w-4 text-amber-600" />
+                      <span>Console Super-Admin</span>
+                    </Link>
+                  )}
                   <Link
                     to="/settings/profile"
                     onClick={() => setProfileDropdownOpen(false)}
@@ -275,5 +308,6 @@ export function Navbar() {
         })}
       </nav>
     </header>
+    </>
   );
 }

@@ -80,6 +80,16 @@ export class AuthController {
     };
   }
 
+  @Post('switch-tenant')
+  @UseGuards(AuthGuard)
+  async switchTenant(@Req() req: Request, @Body() body: { tenantId?: string | null }) {
+    const sessionToken = req.cookies?.['orgdashio_session'];
+    if (!sessionToken) {
+      throw new UnauthorizedException('Non connecté');
+    }
+    return this.authService.switchTenant(sessionToken, body.tenantId ?? null);
+  }
+
   @Post('logout')
   @HttpCode(HttpStatus.OK)
   async logout(@Res({ passthrough: true }) res: Response) {

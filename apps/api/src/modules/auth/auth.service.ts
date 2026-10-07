@@ -4,6 +4,7 @@ import {
   UnauthorizedException,
   BadRequestException,
   ForbiddenException,
+  NotFoundException,
 } from '@nestjs/common';
 import { DRIZZLE_DB } from '../../common/database/database.module';
 import {
@@ -384,4 +385,64 @@ export class AuthService {
 
     return updatedUser;
   }
+
+  async switchTenant(sessionToken: string, targetTenantId: string | null) {
+    const session = await this.validateSession(sessionToken);
+    if (!session) {
+      throw new UnauthorizedException('Session expirée ou invalide');
+    }
+
+    const [user] = await this.db
+      .select()
+      .from(userAccount)
+      .where(eq(userAccount.id, session.userId));
+
+    if (!user) {
+      throw new UnauthorizedException('Utilisateur introuvable');
+    }
+
+    let tenant = null;
+
+    if (targetTenantId) {
+      const [t] = await this.db
+        .select()
+        .from(tenantRegistry)
+        .where(eq(tenantRegistry.id, targetTenantId));
+
+      if (!t) {
+        throw new NotFoundException('Organisme client non trouvé');
+      }
+      tenant = t;
+
+      // Platform admin can switch to any tenant. Regular user must be active member.
+      if (!user.isPlatformAdmin) {
+        const [mem] = await this.db
+          .select()
+          .from(membership)
+          .where(
+            and(
+              eq(membership.userId, user.id),
+              eq(membership.tenantId, targetTenantId),
+              eq(membership.status, 'active')
+            )
+          );
+        if (!mem) {
+          throw new ForbiddenException('Accès non autorisé à cet organisme');
+        }
+      }
+    }
+
+    // Update session active tenant
+    await this.db
+      .update(userSession)
+      .set({ tenantId: targetTenantId })
+      .where(eq(userSession.id, session.id));
+
+    return {
+      success: true,
+      activeTenantId: targetTenantId,
+      tenant,
+    };
+  }
 }
+
