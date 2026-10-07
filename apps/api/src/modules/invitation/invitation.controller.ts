@@ -13,6 +13,12 @@ export class InvitationController {
     return this.invitationService.getInvitations(req.tenantId);
   }
 
+  @Get('members')
+  @UseGuards(AuthGuard)
+  async getMembers(@Req() req: any) {
+    return this.invitationService.getMembers(req.tenantId);
+  }
+
   @Post()
   @UseGuards(AuthGuard)
   async sendInvitation(@Req() req: any, @Body() body: any) {

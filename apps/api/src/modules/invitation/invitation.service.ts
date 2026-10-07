@@ -13,6 +13,7 @@ import {
   userCredential,
   membership,
   membershipRole,
+  role,
   SendInvitationInput,
   AcceptInvitationInput,
 } from '@orgdashio/shared';
@@ -58,6 +59,48 @@ export class InvitationService {
   async getInvitations(tenantId: string) {
     return withTenantContext(this.db, tenantId, async (tx) => {
       return tx.select().from(invitation);
+    });
+  }
+
+  async getMembers(tenantId: string) {
+    return withTenantContext(this.db, tenantId, async (tx: any) => {
+      const mems = await tx.select().from(membership).where(eq(membership.tenantId, tenantId));
+      const users = await this.db.select().from(userAccount);
+      const userMap = new Map(users.map((u: any) => [u.id, u]));
+
+      const roles = await tx.select().from(role).where(eq(role.tenantId, tenantId));
+      const roleMap = new Map(roles.map((r: any) => [r.id, r]));
+
+      const memRoles = await tx.select().from(membershipRole).where(eq(membershipRole.tenantId, tenantId));
+
+      return mems.map((m: any) => {
+        const u: any = userMap.get(m.userId);
+        const assignedRoles = memRoles
+          .filter((mr: any) => mr.membershipId === m.id)
+          .map((mr: any) => roleMap.get(mr.roleId))
+          .filter(Boolean);
+
+        return {
+          id: m.id,
+          userId: m.userId,
+          status: m.status,
+          createdAt: m.createdAt,
+          user: u
+            ? {
+                id: u.id,
+                email: u.email,
+                firstName: u.firstName,
+                lastName: u.lastName,
+                avatarUrl: u.avatarUrl,
+                jobTitle: u.jobTitle,
+                phone: u.phone,
+                status: u.status,
+                isPlatformAdmin: u.isPlatformAdmin,
+              }
+            : null,
+          roles: assignedRoles,
+        };
+      });
     });
   }
 

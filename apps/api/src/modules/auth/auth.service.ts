@@ -16,6 +16,8 @@ import {
   membership,
   role,
   membershipRole,
+  party,
+  staffProfile,
   RegisterTenantInput,
   LoginInput,
 } from '@orgdashio/shared';
@@ -67,7 +69,10 @@ export class AuthService {
         .insert(userAccount)
         .values({
           email: input.adminEmail.toLowerCase(),
-          locale: input.locale || 'fr',
+          firstName: input.adminFirstName || null,
+          lastName: input.adminLastName || null,
+          jobTitle: 'Direction Générale / Administrateur',
+          locale: input.locale || 'fr-CA',
           status: 'active',
         })
         .returning();
@@ -120,6 +125,28 @@ export class AuthService {
         tenantId: tenant.id,
         membershipId: mem.id,
         roleId: adminRole.id,
+      });
+
+      // 7. Create Party & Staff Profile for the Admin in CRM / People module
+      const [adminParty] = await tx
+        .insert(party)
+        .values({
+          tenantId: tenant.id,
+          kind: 'person',
+          firstName: input.adminFirstName || 'Administrateur',
+          lastName: input.adminLastName || tenant.name,
+          email: input.adminEmail.toLowerCase(),
+        })
+        .returning();
+
+      await tx.insert(staffProfile).values({
+        tenantId: tenant.id,
+        partyId: adminParty.id,
+        userId: user.id,
+        jobTitle: 'Direction Générale / Administrateur',
+        employmentType: 'board_member',
+        status: 'active',
+        hireDate: new Date().toISOString().split('T')[0],
       });
 
       return { tenant, user };

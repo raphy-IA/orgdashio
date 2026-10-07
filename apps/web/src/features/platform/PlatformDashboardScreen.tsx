@@ -45,6 +45,10 @@ import {
   DollarSign,
   TrendingUp,
   Award,
+  Link2,
+  Unlink,
+  Sparkles,
+  UserPlus,
 } from 'lucide-react';
 import { PlatformNavbar } from '../../components/PlatformNavbar';
 
@@ -63,7 +67,7 @@ export function PlatformDashboardScreen() {
   // Selected Tenant for Explorer & 360° Management
   const [selectedTenantId, setSelectedTenantId] = useState<string | null>(null);
   const [explorerSubTab, setExplorerSubTab] = useState<
-    'overview' | 'projects' | 'staff' | 'cases' | 'trainings' | 'users' | 'settings' | 'support'
+    'overview' | 'projects' | 'staff' | 'beneficiaries' | 'cases' | 'trainings' | 'users' | 'settings' | 'support'
   >('overview');
 
   // Staff type filter inside Explorer
@@ -92,6 +96,22 @@ export function PlatformDashboardScreen() {
   const [editStaffType, setEditStaffType] = useState<'employee' | 'volunteer' | 'board_member' | 'contractor' | 'intern'>('employee');
   const [editStaffStatus, setEditStaffStatus] = useState<'active' | 'on_leave' | 'inactive' | 'archived'>('active');
   const [editStaffDeptId, setEditStaffDeptId] = useState<string>('');
+
+  // User Edit State & Modal
+  const [editingUserItem, setEditingUserItem] = useState<any | null>(null);
+  const [editUserFirstName, setEditUserFirstName] = useState('');
+  const [editUserLastName, setEditUserLastName] = useState('');
+  const [editUserEmail, setEditUserEmail] = useState('');
+  const [editUserPhone, setEditUserPhone] = useState('');
+  const [editUserJobTitle, setEditUserJobTitle] = useState('');
+  const [editUserRoles, setEditUserRoles] = useState<string[]>([]);
+  const [editUserPassword, setEditUserPassword] = useState('');
+  const [editUserStatus, setEditUserStatus] = useState<'active' | 'suspended'>('active');
+  const [linkStaffMode, setLinkStaffMode] = useState<'new' | 'existing'>('new');
+  const [selectedExistingPartyId, setSelectedExistingPartyId] = useState<string>('');
+  const [newStaffType, setNewStaffType] = useState<'employee' | 'volunteer' | 'contractor' | 'board_member'>('employee');
+  const [newStaffDeptId, setNewStaffDeptId] = useState<string>('');
+  const [userActionFeedback, setUserActionFeedback] = useState<string | null>(null);
 
   // Support Grant Form
   const [supportReason, setSupportReason] = useState('');
@@ -200,8 +220,77 @@ export function PlatformDashboardScreen() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['platform-tenant-details', selectedTenantId] });
+      queryClient.invalidateQueries({ queryKey: ['platform-tenants'] });
     },
   });
+
+  const updateUserMutation = useMutation({
+    mutationFn: async ({ userId, payload }: { userId: string; payload: any }) => {
+      const res = await fetch(`/api/v1/platform/tenants/${selectedTenantId}/users/${userId}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json', 'x-platform-admin': 'true' },
+        body: JSON.stringify(payload),
+      });
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        throw new Error(data.message || 'Erreur lors de la mise à jour du compte utilisateur');
+      }
+      return res.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['platform-tenant-details', selectedTenantId] });
+      queryClient.invalidateQueries({ queryKey: ['platform-tenants'] });
+      setUserActionFeedback('Compte utilisateur et permissions mis à jour avec succès !');
+      setEditingUserItem(null);
+    },
+  });
+
+  const linkStaffMutation = useMutation({
+    mutationFn: async ({ userId, payload }: { userId: string; payload: any }) => {
+      const res = await fetch(`/api/v1/platform/tenants/${selectedTenantId}/users/${userId}/link-staff`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'x-platform-admin': 'true' },
+        body: JSON.stringify(payload),
+      });
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        throw new Error(data.message || 'Erreur lors de la liaison au dossier personnel');
+      }
+      return res.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['platform-tenant-details', selectedTenantId] });
+      queryClient.invalidateQueries({ queryKey: ['platform-tenants'] });
+      setUserActionFeedback('Liaison avec la fiche du personnel effectuée avec succès !');
+    },
+  });
+
+  const generateRandomPassword = () => {
+    const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz23456789!@#$%&*';
+    let pwd = '';
+    for (let i = 0; i < 14; i++) {
+      pwd += chars.charAt(Math.floor(Math.random() * chars.length));
+    }
+    setEditUserPassword(pwd);
+  };
+
+  const handleOpenEditUser = (userItem: any) => {
+    const u = userItem.user;
+    setEditingUserItem(userItem);
+    setEditUserFirstName(u?.firstName || '');
+    setEditUserLastName(u?.lastName || '');
+    setEditUserEmail(u?.email || '');
+    setEditUserPhone(u?.phone || '');
+    setEditUserJobTitle(u?.jobTitle || '');
+    setEditUserRoles((userItem.roles || []).map((r: any) => r.name));
+    setEditUserPassword('');
+    setEditUserStatus(u?.status || 'active');
+    setLinkStaffMode('new');
+    setSelectedExistingPartyId('');
+    setNewStaffType('employee');
+    setNewStaffDeptId('');
+    setUserActionFeedback(null);
+  };
 
   const updateStaffMutation = useMutation({
     mutationFn: async ({ partyId, updates }: { partyId: string; updates: any }) => {
@@ -471,6 +560,17 @@ export function PlatformDashboardScreen() {
               >
                 <Users className="h-3.5 w-3.5 text-emerald-400" />
                 Personnel & Bénévoles ({tenantDetails?.staff?.length || 0})
+              </button>
+              <button
+                onClick={() => setExplorerSubTab('beneficiaries')}
+                className={`flex items-center gap-1.5 px-4 py-2.5 text-xs font-bold border-b-2 transition shrink-0 ${
+                  explorerSubTab === 'beneficiaries'
+                    ? 'border-indigo-400 text-indigo-400 bg-slate-900/90 rounded-t'
+                    : 'border-transparent text-slate-400 hover:text-slate-200'
+                }`}
+              >
+                <HeartHandshake className="h-3.5 w-3.5 text-teal-400" />
+                Bénéficiaires & Usagers ({tenantDetails?.beneficiaries?.length || 0})
               </button>
               <button
                 onClick={() => setExplorerSubTab('cases')}
@@ -968,6 +1068,67 @@ export function PlatformDashboardScreen() {
               </div>
             )}
 
+            {/* Sub-tab: Bénéficiaires & Usagers enregistrés */}
+            {explorerSubTab === 'beneficiaries' && (
+              <div className="rounded-xl border border-slate-800 bg-slate-900 p-6 shadow-lg space-y-4">
+                <div className="flex items-center justify-between border-b border-slate-800 pb-3">
+                  <div className="flex items-center gap-2">
+                    <HeartHandshake className="h-5 w-5 text-teal-400" />
+                    <h3 className="font-bold text-white text-base">Bénéficiaires & Usagers Enregistrés</h3>
+                  </div>
+                  <Badge variant="default">{tenantDetails?.beneficiaries?.length || 0} Bénéficiaire(s)</Badge>
+                </div>
+
+                {!tenantDetails?.beneficiaries || tenantDetails.beneficiaries.length === 0 ? (
+                  <div className="py-12 text-center text-slate-500 text-sm">
+                    Aucun bénéficiaire enregistré pour cet organisme.
+                  </div>
+                ) : (
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-left text-xs text-slate-300">
+                      <thead className="bg-slate-950 uppercase font-mono text-slate-400 border-b border-slate-800">
+                        <tr>
+                          <th className="px-4 py-3">Bénéficiaire / Usager</th>
+                          <th className="px-4 py-3">Courriel & Téléphone</th>
+                          <th className="px-4 py-3">Date de naissance</th>
+                          <th className="px-4 py-3">Genre</th>
+                          <th className="px-4 py-3">Statut</th>
+                          <th className="px-4 py-3">Date d'admission</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-slate-800">
+                        {tenantDetails.beneficiaries.map((b: any) => (
+                          <tr key={b.id} className="hover:bg-slate-800/40 transition">
+                            <td className="px-4 py-3">
+                              <div className="font-bold text-white">
+                                {b.party ? `${b.party.firstName || ''} ${b.party.lastName || ''}` : 'Sans nom'}
+                              </div>
+                            </td>
+                            <td className="px-4 py-3">
+                              <div className="text-slate-200">{b.party?.email || '—'}</div>
+                              <div className="text-[11px] text-slate-400">{b.party?.phone || '—'}</div>
+                            </td>
+                            <td className="px-4 py-3 font-mono text-slate-300">
+                              {b.birthDate ? new Date(b.birthDate).toLocaleDateString() : '—'}
+                            </td>
+                            <td className="px-4 py-3 font-mono text-teal-300">{b.genderCode || 'Non spécifié'}</td>
+                            <td className="px-4 py-3">
+                              <Badge variant={b.status === 'active' ? 'success' : 'secondary'} className="text-[10px]">
+                                {b.status}
+                              </Badge>
+                            </td>
+                            <td className="px-4 py-3 text-slate-400">
+                              {b.intakeDate ? new Date(b.intakeDate).toLocaleDateString() : '—'}
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
+              </div>
+            )}
+
             {/* Sub-tab 4: Dossiers Usagers / Cas */}
             {explorerSubTab === 'cases' && (
               <div className="rounded-xl border border-slate-800 bg-slate-900 p-6 shadow-lg space-y-4">
@@ -1088,13 +1249,34 @@ export function PlatformDashboardScreen() {
             {/* Sub-tab 6: Utilisateurs & Droits */}
             {explorerSubTab === 'users' && (
               <div className="rounded-xl border border-slate-800 bg-slate-900 p-6 shadow-lg space-y-4">
-                <div className="flex items-center justify-between border-b border-slate-800 pb-3">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-800 pb-3">
                   <div className="flex items-center gap-2">
                     <Key className="h-5 w-5 text-cyan-400" />
-                    <h3 className="font-bold text-white text-base">Comptes Utilisateurs Informatiques & Rôles</h3>
+                    <div>
+                      <h3 className="font-bold text-white text-base">Comptes Utilisateurs Informatiques & Rôles</h3>
+                      <p className="text-xs text-slate-400">
+                        Gestion complète des identifiants, réinitialisation de mots de passe et liaison RH au personnel.
+                      </p>
+                    </div>
                   </div>
-                  <Badge variant="default">{tenantDetails?.users?.length || 0} Compte(s)</Badge>
+                  <div className="flex items-center gap-2">
+                    <Badge variant="default" className="font-mono">
+                      {tenantDetails?.users?.length || 0} Compte(s) enregistrés
+                    </Badge>
+                  </div>
                 </div>
+
+                {userActionFeedback && (
+                  <div className="p-3 rounded-lg bg-emerald-950/70 border border-emerald-500/40 text-emerald-300 text-xs flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <Check className="h-4 w-4 shrink-0 text-emerald-400" />
+                      <span>{userActionFeedback}</span>
+                    </div>
+                    <button onClick={() => setUserActionFeedback(null)} className="text-slate-400 hover:text-white">
+                      <X className="h-3.5 w-3.5" />
+                    </button>
+                  </div>
+                )}
 
                 {!tenantDetails?.users || tenantDetails.users.length === 0 ? (
                   <div className="py-12 text-center text-slate-500 text-sm">
@@ -1106,71 +1288,471 @@ export function PlatformDashboardScreen() {
                       <thead className="bg-slate-950 uppercase font-mono text-slate-400 border-b border-slate-800">
                         <tr>
                           <th className="px-4 py-3">Utilisateur</th>
-                          <th className="px-4 py-3">Courriel de connexion</th>
-                          <th className="px-4 py-3">Rôles attribués</th>
-                          <th className="px-4 py-3">Statut du Compte</th>
-                          <th className="px-4 py-3 text-right">Contrôle Accès</th>
+                          <th className="px-4 py-3">Courriel (Identifiant)</th>
+                          <th className="px-4 py-3">Fiche RH Associée</th>
+                          <th className="px-4 py-3">Rôles Applicatifs</th>
+                          <th className="px-4 py-3">Statut</th>
+                          <th className="px-4 py-3 text-right">Actions Super-Admin</th>
                         </tr>
                       </thead>
                       <tbody className="divide-y divide-slate-800">
-                        {tenantDetails.users.map((u: any) => (
-                          <tr key={u.membershipId} className="hover:bg-slate-800/40 transition">
-                            <td className="px-4 py-3">
-                              <div className="font-bold text-white">
-                                {u.user?.firstName || u.user?.lastName ? `${u.user.firstName || ''} ${u.user.lastName || ''}` : 'Utilisateur'}
-                              </div>
-                              <div className="text-[11px] text-slate-400">{u.user?.jobTitle || 'Membre'}</div>
-                            </td>
-                            <td className="px-4 py-3 font-mono text-cyan-300">{u.user?.email}</td>
-                            <td className="px-4 py-3">
-                              <div className="flex flex-wrap gap-1">
-                                {u.roles.map((r: any) => (
-                                  <Badge key={r.id} variant="secondary" className="text-[10px]">
-                                    {r.name}
-                                  </Badge>
-                                ))}
-                              </div>
-                            </td>
-                            <td className="px-4 py-3">
-                              <Badge variant={u.user?.status === 'active' ? 'success' : 'secondary'} className="text-[10px]">
-                                {u.user?.status === 'active' ? 'Actif' : 'Suspendu'}
-                              </Badge>
-                            </td>
-                            <td className="px-4 py-3 text-right">
-                              {u.user && (
-                                <Button
-                                  size="sm"
-                                  variant="outline"
-                                  className={`text-[11px] border-slate-700 ${
-                                    u.user.status === 'active'
-                                      ? 'text-red-400 hover:bg-red-950/40 hover:border-red-500'
-                                      : 'text-emerald-400 hover:bg-emerald-950/40 hover:border-emerald-500'
-                                  }`}
-                                  onClick={() => {
-                                    const nextStatus = u.user.status === 'active' ? 'suspended' : 'active';
-                                    toggleUserStatusMutation.mutate({ userId: u.user.id, status: nextStatus });
-                                  }}
-                                >
-                                  {u.user.status === 'active' ? (
-                                    <>
-                                      <UserX className="h-3 w-3 mr-1" />
-                                      Suspendre
-                                    </>
-                                  ) : (
-                                    <>
-                                      <UserCheck className="h-3 w-3 mr-1" />
-                                      Activer
-                                    </>
+                        {tenantDetails.users.map((u: any) => {
+                          const userObj = u.user;
+                          const hasStaffLink = !!u.linkedStaff;
+                          return (
+                            <tr key={u.membershipId || userObj?.id} className="hover:bg-slate-800/40 transition">
+                              <td className="px-4 py-3">
+                                <div className="flex items-center gap-2.5">
+                                  <div className="h-8 w-8 rounded-full bg-slate-800 border border-slate-700 flex items-center justify-center font-bold text-slate-200 text-xs shrink-0">
+                                    {userObj?.firstName?.[0] || userObj?.email?.[0] || 'U'}
+                                  </div>
+                                  <div>
+                                    <div className="font-bold text-white">
+                                      {userObj?.firstName || userObj?.lastName
+                                        ? `${userObj.firstName || ''} ${userObj.lastName || ''}`.trim()
+                                        : 'Utilisateur sans nom'}
+                                    </div>
+                                    <div className="text-[11px] text-slate-400">
+                                      {userObj?.jobTitle || 'Titre non spécifié'}
+                                      {userObj?.phone && <span className="ml-1.5 font-mono text-slate-500">• {userObj.phone}</span>}
+                                    </div>
+                                  </div>
+                                </div>
+                              </td>
+                              <td className="px-4 py-3 font-mono text-cyan-300">
+                                {userObj?.email}
+                              </td>
+                              <td className="px-4 py-3">
+                                {hasStaffLink ? (
+                                  <div className="flex items-center gap-1.5">
+                                    <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-medium bg-emerald-500/10 text-emerald-400 border border-emerald-500/30">
+                                      <Check className="h-3 w-3" />
+                                      Lié RH : {u.linkedStaff.firstName} {u.linkedStaff.lastName}
+                                    </span>
+                                  </div>
+                                ) : (
+                                  <div className="flex items-center gap-2">
+                                    <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-medium bg-amber-500/10 text-amber-400 border border-amber-500/30">
+                                      <AlertTriangle className="h-3 w-3" />
+                                      Non lié au personnel
+                                    </span>
+                                    <button
+                                      onClick={() => handleOpenEditUser(u)}
+                                      className="text-[10px] text-cyan-400 hover:text-cyan-300 underline"
+                                    >
+                                      Lier
+                                    </button>
+                                  </div>
+                                )}
+                              </td>
+                              <td className="px-4 py-3">
+                                <div className="flex flex-wrap gap-1">
+                                  {u.roles?.map((r: any) => (
+                                    <Badge key={r.id || r.name} variant="secondary" className="text-[10px]">
+                                      {r.name}
+                                    </Badge>
+                                  ))}
+                                  {(!u.roles || u.roles.length === 0) && (
+                                    <span className="text-[10px] text-slate-500">Aucun rôle</span>
                                   )}
-                                </Button>
-                              )}
-                            </td>
-                          </tr>
-                        ))}
+                                </div>
+                              </td>
+                              <td className="px-4 py-3">
+                                <Badge
+                                  variant={userObj?.status === 'active' ? 'success' : 'secondary'}
+                                  className="text-[10px]"
+                                >
+                                  {userObj?.status === 'active' ? 'Actif' : 'Suspendu'}
+                                </Badge>
+                              </td>
+                              <td className="px-4 py-3 text-right">
+                                <div className="flex items-center justify-end gap-2">
+                                  <Button
+                                    size="sm"
+                                    variant="outline"
+                                    className="text-[11px] border-slate-700 bg-slate-800 hover:bg-slate-700 text-white"
+                                    onClick={() => handleOpenEditUser(u)}
+                                  >
+                                    <Pencil className="h-3 w-3 mr-1 text-cyan-400" />
+                                    Gérer & Réinitialiser
+                                  </Button>
+                                  {userObj && (
+                                    <Button
+                                      size="sm"
+                                      variant="outline"
+                                      className={`text-[11px] border-slate-700 ${
+                                        userObj.status === 'active'
+                                          ? 'text-red-400 hover:bg-red-950/40 hover:border-red-500'
+                                          : 'text-emerald-400 hover:bg-emerald-950/40 hover:border-emerald-500'
+                                      }`}
+                                      onClick={() => {
+                                        const nextStatus = userObj.status === 'active' ? 'suspended' : 'active';
+                                        toggleUserStatusMutation.mutate({ userId: userObj.id, status: nextStatus });
+                                      }}
+                                    >
+                                      {userObj.status === 'active' ? (
+                                        <>
+                                          <UserX className="h-3 w-3 mr-1" />
+                                          Suspendre
+                                        </>
+                                      ) : (
+                                        <>
+                                          <UserCheck className="h-3 w-3 mr-1" />
+                                          Activer
+                                        </>
+                                      )}
+                                    </Button>
+                                  )}
+                                </div>
+                              </td>
+                            </tr>
+                          );
+                        })}
                       </tbody>
                     </table>
                   </div>
                 )}
+              </div>
+            )}
+
+            {/* Modal d'édition complète du compte utilisateur & Mot de passe */}
+            {editingUserItem && (
+              <div className="fixed inset-0 z-50 bg-slate-950/80 backdrop-blur-sm flex items-center justify-center p-4">
+                <div className="bg-slate-900 border border-slate-800 rounded-2xl max-w-2xl w-full p-6 shadow-2xl space-y-5 max-h-[90vh] overflow-y-auto">
+                  <div className="flex items-center justify-between border-b border-slate-800 pb-3">
+                    <div className="flex items-center gap-2">
+                      <div className="h-9 w-9 rounded-lg bg-cyan-500/10 border border-cyan-500/30 flex items-center justify-center text-cyan-400">
+                        <Key className="h-5 w-5" />
+                      </div>
+                      <div>
+                        <h3 className="text-base font-bold text-white">Gestion du Compte & Identifiants</h3>
+                        <p className="text-xs text-slate-400">
+                          {editingUserItem.user?.email} • {currentSelectedTenant?.name}
+                        </p>
+                      </div>
+                    </div>
+                    <button
+                      onClick={() => setEditingUserItem(null)}
+                      className="text-slate-400 hover:text-white p-1 rounded-lg hover:bg-slate-800"
+                    >
+                      <X className="h-5 w-5" />
+                    </button>
+                  </div>
+
+                  {/* Formulaire des coordonnées */}
+                  <div className="space-y-4">
+                    <h4 className="text-xs font-mono uppercase tracking-wider text-slate-400 flex items-center gap-1.5">
+                      <Briefcase className="h-3.5 w-3.5 text-indigo-400" />
+                      1. Coordonnées & Identité Professionnelle
+                    </h4>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
+                      <div>
+                        <label className="text-[11px] font-medium text-slate-300 block mb-1">Prénom</label>
+                        <Input
+                          value={editUserFirstName}
+                          onChange={(e) => setEditUserFirstName(e.target.value)}
+                          placeholder="Ex: Jean"
+                          className="bg-slate-950 border-slate-700 text-xs"
+                        />
+                      </div>
+                      <div>
+                        <label className="text-[11px] font-medium text-slate-300 block mb-1">Nom de famille</label>
+                        <Input
+                          value={editUserLastName}
+                          onChange={(e) => setEditUserLastName(e.target.value)}
+                          placeholder="Ex: Tremblay"
+                          className="bg-slate-950 border-slate-700 text-xs"
+                        />
+                      </div>
+                      <div>
+                        <label className="text-[11px] font-medium text-slate-300 block mb-1">Courriel de connexion</label>
+                        <Input
+                          type="email"
+                          value={editUserEmail}
+                          onChange={(e) => setEditUserEmail(e.target.value)}
+                          placeholder="jean.tremblay@organisme.ca"
+                          className="bg-slate-950 border-slate-700 text-xs"
+                        />
+                      </div>
+                      <div>
+                        <label className="text-[11px] font-medium text-slate-300 block mb-1">Téléphone direct</label>
+                        <Input
+                          value={editUserPhone}
+                          onChange={(e) => setEditUserPhone(e.target.value)}
+                          placeholder="514-555-0199"
+                          className="bg-slate-950 border-slate-700 text-xs"
+                        />
+                      </div>
+                      <div className="sm:col-span-2">
+                        <label className="text-[11px] font-medium text-slate-300 block mb-1">Titre du poste / Fonction</label>
+                        <Input
+                          value={editUserJobTitle}
+                          onChange={(e) => setEditUserJobTitle(e.target.value)}
+                          placeholder="Ex: Directeur Général / Coordonnateur de projets"
+                          className="bg-slate-950 border-slate-700 text-xs"
+                        />
+                      </div>
+                    </div>
+
+                    {/* Rôles et Droits */}
+                    <div className="pt-3 border-t border-slate-800 space-y-2">
+                      <h4 className="text-xs font-mono uppercase tracking-wider text-slate-400 flex items-center gap-1.5">
+                        <ShieldCheck className="h-3.5 w-3.5 text-cyan-400" />
+                        2. Rôles & Niveaux d'Accès Applicatifs
+                      </h4>
+                      <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+                        {['Administrateur', "Membre d'équipe", 'Lecteur', 'Coordonnateur', 'Comptable'].map((roleName) => {
+                          const isSelected = editUserRoles.includes(roleName);
+                          return (
+                            <button
+                              key={roleName}
+                              type="button"
+                              onClick={() => {
+                                if (isSelected) {
+                                  setEditUserRoles(editUserRoles.filter((r) => r !== roleName));
+                                } else {
+                                  setEditUserRoles([...editUserRoles, roleName]);
+                                }
+                              }}
+                              className={`p-2.5 rounded-lg border text-left flex items-center justify-between text-xs transition ${
+                                isSelected
+                                  ? 'bg-cyan-950/50 border-cyan-500 text-cyan-200 font-bold'
+                                  : 'bg-slate-950 border-slate-800 text-slate-400 hover:border-slate-700'
+                              }`}
+                            >
+                              <span>{roleName}</span>
+                              {isSelected ? (
+                                <Check className="h-4 w-4 text-cyan-400 shrink-0" />
+                              ) : (
+                                <div className="h-4 w-4 rounded border border-slate-700 shrink-0" />
+                              )}
+                            </button>
+                          );
+                        })}
+                      </div>
+                    </div>
+
+                    {/* Réinitialisation de mot de passe */}
+                    <div className="pt-3 border-t border-slate-800 space-y-2">
+                      <div className="flex items-center justify-between">
+                        <h4 className="text-xs font-mono uppercase tracking-wider text-slate-400 flex items-center gap-1.5">
+                          <Lock className="h-3.5 w-3.5 text-amber-400" />
+                          3. Sécurité & Réinitialisation du Mot de Passe
+                        </h4>
+                        <button
+                          type="button"
+                          onClick={generateRandomPassword}
+                          className="inline-flex items-center gap-1 text-[11px] text-amber-400 hover:text-amber-300 font-medium"
+                        >
+                          <Sparkles className="h-3.5 w-3.5" />
+                          Générer un mot de passe temporaire
+                        </button>
+                      </div>
+                      <p className="text-[11px] text-slate-400">
+                        Laissez ce champ vide pour conserver le mot de passe actuel sans modification.
+                      </p>
+                      <div className="flex gap-2">
+                        <Input
+                          type="text"
+                          value={editUserPassword}
+                          onChange={(e) => setEditUserPassword(e.target.value)}
+                          placeholder="Saisir ou générer un nouveau mot de passe (min. 8 caractères)..."
+                          className="bg-slate-950 border-slate-700 text-xs font-mono text-amber-300"
+                        />
+                      </div>
+                    </div>
+
+                    {/* Statut du compte */}
+                    <div className="pt-3 border-t border-slate-800 space-y-2">
+                      <h4 className="text-xs font-mono uppercase tracking-wider text-slate-400 flex items-center gap-1.5">
+                        <Power className="h-3.5 w-3.5 text-emerald-400" />
+                        4. Statut d'Activité du Compte
+                      </h4>
+                      <div className="flex gap-3">
+                        <label className="flex items-center gap-2 cursor-pointer text-xs">
+                          <input
+                            type="radio"
+                            name="userStatus"
+                            value="active"
+                            checked={editUserStatus === 'active'}
+                            onChange={() => setEditUserStatus('active')}
+                            className="text-emerald-500 focus:ring-emerald-500"
+                          />
+                          <span className="text-emerald-400 font-medium">Actif (Accès autorisé)</span>
+                        </label>
+                        <label className="flex items-center gap-2 cursor-pointer text-xs">
+                          <input
+                            type="radio"
+                            name="userStatus"
+                            value="suspended"
+                            checked={editUserStatus === 'suspended'}
+                            onChange={() => setEditUserStatus('suspended')}
+                            className="text-red-500 focus:ring-red-500"
+                          />
+                          <span className="text-red-400 font-medium">Suspendu (Accès bloqué)</span>
+                        </label>
+                      </div>
+                    </div>
+
+                    {/* Liaison RH au dossier Personnel */}
+                    <div className="pt-3 border-t border-slate-800 space-y-3">
+                      <h4 className="text-xs font-mono uppercase tracking-wider text-slate-400 flex items-center gap-1.5">
+                        <Users className="h-3.5 w-3.5 text-purple-400" />
+                        5. Liaison avec la Fiche RH du Personnel
+                      </h4>
+                      {editingUserItem.linkedStaff ? (
+                        <div className="p-3 rounded-lg bg-emerald-950/40 border border-emerald-500/30 text-xs space-y-1">
+                          <div className="flex items-center gap-2 text-emerald-300 font-bold">
+                            <Check className="h-4 w-4" />
+                            Ce compte utilisateur est lié à : {editingUserItem.linkedStaff.firstName} {editingUserItem.linkedStaff.lastName}
+                          </div>
+                          <div className="text-slate-400 text-[11px]">
+                            Poste RH : {editingUserItem.linkedStaff.jobTitle || 'Non renseigné'} • Statut RH : {editingUserItem.linkedStaff.staffStatus || 'Actif'}
+                          </div>
+                        </div>
+                      ) : (
+                        <div className="p-3 rounded-lg bg-slate-950 border border-slate-800 space-y-3">
+                          <div className="flex items-center gap-2 text-amber-400 text-xs">
+                            <AlertTriangle className="h-4 w-4 shrink-0" />
+                            <span>Ce compte utilisateur n'est relié à aucune fiche collaborateur dans le module Personnel.</span>
+                          </div>
+
+                          <div className="space-y-2">
+                            <div className="flex gap-4 text-xs">
+                              <label className="flex items-center gap-1.5 cursor-pointer">
+                                <input
+                                  type="radio"
+                                  name="linkMode"
+                                  value="new"
+                                  checked={linkStaffMode === 'new'}
+                                  onChange={() => setLinkStaffMode('new')}
+                                />
+                                <span className="text-slate-300 font-medium">Créer une nouvelle fiche RH</span>
+                              </label>
+                              <label className="flex items-center gap-1.5 cursor-pointer">
+                                <input
+                                  type="radio"
+                                  name="linkMode"
+                                  value="existing"
+                                  checked={linkStaffMode === 'existing'}
+                                  onChange={() => setLinkStaffMode('existing')}
+                                />
+                                <span className="text-slate-300 font-medium">Lier à un collaborateur existant</span>
+                              </label>
+                            </div>
+
+                            {linkStaffMode === 'new' ? (
+                              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs pt-1">
+                                <div>
+                                  <label className="text-[10px] text-slate-400 block mb-0.5">Type de collaborateur</label>
+                                  <select
+                                    value={newStaffType}
+                                    onChange={(e) => setNewStaffType(e.target.value as any)}
+                                    className="w-full h-8 rounded border border-slate-700 bg-slate-900 px-2 text-xs text-slate-200"
+                                  >
+                                    <option value="employee">Salarié / Employé</option>
+                                    <option value="volunteer">Bénévole</option>
+                                    <option value="contractor">Contractuel / Consultant</option>
+                                    <option value="board_member">Membre du CA</option>
+                                  </select>
+                                </div>
+                                <div>
+                                  <label className="text-[10px] text-slate-400 block mb-0.5">Département</label>
+                                  <select
+                                    value={newStaffDeptId}
+                                    onChange={(e) => setNewStaffDeptId(e.target.value)}
+                                    className="w-full h-8 rounded border border-slate-700 bg-slate-900 px-2 text-xs text-slate-200"
+                                  >
+                                    <option value="">Aucun département</option>
+                                    {(tenantDetails.departments || []).map((d: any) => (
+                                      <option key={d.id} value={d.id}>
+                                        {d.name}
+                                      </option>
+                                    ))}
+                                  </select>
+                                </div>
+                              </div>
+                            ) : (
+                              <div className="text-xs pt-1">
+                                <label className="text-[10px] text-slate-400 block mb-0.5">Sélectionner le collaborateur</label>
+                                <select
+                                  value={selectedExistingPartyId}
+                                  onChange={(e) => setSelectedExistingPartyId(e.target.value)}
+                                  className="w-full h-8 rounded border border-slate-700 bg-slate-900 px-2 text-xs text-slate-200"
+                                >
+                                  <option value="">-- Choisir un collaborateur --</option>
+                                  {(tenantDetails.staff || []).map((s: any) => (
+                                    <option key={s.id} value={s.id}>
+                                      {s.firstName} {s.lastName} ({s.jobTitle || 'Sans titre'} • {s.staffType})
+                                    </option>
+                                  ))}
+                                </select>
+                              </div>
+                            )}
+
+                            <Button
+                              type="button"
+                              size="sm"
+                              className="w-full bg-purple-600 hover:bg-purple-500 text-white font-bold text-xs mt-2"
+                              disabled={linkStaffMutation.isPending}
+                              onClick={() => {
+                                linkStaffMutation.mutate({
+                                  userId: editingUserItem.user.id,
+                                  payload: {
+                                    createIfMissing: linkStaffMode === 'new',
+                                    partyId: linkStaffMode === 'existing' ? selectedExistingPartyId : undefined,
+                                    jobTitle: editUserJobTitle,
+                                    staffType: newStaffType,
+                                    departmentId: newStaffDeptId || undefined,
+                                  },
+                                });
+                              }}
+                            >
+                              <Link2 className="h-3.5 w-3.5 mr-1" />
+                              {linkStaffMutation.isPending
+                                ? 'Liaison en cours...'
+                                : linkStaffMode === 'new'
+                                ? 'Créer la fiche RH et lier immédiatement'
+                                : 'Associer à cette fiche collaborateur'}
+                            </Button>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Actions de validation */}
+                  <div className="flex items-center justify-end gap-3 pt-4 border-t border-slate-800">
+                    <Button
+                      variant="outline"
+                      className="border-slate-700 text-slate-300 text-xs"
+                      onClick={() => setEditingUserItem(null)}
+                    >
+                      Annuler
+                    </Button>
+                    <Button
+                      className="bg-cyan-600 hover:bg-cyan-500 text-white font-bold text-xs"
+                      disabled={updateUserMutation.isPending}
+                      onClick={() => {
+                        updateUserMutation.mutate({
+                          userId: editingUserItem.user.id,
+                          payload: {
+                            firstName: editUserFirstName,
+                            lastName: editUserLastName,
+                            email: editUserEmail,
+                            phone: editUserPhone,
+                            jobTitle: editUserJobTitle,
+                            roleNames: editUserRoles,
+                            status: editUserStatus,
+                            ...(editUserPassword.trim() ? { password: editUserPassword.trim() } : {}),
+                          },
+                        });
+                      }}
+                    >
+                      {updateUserMutation.isPending ? 'Enregistrement...' : 'Enregistrer toutes les modifications'}
+                    </Button>
+                  </div>
+                </div>
               </div>
             )}
 

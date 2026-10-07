@@ -4,11 +4,13 @@ import {
   DbClient,
   tenantRegistry,
   userAccount,
+  userCredential,
   membership,
   role,
   membershipRole,
   party,
   staffProfile,
+  beneficiaryProfile,
   orgUnit,
   project,
   caseFile,
@@ -21,6 +23,7 @@ import {
   fundingSource,
   planItem,
 } from '@orgdashio/shared';
+import { hash } from '@node-rs/argon2';
 import { eq, and, sql, desc } from 'drizzle-orm';
 
 @Injectable()
@@ -34,6 +37,7 @@ export class PlatformService {
     const tenants = await this.db.select().from(tenantRegistry).orderBy(desc(tenantRegistry.createdAt));
     const allMemberships = await this.db.select().from(membership);
     const allStaff = await this.db.select().from(staffProfile);
+    const allBen = await this.db.select().from(beneficiaryProfile);
     const allProjects = await this.db.select().from(project);
     const allCases = await this.db.select().from(caseFile);
     const allTrainings = await this.db.select().from(trainingSession);
@@ -42,6 +46,7 @@ export class PlatformService {
     return tenants.map((t) => {
       const tenantMemberships = allMemberships.filter((m) => m.tenantId === t.id);
       const tenantStaff = allStaff.filter((s) => s.tenantId === t.id);
+      const tenantBen = allBen.filter((b) => b.tenantId === t.id);
       const tenantProjects = allProjects.filter((p) => p.tenantId === t.id);
       const tenantCases = allCases.filter((c) => c.tenantId === t.id);
       const tenantTrainings = allTrainings.filter((tr) => tr.tenantId === t.id);
@@ -57,6 +62,7 @@ export class PlatformService {
           totalEmployees: tenantStaff.filter((s) => s.employmentType === 'employee').length,
           totalVolunteers: tenantStaff.filter((s) => s.employmentType === 'volunteer').length,
           totalBoard: tenantStaff.filter((s) => s.employmentType === 'board_member').length,
+          totalBeneficiaries: tenantBen.length,
           totalProjects: tenantProjects.length,
           totalCases: tenantCases.length,
           totalTrainings: tenantTrainings.length,
@@ -73,9 +79,37 @@ export class PlatformService {
     const [t] = await this.db.select().from(tenantRegistry).where(eq(tenantRegistry.id, tenantId));
     if (!t) throw new NotFoundException('Organisme client non trouvé');
 
-    // 1. Comptes utilisateurs et adhésions dans ce tenant
+    // 1. Personnel, Bénévoles, Bénéficiaires et Départements enregistrés
+    const staffList = await this.db.select().from(staffProfile).where(eq(staffProfile.tenantId, tenantId));
+    const benList = await this.db.select().from(beneficiaryProfile).where(eq(beneficiaryProfile.tenantId, tenantId));
+    const parties = await this.db.select().from(party).where(eq(party.tenantId, tenantId));
+    const departments = await this.db.select().from(orgUnit).where(eq(orgUnit.tenantId, tenantId));
+
+    const partyMap = new Map(parties.map((p) => [p.id, p]));
+    const deptMap = new Map(departments.map((d) => [d.id, d]));
+
+    const fullStaff = staffList.map((s) => {
+      const p = partyMap.get(s.partyId);
+      const d = s.departmentId ? deptMap.get(s.departmentId) : null;
+      return {
+        ...s,
+        party: p || null,
+        department: d || null,
+      };
+    });
+
+    const fullBeneficiaries = benList.map((b) => {
+      const p = partyMap.get(b.partyId);
+      return {
+        ...b,
+        party: p || null,
+      };
+    });
+
+    const staffByUserId = new Map(fullStaff.filter((s) => s.userId).map((s) => [s.userId, s]));
+
+    // 2. Comptes utilisateurs et adhésions dans ce tenant
     const memberships = await this.db.select().from(membership).where(eq(membership.tenantId, tenantId));
-    const userIds = memberships.map((m) => m.userId);
     const users = await this.db.select().from(userAccount);
     const tenantRoles = await this.db.select().from(role).where(eq(role.tenantId, tenantId));
     const memRoles = await this.db.select().from(membershipRole).where(eq(membershipRole.tenantId, tenantId));
@@ -87,6 +121,7 @@ export class PlatformService {
       const u = userMap.get(m.userId);
       const assignedMemRoles = memRoles.filter((mr) => mr.membershipId === m.id);
       const rolesList = assignedMemRoles.map((mr) => roleMap.get(mr.roleId)).filter(Boolean);
+      const linkedStaff = u ? staffByUserId.get(u.id) || null : null;
 
       return {
         membershipId: m.id,
@@ -107,24 +142,7 @@ export class PlatformService {
             }
           : null,
         roles: rolesList,
-      };
-    });
-
-    // 2. Personnel, Bénévoles et Départements enregistrés
-    const staffList = await this.db.select().from(staffProfile).where(eq(staffProfile.tenantId, tenantId));
-    const parties = await this.db.select().from(party).where(eq(party.tenantId, tenantId));
-    const departments = await this.db.select().from(orgUnit).where(eq(orgUnit.tenantId, tenantId));
-
-    const partyMap = new Map(parties.map((p) => [p.id, p]));
-    const deptMap = new Map(departments.map((d) => [d.id, d]));
-
-    const fullStaff = staffList.map((s) => {
-      const p = partyMap.get(s.partyId);
-      const d = s.departmentId ? deptMap.get(s.departmentId) : null;
-      return {
-        ...s,
-        party: p || null,
-        department: d || null,
+        linkedStaff,
       };
     });
 
@@ -177,6 +195,7 @@ export class PlatformService {
       tenant: t,
       users: usersWithRoles,
       staff: fullStaff,
+      beneficiaries: fullBeneficiaries,
       projects: enrichedProjects,
       cases: enrichedCases,
       trainings: enrichedTrainings,
@@ -191,6 +210,7 @@ export class PlatformService {
         totalEmployees: fullStaff.filter((s) => s.employmentType === 'employee').length,
         totalVolunteers: fullStaff.filter((s) => s.employmentType === 'volunteer').length,
         totalBoard: fullStaff.filter((s) => s.employmentType === 'board_member').length,
+        totalBeneficiaries: fullBeneficiaries.length,
         totalProjects: projectsList.length,
         totalCases: casesList.length,
         totalTrainings: trainingsList.length,
@@ -285,6 +305,175 @@ export class PlatformService {
       .where(eq(userAccount.id, userId));
 
     return { success: true, membership: updatedMembership };
+  }
+
+  /**
+   * Modifie les informations complètes d'un compte utilisateur, réinitialise son mot de passe ou change ses rôles.
+   */
+  async updateUserInTenant(
+    tenantId: string,
+    userId: string,
+    input: {
+      firstName?: string;
+      lastName?: string;
+      email?: string;
+      phone?: string;
+      jobTitle?: string;
+      status?: 'active' | 'suspended';
+      roleIds?: string[];
+      newPassword?: string;
+    }
+  ) {
+    const [user] = await this.db.select().from(userAccount).where(eq(userAccount.id, userId));
+    if (!user) throw new NotFoundException('Utilisateur non trouvé');
+
+    const [mem] = await this.db
+      .select()
+      .from(membership)
+      .where(and(eq(membership.tenantId, tenantId), eq(membership.userId, userId)));
+    if (!mem) throw new NotFoundException('Adhésion au tenant non trouvée');
+
+    // 1. Update userAccount fields
+    const userUpdates: any = { updatedAt: new Date() };
+    if (input.firstName !== undefined) userUpdates.firstName = input.firstName || null;
+    if (input.lastName !== undefined) userUpdates.lastName = input.lastName || null;
+    if (input.email !== undefined) userUpdates.email = input.email.toLowerCase().trim();
+    if (input.phone !== undefined) userUpdates.phone = input.phone || null;
+    if (input.jobTitle !== undefined) userUpdates.jobTitle = input.jobTitle || null;
+    if (input.status !== undefined) {
+      userUpdates.status = input.status;
+      await this.db
+        .update(membership)
+        .set({ status: input.status })
+        .where(eq(membership.id, mem.id));
+    }
+
+    const [updatedUser] = await this.db
+      .update(userAccount)
+      .set(userUpdates)
+      .where(eq(userAccount.id, userId))
+      .returning();
+
+    // 2. Reset password if provided
+    if (input.newPassword && input.newPassword.trim().length >= 8) {
+      const newSecretHash = await hash(input.newPassword);
+      const [existingCred] = await this.db
+        .select()
+        .from(userCredential)
+        .where(eq(userCredential.userId, userId));
+
+      if (existingCred) {
+        await this.db
+          .update(userCredential)
+          .set({ secretHash: newSecretHash, updatedAt: new Date() })
+          .where(eq(userCredential.userId, userId));
+      } else {
+        await this.db.insert(userCredential).values({
+          userId,
+          type: 'password',
+          secretHash: newSecretHash,
+        });
+      }
+    }
+
+    // 3. Update roles if provided
+    if (input.roleIds && Array.isArray(input.roleIds)) {
+      await this.db
+        .delete(membershipRole)
+        .where(and(eq(membershipRole.tenantId, tenantId), eq(membershipRole.membershipId, mem.id)));
+
+      for (const roleId of input.roleIds) {
+        await this.db.insert(membershipRole).values({
+          tenantId,
+          membershipId: mem.id,
+          roleId,
+        });
+      }
+    }
+
+    // 4. Synchronize linked staff profile / party if present
+    const [linkedStaff] = await this.db
+      .select()
+      .from(staffProfile)
+      .where(and(eq(staffProfile.tenantId, tenantId), eq(staffProfile.userId, userId)));
+
+    if (linkedStaff) {
+      await this.db
+        .update(party)
+        .set({
+          ...(input.firstName !== undefined && { firstName: input.firstName || null }),
+          ...(input.lastName !== undefined && { lastName: input.lastName || null }),
+          ...(input.email !== undefined && { email: input.email.toLowerCase().trim() }),
+          ...(input.phone !== undefined && { phone: input.phone || null }),
+        })
+        .where(and(eq(party.tenantId, tenantId), eq(party.id, linkedStaff.partyId)));
+
+      if (input.jobTitle !== undefined) {
+        await this.db
+          .update(staffProfile)
+          .set({ jobTitle: input.jobTitle || 'Collaborateur', updatedAt: new Date() })
+          .where(eq(staffProfile.id, linkedStaff.id));
+      }
+    }
+
+    return { success: true, user: updatedUser };
+  }
+
+  /**
+   * Lie un compte utilisateur à une fiche de personnel existante ou en crée une nouvelle.
+   */
+  async linkUserToStaffInTenant(
+    tenantId: string,
+    userId: string,
+    input?: { partyId?: string; jobTitle?: string; employmentType?: 'employee' | 'volunteer' | 'board_member' }
+  ) {
+    const [user] = await this.db.select().from(userAccount).where(eq(userAccount.id, userId));
+    if (!user) throw new NotFoundException('Utilisateur non trouvé');
+
+    if (input?.partyId) {
+      // Link to existing staffProfile
+      const [existingStaff] = await this.db
+        .select()
+        .from(staffProfile)
+        .where(and(eq(staffProfile.tenantId, tenantId), eq(staffProfile.partyId, input.partyId)));
+
+      if (existingStaff) {
+        const [updated] = await this.db
+          .update(staffProfile)
+          .set({ userId, updatedAt: new Date() })
+          .where(eq(staffProfile.id, existingStaff.id))
+          .returning();
+        return updated;
+      }
+    }
+
+    // Or create new party & staffProfile for user
+    const [newParty] = await this.db
+      .insert(party)
+      .values({
+        tenantId,
+        kind: 'person',
+        firstName: user.firstName || 'Collaborateur',
+        lastName: user.lastName || user.email.split('@')[0],
+        email: user.email,
+        phone: user.phone || null,
+      })
+      .returning();
+
+    const [newStaff] = await this.db
+      .insert(staffProfile)
+      .values({
+        tenantId,
+        partyId: newParty.id,
+        userId: user.id,
+        jobTitle: input?.jobTitle || user.jobTitle || 'Membre d’équipe',
+        employmentType: input?.employmentType || 'employee',
+        status: 'active',
+        hireDate: new Date().toISOString().split('T')[0],
+      })
+      .returning();
+
+    return newStaff;
   }
 
   /**

@@ -47,6 +47,24 @@ export class PlatformController {
     return this.platformService.setUserStatusInTenant(tenantId, userId, body.status);
   }
 
+  @Patch('tenants/:tenantId/users/:userId')
+  async updateUserInTenant(
+    @Param('tenantId') tenantId: string,
+    @Param('userId') userId: string,
+    @Body() body: any
+  ) {
+    return this.platformService.updateUserInTenant(tenantId, userId, body);
+  }
+
+  @Post('tenants/:tenantId/users/:userId/link-staff')
+  async linkUserToStaffInTenant(
+    @Param('tenantId') tenantId: string,
+    @Param('userId') userId: string,
+    @Body() body: any
+  ) {
+    return this.platformService.linkUserToStaffInTenant(tenantId, userId, body);
+  }
+
   @Patch('tenants/:tenantId/staff/:partyId')
   async updateStaffInTenant(
     @Param('tenantId') tenantId: string,

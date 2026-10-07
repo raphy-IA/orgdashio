@@ -8,6 +8,8 @@ export const RegisterTenantSchema = z.object({
   adminEmail: z
     .string()
     .email('Adresse courriel invalide'),
+  adminFirstName: z.string().max(50).optional().nullable(),
+  adminLastName: z.string().max(50).optional().nullable(),
   password: z
     .string()
     .min(12, 'Le mot de passe doit comporter au moins 12 caractères')

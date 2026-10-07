@@ -46,6 +46,12 @@ describe('RLS Inter-Tenant Isolation Tests (Strict Check)', () => {
   });
 
   afterAll(async () => {
+    if (db && (tenantA || tenantB)) {
+      try {
+        if (tenantA) await pool.query('DELETE FROM tenant_registry WHERE id = $1', [tenantA.id]);
+        if (tenantB) await pool.query('DELETE FROM tenant_registry WHERE id = $1', [tenantB.id]);
+      } catch (e) {}
+    }
     if (pool) {
       await pool.end();
     }
