@@ -321,7 +321,9 @@ export class PlatformService {
       jobTitle?: string;
       status?: 'active' | 'suspended';
       roleIds?: string[];
+      roleNames?: string[];
       newPassword?: string;
+      password?: string;
     }
   ) {
     const [user] = await this.db.select().from(userAccount).where(eq(userAccount.id, userId));
@@ -354,9 +356,10 @@ export class PlatformService {
       .where(eq(userAccount.id, userId))
       .returning();
 
-    // 2. Reset password if provided
-    if (input.newPassword && input.newPassword.trim().length >= 8) {
-      const newSecretHash = await hash(input.newPassword);
+    // 2. Reset password if provided (support newPassword or password)
+    const rawPassword = input.password || input.newPassword;
+    if (rawPassword && rawPassword.trim().length >= 6) {
+      const newSecretHash = await hash(rawPassword.trim());
       const [existingCred] = await this.db
         .select()
         .from(userCredential)
@@ -376,13 +379,23 @@ export class PlatformService {
       }
     }
 
-    // 3. Update roles if provided
+    // 3. Update roles if provided (support roleIds or roleNames)
+    let targetRoleIds: string[] = [];
     if (input.roleIds && Array.isArray(input.roleIds)) {
+      targetRoleIds = input.roleIds;
+    } else if (input.roleNames && Array.isArray(input.roleNames)) {
+      const allTenantRoles = await this.db.select().from(role).where(eq(role.tenantId, tenantId));
+      targetRoleIds = allTenantRoles
+        .filter((r) => input.roleNames!.includes(r.name) || input.roleNames!.includes(r.code))
+        .map((r) => r.id);
+    }
+
+    if (targetRoleIds.length > 0 || (input.roleNames && input.roleNames.length === 0)) {
       await this.db
         .delete(membershipRole)
         .where(and(eq(membershipRole.tenantId, tenantId), eq(membershipRole.membershipId, mem.id)));
 
-      for (const roleId of input.roleIds) {
+      for (const roleId of targetRoleIds) {
         await this.db.insert(membershipRole).values({
           tenantId,
           membershipId: mem.id,
