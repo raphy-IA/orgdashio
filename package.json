@@ -16,7 +16,8 @@
     "db:migrate": "pnpm --filter @orgdashio/shared db:migrate",
     "db:push": "pnpm --filter @orgdashio/shared db:push",
     "db:export:test": "tsx infra/scripts/generate-seed-export.ts",
-    "db:restore:test": "tsx infra/scripts/restore-seed.ts"
+    "db:restore:test": "tsx infra/scripts/restore-seed.ts",
+    "db:reset:sync": "tsx infra/scripts/reset-and-sync-db.ts"
   },
   "devDependencies": {
     "turbo": "^2.1.0",
