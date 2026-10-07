@@ -39,10 +39,10 @@ export class PeopleService {
 
   async findAll(tenantId: string) {
     return withTenantContext(this.db, tenantId, async (tx) => {
-      const parties = await tx.select().from(party);
-      const profiles = await tx.select().from(beneficiaryProfile);
-      const staffProfiles = await tx.select().from(staffProfile);
-      const departments = await tx.select().from(orgUnit);
+      const parties = await tx.select().from(party).where(eq(party.tenantId, tenantId));
+      const profiles = await tx.select().from(beneficiaryProfile).where(eq(beneficiaryProfile.tenantId, tenantId));
+      const staffProfiles = await tx.select().from(staffProfile).where(eq(staffProfile.tenantId, tenantId));
+      const departments = await tx.select().from(orgUnit).where(eq(orgUnit.tenantId, tenantId));
 
       // Fetch user accounts and roles for staff
       const userAccounts = await this.db
