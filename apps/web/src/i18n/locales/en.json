@@ -1,0 +1,61 @@
+{
+  "common": {
+    "appName": "OrgDashio",
+    "login": "Sign In",
+    "logout": "Sign Out",
+    "register": "Register",
+    "email": "Email Address",
+    "password": "Password",
+    "cancel": "Cancel",
+    "save": "Save",
+    "create": "Create",
+    "loading": "Loading...",
+    "language": "Language",
+    "back": "Back"
+  },
+  "auth": {
+    "loginTitle": "Sign in to your organization",
+    "registerTitle": "Register a new organization",
+    "tenantName": "Organization / Association Name",
+    "adminEmail": "Administrator Email",
+    "noAccount": "Don't have an account?",
+    "registerHere": "Register your organization",
+    "alreadyHaveAccount": "Already registered?",
+    "loginHere": "Sign In"
+  },
+  "project": {
+    "title": "Projects & Programs",
+    "createProject": "New Project",
+    "code": "Project Code",
+    "name": "Project Name",
+    "status": "Status",
+    "actions": "Actions",
+    "empty": "No projects found for this organization.",
+    "tabs": {
+      "overview": "Overview",
+      "logframe": "Logical Framework",
+      "wbs": "WBS & Tasks",
+      "budget": "Budget & Expenses",
+      "funding": "Funding",
+      "raid": "RAID Log"
+    },
+    "budget": {
+      "approved": "Approved Budget",
+      "spent": "Spent",
+      "remaining": "Remaining Balance",
+      "addExpense": "Add Expense",
+      "exportCsv": "Export Accounting CSV",
+      "category": "Budget Category",
+      "vendor": "Vendor",
+      "amount": "Amount",
+      "approve": "Approve"
+    },
+    "raid": {
+      "addRisk": "Add Risk / Item",
+      "type": "Type",
+      "title": "Title",
+      "severity": "Severity (P × I)",
+      "owner": "Owner"
+    }
+  }
+}

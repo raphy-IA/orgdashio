@@ -1,0 +1,26 @@
+{
+  "name": "orgdashio-monorepo",
+  "version": "0.1.0",
+  "private": true,
+  "packageManager": "pnpm@9.12.0",
+  "scripts": {
+    "dev": "turbo run dev",
+    "build": "turbo run build",
+    "lint": "turbo run lint",
+    "typecheck": "turbo run typecheck",
+    "test": "turbo run test",
+    "test:isolation": "turbo run test:isolation",
+    "check:rls": "tsx infra/scripts/check-rls.ts",
+    "verify": "pnpm lint && pnpm typecheck && pnpm test && pnpm check:rls",
+    "db:generate": "pnpm --filter @orgdashio/shared db:generate",
+    "db:migrate": "pnpm --filter @orgdashio/shared db:migrate",
+    "db:push": "pnpm --filter @orgdashio/shared db:push"
+  },
+  "devDependencies": {
+    "turbo": "^2.1.0",
+    "typescript": "^5.6.3",
+    "tsx": "^4.19.1",
+    "eslint": "^9.12.0",
+    "prettier": "^3.3.3"
+  }
+}

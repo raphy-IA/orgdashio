@@ -1,0 +1,3020 @@
+import React, { useState } from 'react';
+import { useParams, useNavigate } from 'react-router-dom';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { Button, Input } from '@orgdashio/ui';
+import {
+  ArrowLeft,
+  FolderKanban,
+  Target,
+  ListTodo,
+  DollarSign,
+  AlertTriangle,
+  HandCoins,
+  Plus,
+  FileSpreadsheet,
+  ChevronRight,
+  CheckCircle2,
+  Clock,
+  Ban,
+  CircleDot,
+  Flame,
+  TrendingUp,
+  BarChart3,
+  Pencil,
+  Check,
+  X,
+  Flag,
+  Layers,
+  Milestone as MilestoneIcon,
+  PackageCheck,
+  ListOrdered,
+  Calendar,
+  Users,
+  MessageSquare,
+  ShieldCheck,
+  UserCheck,
+  ExternalLink,
+  Paperclip,
+  Trash2,
+  Send,
+  Sparkles,
+} from 'lucide-react';
+import { Navbar } from '../../components/Navbar';
+
+// ─── Types ────────────────────────────────────────────────────────────────────
+type TabKey = 'overview' | 'logframe' | 'wbs' | 'tasks' | 'team' | 'budget' | 'raid' | 'funding';
+
+interface ProjectMember {
+  id: string;
+  projectId: string;
+  userId?: string | null;
+  partyId?: string | null;
+  name: string;
+  email?: string | null;
+  role: 'manager' | 'coordinator' | 'contributor' | 'stakeholder' | 'expert' | 'beneficiary_rep';
+  raciRole: 'R' | 'A' | 'C' | 'I';
+  allocationPct: number;
+  createdAt: string;
+}
+
+interface PlanItemRaci {
+  id: string;
+  projectId: string;
+  planItemId: string;
+  projectMemberId: string;
+  raciRole: 'R' | 'A' | 'C' | 'I';
+  createdAt: string;
+  updatedAt: string;
+}
+
+interface PlanItemUpdate {
+  id: string;
+  planItemId: string;
+  authorName: string;
+  authorUserId?: string | null;
+  progressPct?: number | null;
+  status?: string | null;
+  comment: string;
+  blockerReason?: string | null;
+  createdAt: string;
+}
+
+interface PlanItemDeliverable {
+  id: string;
+  planItemId: string;
+  title: string;
+  description?: string | null;
+  fileUrl?: string | null;
+  status: 'pending' | 'approved' | 'rejected';
+  verifiedBy?: string | null;
+  verifiedAt?: string | null;
+  createdAt: string;
+}
+
+interface PlanItem {
+  id: string;
+  parentId?: string | null;
+  type: 'phase' | 'activity' | 'task' | 'milestone' | 'deliverable';
+  wbs: string;
+  title: string;
+  startDate?: string | null;
+  endDate?: string | null;
+  progressPct?: number | null;
+  status: 'todo' | 'in_progress' | 'blocked' | 'completed' | 'cancelled';
+  assigneePartyId?: string | null;
+}
+
+interface ResultNode {
+  id: string;
+  parentId?: string | null;
+  level: 'impact' | 'outcome' | 'output';
+  title: string;
+  description?: string | null;
+}
+
+interface RaidItem {
+  id: string;
+  type: 'risk' | 'issue' | 'assumption' | 'dependency';
+  title: string;
+  description?: string | null;
+  probability?: number | null;
+  impact?: number | null;
+  ownerName?: string | null;
+  status?: string | null;
+}
+
+const MEMBER_ROLE_LABELS: Record<string, { label: string; color: string }> = {
+  manager: { label: 'Gestionnaire de Projet', color: 'bg-purple-100 text-purple-800 border-purple-200' },
+  coordinator: { label: 'Coordinateur d\'Activité', color: 'bg-indigo-100 text-indigo-800 border-indigo-200' },
+  contributor: { label: 'Contributeur / Exécutant', color: 'bg-sky-100 text-sky-800 border-sky-200' },
+  stakeholder: { label: 'Partie Prenante Clé', color: 'bg-emerald-100 text-emerald-800 border-emerald-200' },
+  expert: { label: 'Expert / Consultant', color: 'bg-amber-100 text-amber-800 border-amber-200' },
+  beneficiary_rep: { label: 'Représentant Bénéficiaires', color: 'bg-rose-100 text-rose-800 border-rose-200' },
+};
+
+const RACI_CONFIG: Record<
+  string,
+  { label: string; shortLabel: string; desc: string; color: string; badgeCls: string; pillCls: string }
+> = {
+  R: {
+    label: 'Réalisateur (Responsible)',
+    shortLabel: 'R',
+    desc: 'Effectue le travail et produit les résultats au quotidien',
+    color: 'bg-indigo-600 text-white',
+    badgeCls: 'bg-indigo-600 text-white font-bold',
+    pillCls: 'bg-indigo-100 text-indigo-800 border border-indigo-300 font-bold',
+  },
+  A: {
+    label: 'Approbateur / Décideur (Accountable)',
+    shortLabel: 'A',
+    desc: 'Porte la responsabilité globale du résultat et valide la conformité (1 seul recommandé par ligne)',
+    color: 'bg-amber-600 text-white',
+    badgeCls: 'bg-amber-600 text-white font-bold',
+    pillCls: 'bg-amber-100 text-amber-900 border border-amber-300 font-bold',
+  },
+  C: {
+    label: 'Consulté (Consulted)',
+    shortLabel: 'C',
+    desc: 'Fournit son expertise ou des avis préalables requis',
+    color: 'bg-purple-600 text-white',
+    badgeCls: 'bg-purple-600 text-white font-bold',
+    pillCls: 'bg-purple-100 text-purple-800 border border-purple-300 font-bold',
+  },
+  I: {
+    label: 'Informé (Informed)',
+    shortLabel: 'I',
+    desc: 'Tenu au courant de l’avancement et de la finalisation',
+    color: 'bg-teal-600 text-white',
+    badgeCls: 'bg-teal-600 text-white font-bold',
+    pillCls: 'bg-teal-100 text-teal-800 border border-teal-300 font-bold',
+  },
+};
+
+// ─── Helpers ──────────────────────────────────────────────────────────────────
+const STATUS_CONFIG: Record<string, { label: string; color: string; icon: React.ReactNode }> = {
+  todo: { label: 'À faire', color: 'text-slate-500 bg-slate-100', icon: <CircleDot className="h-3 w-3" /> },
+  in_progress: { label: 'En cours', color: 'text-indigo-700 bg-indigo-100', icon: <Clock className="h-3 w-3" /> },
+  blocked: { label: 'Bloqué', color: 'text-red-700 bg-red-100', icon: <Ban className="h-3 w-3" /> },
+  completed: { label: 'Terminé', color: 'text-emerald-700 bg-emerald-100', icon: <CheckCircle2 className="h-3 w-3" /> },
+  cancelled: { label: 'Annulé', color: 'text-slate-400 bg-slate-100', icon: <X className="h-3 w-3" /> },
+};
+
+const TYPE_CONFIG: Record<
+  string,
+  { label: string; color: string; icon: React.ReactNode; badgeClass: string }
+> = {
+  phase: {
+    label: 'Phase',
+    color: 'text-purple-700 bg-purple-50 border-purple-200',
+    badgeClass: 'bg-purple-100 text-purple-800 border border-purple-200',
+    icon: <Layers className="h-3.5 w-3.5 text-purple-600" />,
+  },
+  activity: {
+    label: 'Activité',
+    color: 'text-indigo-700 bg-indigo-50 border-indigo-200',
+    badgeClass: 'bg-indigo-100 text-indigo-800 border border-indigo-200',
+    icon: <ListOrdered className="h-3.5 w-3.5 text-indigo-600" />,
+  },
+  task: {
+    label: 'Tâche',
+    color: 'text-sky-700 bg-sky-50 border-sky-200',
+    badgeClass: 'bg-sky-100 text-sky-800 border border-sky-200',
+    icon: <CheckCircle2 className="h-3.5 w-3.5 text-sky-600" />,
+  },
+  milestone: {
+    label: 'Jalon',
+    color: 'text-amber-700 bg-amber-50 border-amber-200',
+    badgeClass: 'bg-amber-100 text-amber-800 border border-amber-300 font-semibold',
+    icon: <Flag className="h-3.5 w-3.5 text-amber-600 fill-amber-500/20" />,
+  },
+  deliverable: {
+    label: 'Livrable',
+    color: 'text-emerald-700 bg-emerald-50 border-emerald-200',
+    badgeClass: 'bg-emerald-100 text-emerald-800 border border-emerald-200',
+    icon: <PackageCheck className="h-3.5 w-3.5 text-emerald-600" />,
+  },
+};
+
+const LEVEL_CONFIG = {
+  impact: { label: 'Impact', color: 'bg-purple-100 text-purple-800 border-purple-200', indent: 0 },
+  outcome: { label: 'Résultat', color: 'bg-indigo-100 text-indigo-800 border-indigo-200', indent: 1 },
+  output: { label: 'Extrant', color: 'bg-sky-100 text-sky-800 border-sky-200', indent: 2 },
+};
+
+const RAID_TYPE_CONFIG: Record<string, { label: string; color: string }> = {
+  risk: { label: 'Risque', color: 'text-red-700 bg-red-100' },
+  issue: { label: 'Enjeu', color: 'text-orange-700 bg-orange-100' },
+  assumption: { label: 'Hypothèse', color: 'text-sky-700 bg-sky-100' },
+  dependency: { label: 'Dépendance', color: 'text-violet-700 bg-violet-100' },
+};
+
+const CATEGORY_LABELS: Record<string, string> = {
+  personnel: 'Personnel',
+  material: 'Matériel',
+  transport: 'Transport',
+  premises: 'Locaux',
+  communication: 'Communication',
+  training: 'Formation',
+  subcontracting: 'Sous-traitance',
+  administrative: 'Administratif',
+  direct_aid: 'Aide directe',
+};
+
+const FUNDING_TYPE_LABELS: Record<string, string> = {
+  grant: 'Subvention',
+  restricted_donation: 'Don restreint',
+  unrestricted: 'Don non restreint',
+  other: 'Autre',
+};
+
+function fmt(amount: number | string, currency = 'CAD') {
+  return Number(amount).toLocaleString('fr-CA', { style: 'currency', currency });
+}
+
+function ProgressBar({ value }: { value: number }) {
+  const pct = Math.max(0, Math.min(100, value));
+  const color = pct >= 100 ? 'bg-emerald-500' : pct >= 60 ? 'bg-indigo-500' : pct >= 30 ? 'bg-amber-500' : 'bg-slate-300';
+  return (
+    <div className="flex items-center gap-2">
+      <div className="h-2 flex-1 rounded-full bg-slate-100">
+        <div className={`h-2 rounded-full transition-all ${color}`} style={{ width: `${pct}%` }} />
+      </div>
+      <span className="w-8 text-right text-xs text-slate-500">{pct}%</span>
+    </div>
+  );
+}
+
+function SeverityBadge({ probability, impact }: { probability?: number | null; impact?: number | null }) {
+  const score = (probability || 1) * (impact || 1);
+  const cfg =
+    score >= 15
+      ? { label: 'Critique', cls: 'bg-red-100 text-red-800' }
+      : score >= 9
+        ? { label: 'Élevé', cls: 'bg-orange-100 text-orange-800' }
+        : score >= 4
+          ? { label: 'Modéré', cls: 'bg-amber-100 text-amber-800' }
+          : { label: 'Faible', cls: 'bg-green-100 text-green-800' };
+  return (
+    <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-semibold ${cfg.cls}`}>
+      {cfg.label} ({score}/25)
+    </span>
+  );
+}
+
+// ─── Inline editable progress / status ────────────────────────────────────────
+function InlineProgress({
+  item,
+  projectId,
+  onSaved,
+}: {
+  item: PlanItem;
+  projectId: string;
+  onSaved: () => void;
+}) {
+  const [editing, setEditing] = useState(false);
+  const [localPct, setLocalPct] = useState(item.progressPct ?? 0);
+  const [localStatus, setLocalStatus] = useState(item.status);
+
+  const mutation = useMutation({
+    mutationFn: async () => {
+      const res = await fetch(`/api/v1/projects/${projectId}/plan-items/${item.id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ progressPct: localPct, status: localStatus }),
+      });
+      if (!res.ok) throw new Error('Erreur mise à jour');
+      return res.json();
+    },
+    onSuccess: () => {
+      setEditing(false);
+      onSaved();
+    },
+  });
+
+  if (!editing) {
+    return (
+      <div className="flex items-center gap-2">
+        <ProgressBar value={item.progressPct ?? 0} />
+        <button
+          onClick={() => setEditing(true)}
+          className="rounded p-1 text-slate-400 opacity-0 transition hover:text-indigo-600 group-hover:opacity-100"
+        >
+          <Pencil className="h-3 w-3" />
+        </button>
+      </div>
+    );
+  }
+
+  return (
+    <div className="flex flex-col gap-1 rounded-lg border border-indigo-200 bg-indigo-50 p-2">
+      <div className="flex items-center gap-2">
+        <input
+          type="range"
+          min={0}
+          max={100}
+          step={5}
+          value={localPct}
+          onChange={(e) => setLocalPct(Number(e.target.value))}
+          className="flex-1"
+        />
+        <span className="w-10 text-sm font-semibold text-indigo-700">{localPct}%</span>
+      </div>
+      <select
+        value={localStatus}
+        onChange={(e) => setLocalStatus(e.target.value as PlanItem['status'])}
+        className="rounded border border-slate-200 bg-white px-2 py-1 text-xs"
+      >
+        {Object.entries(STATUS_CONFIG).map(([k, v]) => (
+          <option key={k} value={k}>{v.label}</option>
+        ))}
+      </select>
+      <div className="flex gap-1">
+        <Button size="sm" onClick={() => mutation.mutate()} disabled={mutation.isPending} className="h-6 px-2 text-xs">
+          <Check className="mr-1 h-3 w-3" /> Sauvegarder
+        </Button>
+        <Button size="sm" variant="ghost" onClick={() => setEditing(false)} className="h-6 px-2 text-xs">
+          <X className="h-3 w-3" />
+        </Button>
+      </div>
+    </div>
+  );
+}
+
+// ─── Main Component ───────────────────────────────────────────────────────────
+export function ProjectDetailScreen() {
+  const { id } = useParams<{ id: string }>();
+  const navigate = useNavigate();
+  const queryClient = useQueryClient();
+  const [activeTab, setActiveTab] = useState<TabKey>('overview');
+
+  // Modals & form state
+  const [showResultNodeForm, setShowResultNodeForm] = useState(false);
+  const [showPlanItemForm, setShowPlanItemForm] = useState(false);
+  const [showExpenseForm, setShowExpenseForm] = useState(false);
+  const [showBudgetLineForm, setShowBudgetLineForm] = useState(false);
+  const [showRaidForm, setShowRaidForm] = useState(false);
+  const [showFundingForm, setShowFundingForm] = useState(false);
+
+  // Result Node form
+  const [rnLevel, setRnLevel] = useState<'impact' | 'outcome' | 'output'>('impact');
+  const [rnTitle, setRnTitle] = useState('');
+  const [rnDesc, setRnDesc] = useState('');
+  const [rnParentId, setRnParentId] = useState('');
+
+  // Plan Item form
+  const [piType, setPiType] = useState<PlanItem['type']>('task');
+  const [piWbs, setPiWbs] = useState('');
+  const [piTitle, setPiTitle] = useState('');
+  const [piStart, setPiStart] = useState('');
+  const [piEnd, setPiEnd] = useState('');
+  const [piParentId, setPiParentId] = useState('');
+
+  // Expense form
+  const [expVendor, setExpVendor] = useState('');
+  const [expAmount, setExpAmount] = useState('');
+  const [expDate, setExpDate] = useState(new Date().toISOString().split('T')[0]);
+  const [expBudgetLineId, setExpBudgetLineId] = useState('');
+
+  // Budget Line form
+  const [blCategory, setBlCategory] = useState('personnel');
+  const [blDescription, setBlDescription] = useState('');
+  const [blAmount, setBlAmount] = useState('');
+
+  // RAID form
+  const [raidType, setRaidType] = useState<RaidItem['type']>('risk');
+  const [raidTitle, setRaidTitle] = useState('');
+  const [raidDesc, setRaidDesc] = useState('');
+  const [raidProb, setRaidProb] = useState('3');
+  const [raidImpact, setRaidImpact] = useState('3');
+  const [raidOwner, setRaidOwner] = useState('');
+
+  // Funding form
+  const [fsName, setFsName] = useState('');
+  const [fsType, setFsType] = useState('grant');
+  const [fsAmount, setFsAmount] = useState('');
+  const [fsDue, setFsDue] = useState('');
+
+  // Team Member & Stakeholder form
+  const [showMemberForm, setShowMemberForm] = useState(false);
+  const [tmSourceType, setTmSourceType] = useState<'personnel' | 'external'>('personnel');
+  const [tmPartyId, setTmPartyId] = useState('');
+  const [tmName, setTmName] = useState('');
+  const [tmEmail, setTmEmail] = useState('');
+  const [tmRole, setTmRole] = useState<ProjectMember['role']>('contributor');
+  const [tmRaciRole, setTmRaciRole] = useState<ProjectMember['raciRole']>('R');
+  const [tmAllocation, setTmAllocation] = useState('100');
+
+  // RACI Matrix Filters & View
+  const [raciFilterType, setRaciFilterType] = useState<string>('all');
+  const [raciSearch, setRaciSearch] = useState('');
+
+  // Task Drawer & Task Details
+  const [selectedTask, setSelectedTask] = useState<PlanItem | null>(null);
+  const [logComment, setLogComment] = useState('');
+  const [logProgress, setLogProgress] = useState<number>(0);
+  const [logIsBlocked, setLogIsBlocked] = useState(false);
+  const [logBlocker, setLogBlocker] = useState('');
+
+  // Deliverable form (inside drawer)
+  const [showDeliverableModal, setShowDeliverableModal] = useState(false);
+  const [delivTitle, setDelivTitle] = useState('');
+  const [delivDesc, setDelivDesc] = useState('');
+  const [delivUrl, setDelivUrl] = useState('');
+
+  const invalidate = () => queryClient.invalidateQueries({ queryKey: ['project', id] });
+
+  // ── Fetch Org Personnel & Contacts ──
+  const { data: orgPeople = [] } = useQuery({
+    queryKey: ['people'],
+    queryFn: async () => {
+      const res = await fetch('/api/v1/people');
+      if (!res.ok) return [];
+      return res.json();
+    },
+  });
+
+  // ── Fetch full project ──
+  const { data, isLoading } = useQuery({
+    queryKey: ['project', id],
+    queryFn: async () => {
+      const res = await fetch(`/api/v1/projects/${id}/full`);
+      if (!res.ok) throw new Error('Erreur chargement projet');
+      return res.json();
+    },
+    enabled: !!id,
+  });
+
+  // ── Mutations ──
+  const addResultNode = useMutation({
+    mutationFn: async () => {
+      const res = await fetch(`/api/v1/projects/${id}/result-nodes`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          level: rnLevel,
+          title: rnTitle,
+          description: rnDesc || undefined,
+          parentId: rnParentId || undefined,
+        }),
+      });
+      if (!res.ok) throw new Error('Erreur');
+      return res.json();
+    },
+    onSuccess: () => {
+      invalidate();
+      setRnTitle(''); setRnDesc(''); setRnParentId(''); setShowResultNodeForm(false);
+    },
+  });
+
+  const addPlanItem = useMutation({
+    mutationFn: async () => {
+      const res = await fetch(`/api/v1/projects/${id}/plan-items`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          type: piType,
+          wbs: piWbs || undefined,
+          title: piTitle,
+          startDate: piStart || undefined,
+          endDate: piEnd || undefined,
+          parentId: piParentId || undefined,
+          durationDays: 1,
+        }),
+      });
+      if (!res.ok) {
+        const errorData = await res.json().catch(() => ({}));
+        throw new Error(errorData.message || 'Erreur lors de la création de l\'élément');
+      }
+      return res.json();
+    },
+    onSuccess: () => {
+      invalidate();
+      setPiTitle(''); setPiWbs(''); setPiStart(''); setPiEnd(''); setPiParentId(''); setShowPlanItemForm(false);
+    },
+    onError: (err: any) => {
+      alert(err.message);
+    },
+  });
+
+  const addExpense = useMutation({
+    mutationFn: async () => {
+      const res = await fetch(`/api/v1/projects/${id}/expenses`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          vendor: expVendor,
+          amount: parseFloat(expAmount),
+          date: expDate,
+          budgetLineId: expBudgetLineId,
+          taxTps: 0,
+          taxTvq: 0,
+        }),
+      });
+      if (!res.ok) throw new Error('Erreur');
+      return res.json();
+    },
+    onSuccess: () => {
+      invalidate();
+      setExpVendor(''); setExpAmount(''); setExpBudgetLineId(''); setShowExpenseForm(false);
+    },
+  });
+
+  const addBudgetLine = useMutation({
+    mutationFn: async () => {
+      const res = await fetch(`/api/v1/projects/${id}/budget-lines`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ categoryCode: blCategory, description: blDescription, amount: parseFloat(blAmount) }),
+      });
+      if (!res.ok) throw new Error('Erreur');
+      return res.json();
+    },
+    onSuccess: () => {
+      invalidate();
+      setBlDescription(''); setBlAmount(''); setShowBudgetLineForm(false);
+    },
+  });
+
+  const addRaidItem = useMutation({
+    mutationFn: async () => {
+      const res = await fetch(`/api/v1/projects/${id}/raid-items`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          type: raidType,
+          title: raidTitle,
+          description: raidDesc || undefined,
+          probability: parseInt(raidProb),
+          impact: parseInt(raidImpact),
+          ownerName: raidOwner || undefined,
+        }),
+      });
+      if (!res.ok) throw new Error('Erreur');
+      return res.json();
+    },
+    onSuccess: () => {
+      invalidate();
+      setRaidTitle(''); setRaidDesc(''); setRaidOwner(''); setShowRaidForm(false);
+    },
+  });
+
+  const addFunding = useMutation({
+    mutationFn: async () => {
+      const res = await fetch(`/api/v1/projects/${id}/funding-sources`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          donorName: fsName,
+          fundingType: fsType,
+          amount: parseFloat(fsAmount),
+          currency: 'CAD',
+          reportDueAt: fsDue || undefined,
+        }),
+      });
+      if (!res.ok) throw new Error('Erreur');
+      return res.json();
+    },
+    onSuccess: () => {
+      invalidate();
+      setFsName(''); setFsAmount(''); setFsDue(''); setShowFundingForm(false);
+    },
+  });
+
+  const approveExpense = useMutation({
+    mutationFn: async (expenseId: string) => {
+      const res = await fetch(`/api/v1/projects/${id}/expenses/${expenseId}/approve`, { method: 'PATCH' });
+      if (!res.ok) throw new Error('Erreur approbation');
+      return res.json();
+    },
+    onSuccess: () => invalidate(),
+  });
+
+  const addMemberMutation = useMutation({
+    mutationFn: async () => {
+      const res = await fetch(`/api/v1/projects/${id}/members`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          partyId: tmPartyId || undefined,
+          name: tmName,
+          email: tmEmail || undefined,
+          role: tmRole,
+          raciRole: tmRaciRole,
+          allocationPct: parseInt(tmAllocation) || 100,
+        }),
+      });
+      if (!res.ok) throw new Error('Erreur ajout membre');
+      return res.json();
+    },
+    onSuccess: () => {
+      invalidate();
+      setTmName('');
+      setTmEmail('');
+      setTmPartyId('');
+      setShowMemberForm(false);
+    },
+  });
+
+  const removeMemberMutation = useMutation({
+    mutationFn: async (memberId: string) => {
+      const res = await fetch(`/api/v1/projects/${id}/members/${memberId}/remove`, { method: 'POST' });
+      if (!res.ok) throw new Error('Erreur suppression membre');
+      return res.json();
+    },
+    onSuccess: () => invalidate(),
+  });
+
+  const setRaciMutation = useMutation({
+    mutationFn: async ({
+      planItemId,
+      projectMemberId,
+      raciRole,
+    }: {
+      planItemId: string;
+      projectMemberId: string;
+      raciRole: 'R' | 'A' | 'C' | 'I' | null;
+    }) => {
+      const res = await fetch(`/api/v1/projects/${id}/raci`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          planItemId,
+          projectMemberId,
+          raciRole,
+        }),
+      });
+      if (!res.ok) throw new Error('Erreur enregistrement RACI');
+      return res.json();
+    },
+    onSuccess: () => invalidate(),
+  });
+
+  const addUpdateLogMutation = useMutation({
+    mutationFn: async () => {
+      if (!selectedTask) return;
+      const taskAssignee = members.find((m: any) => m.id === selectedTask.assigneePartyId);
+      const computedStatus = logIsBlocked
+        ? 'blocked'
+        : logProgress >= 100
+          ? 'completed'
+          : logProgress > 0
+            ? 'in_progress'
+            : 'todo';
+
+      const res = await fetch(`/api/v1/projects/${id}/plan-items/${selectedTask.id}/updates`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          authorName: taskAssignee?.name || 'Responsable de la tâche',
+          progressPct: logProgress,
+          status: computedStatus,
+          comment: logComment,
+          blockerReason: logIsBlocked ? logBlocker : undefined,
+        }),
+      });
+      if (!res.ok) throw new Error('Erreur publication mise à jour');
+      return res.json();
+    },
+    onSuccess: () => {
+      invalidate();
+      setLogComment('');
+      setLogBlocker('');
+      setLogIsBlocked(false);
+    },
+  });
+
+  const addDeliverableMutation = useMutation({
+    mutationFn: async () => {
+      if (!selectedTask) return;
+      const res = await fetch(`/api/v1/projects/${id}/plan-items/${selectedTask.id}/deliverables`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          title: delivTitle,
+          description: delivDesc || undefined,
+          fileUrl: delivUrl || undefined,
+        }),
+      });
+      if (!res.ok) throw new Error('Erreur dépôt livrable');
+      return res.json();
+    },
+    onSuccess: () => {
+      invalidate();
+      setDelivTitle(''); setDelivDesc(''); setDelivUrl(''); setShowDeliverableModal(false);
+    },
+  });
+
+  const verifyDeliverableMutation = useMutation({
+    mutationFn: async ({ deliverableId, status }: { deliverableId: string; status: 'approved' | 'rejected' }) => {
+      if (!selectedTask) return;
+      const res = await fetch(`/api/v1/projects/${id}/plan-items/${selectedTask.id}/deliverables/${deliverableId}/verify`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          status,
+          verifiedBy: 'Gestionnaire de Projet',
+        }),
+      });
+      if (!res.ok) throw new Error('Erreur validation livrable');
+      return res.json();
+    },
+    onSuccess: () => invalidate(),
+  });
+
+  // ── Loading ──
+  if (isLoading || !data) {
+    return (
+      <div className="flex min-h-screen items-center justify-center bg-slate-50">
+        <div className="flex flex-col items-center gap-3 text-slate-500">
+          <div className="h-8 w-8 animate-spin rounded-full border-2 border-indigo-600 border-t-transparent" />
+          <span>Chargement du projet…</span>
+        </div>
+      </div>
+    );
+  }
+
+  const {
+    project: proj,
+    fundingSources = [],
+    resultNodes = [],
+    planItems = [],
+    budget: projBudget,
+    expenses = [],
+    raidItems = [],
+    members = [],
+    raci = [],
+    updates = [],
+    deliverables = [],
+  } = data;
+
+  // ── Derived stats ──
+  const totalBudget = (projBudget?.lines || []).reduce((s: number, l: any) => s + parseFloat(l.amount || '0'), 0);
+  const totalApprovedExpenses = expenses
+    .filter((e: any) => e.status === 'approved' || e.status === 'paid')
+    .reduce((s: number, e: any) => s + parseFloat(e.amount || '0'), 0);
+  const totalPendingExpenses = expenses
+    .filter((e: any) => e.status === 'submitted')
+    .reduce((s: number, e: any) => s + parseFloat(e.amount || '0'), 0);
+  const totalFunding = fundingSources.reduce((s: number, f: any) => s + parseFloat(f.amount || '0'), 0);
+  const remaining = totalBudget - totalApprovedExpenses;
+  const avgProgress =
+    planItems.length > 0
+      ? Math.round(planItems.reduce((s: number, p: any) => s + (p.progressPct || 0), 0) / planItems.length)
+      : 0;
+  const completedTasks = planItems.filter((p: any) => p.status === 'completed').length;
+  const blockedTasks = planItems.filter((p: any) => p.status === 'blocked').length;
+
+  const TABS = [
+    { key: 'overview' as TabKey, label: 'Vue d\'ensemble', icon: FolderKanban },
+    { key: 'logframe' as TabKey, label: 'Cadre Logique', icon: Target },
+    { key: 'wbs' as TabKey, label: 'Planification', icon: ListTodo },
+    { key: 'tasks' as TabKey, label: 'Tâches & Évolution', icon: CheckCircle2 },
+    { key: 'team' as TabKey, label: 'Équipe & RACI', icon: Users },
+    { key: 'budget' as TabKey, label: 'Budget & Finances', icon: DollarSign },
+    { key: 'raid' as TabKey, label: 'RAID', icon: AlertTriangle },
+    { key: 'funding' as TabKey, label: 'Financement', icon: HandCoins },
+  ];
+
+  const PROJECT_STATUS_LABELS: Record<string, string> = {
+    planned: 'Planifié',
+    active: 'Actif',
+    suspended: 'Suspendu',
+    closed: 'Terminé',
+    cancelled: 'Annulé',
+  };
+
+  const PROJECT_STATUS_COLORS: Record<string, string> = {
+    planned: 'bg-sky-100 text-sky-800',
+    active: 'bg-emerald-100 text-emerald-800',
+    suspended: 'bg-amber-100 text-amber-800',
+    closed: 'bg-slate-100 text-slate-700',
+    cancelled: 'bg-red-100 text-red-800',
+  };
+
+  return (
+    <div className="min-h-screen bg-slate-50">
+      <Navbar />
+
+      {/* ── Header ── */}
+      <header className="border-b bg-white shadow-sm">
+        <div className="mx-auto max-w-7xl px-6">
+          {/* Top bar */}
+          <div className="flex items-center justify-between py-4">
+            <div className="flex items-center gap-3">
+              <button
+                onClick={() => navigate('/projects')}
+                className="flex items-center gap-1 rounded-md px-2 py-1 text-sm text-slate-500 transition hover:bg-slate-100 hover:text-slate-800"
+              >
+                <ArrowLeft className="h-4 w-4" />
+                Projets
+              </button>
+              <ChevronRight className="h-4 w-4 text-slate-300" />
+              <div className="flex items-center gap-3">
+                <span className="rounded bg-indigo-100 px-2 py-0.5 font-mono text-xs font-bold text-indigo-800">
+                  {proj.code}
+                </span>
+                <h1 className="text-lg font-bold text-slate-900">{proj.name}</h1>
+                <span
+                  className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-semibold ${
+                    PROJECT_STATUS_COLORS[proj.status] || 'bg-slate-100 text-slate-700'
+                  }`}
+                >
+                  {PROJECT_STATUS_LABELS[proj.status] || proj.status}
+                </span>
+              </div>
+            </div>
+            <Button variant="outline" size="sm" onClick={() => window.open(`/api/v1/projects/${id}/expenses/export`, '_blank')}>
+              <FileSpreadsheet className="mr-2 h-4 w-4 text-emerald-600" />
+              Exporter CSV
+            </Button>
+          </div>
+
+          {/* Quick stats strip */}
+          <div className="flex items-center gap-6 pb-3 text-xs text-slate-500">
+            <span className="flex items-center gap-1">
+              <BarChart3 className="h-3.5 w-3.5" />
+              <strong className="text-slate-700">{avgProgress}%</strong> avancement global
+            </span>
+            <span className="flex items-center gap-1">
+              <CheckCircle2 className="h-3.5 w-3.5 text-emerald-600" />
+              <strong className="text-slate-700">{completedTasks}</strong>/{planItems.length} éléments terminés
+            </span>
+            {blockedTasks > 0 && (
+              <span className="flex items-center gap-1 text-red-600">
+                <Flame className="h-3.5 w-3.5" />
+                <strong>{blockedTasks}</strong> bloqué{blockedTasks > 1 ? 's' : ''}
+              </span>
+            )}
+            <span className="flex items-center gap-1">
+              <DollarSign className="h-3.5 w-3.5 text-emerald-600" />
+              <strong className="text-slate-700">{fmt(totalFunding)}</strong> financé
+            </span>
+            <span className="flex items-center gap-1">
+              <TrendingUp className="h-3.5 w-3.5 text-indigo-600" />
+              <strong className="text-slate-700">{fmt(remaining)}</strong> solde budget
+            </span>
+          </div>
+
+          {/* Tab navigation */}
+          <div className="-mb-px flex gap-0">
+            {TABS.map((tab) => {
+              const Icon = tab.icon;
+              const isActive = activeTab === tab.key;
+              return (
+                <button
+                  key={tab.key}
+                  onClick={() => setActiveTab(tab.key)}
+                  className={`flex items-center gap-1.5 border-b-2 px-4 py-2.5 text-sm font-medium transition-colors ${
+                    isActive
+                      ? 'border-indigo-600 text-indigo-700'
+                      : 'border-transparent text-slate-500 hover:border-slate-300 hover:text-slate-700'
+                  }`}
+                >
+                  <Icon className="h-4 w-4" />
+                  {tab.label}
+                </button>
+              );
+            })}
+          </div>
+        </div>
+      </header>
+
+      {/* ── Content ── */}
+      <main className="mx-auto max-w-7xl p-6">
+        {/* ═══════════════════════════════════════════════════════════════ */}
+        {/* TAB: VUE D'ENSEMBLE                                            */}
+        {/* ═══════════════════════════════════════════════════════════════ */}
+        {activeTab === 'overview' && (
+          <div className="space-y-6">
+            {/* KPI Cards */}
+            <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
+              <div className="rounded-xl border bg-white p-5 shadow-sm">
+                <div className="flex items-start justify-between">
+                  <div>
+                    <p className="text-xs font-medium text-slate-500">Budget planifié</p>
+                    <p className="mt-1 text-2xl font-bold text-slate-900">{fmt(totalBudget)}</p>
+                  </div>
+                  <div className="rounded-lg bg-indigo-50 p-2">
+                    <DollarSign className="h-5 w-5 text-indigo-600" />
+                  </div>
+                </div>
+              </div>
+              <div className="rounded-xl border bg-white p-5 shadow-sm">
+                <div className="flex items-start justify-between">
+                  <div>
+                    <p className="text-xs font-medium text-slate-500">Dépenses approuvées</p>
+                    <p className="mt-1 text-2xl font-bold text-slate-900">{fmt(totalApprovedExpenses)}</p>
+                    {totalPendingExpenses > 0 && (
+                      <p className="mt-0.5 text-xs text-amber-600">+{fmt(totalPendingExpenses)} en attente</p>
+                    )}
+                  </div>
+                  <div className="rounded-lg bg-amber-50 p-2">
+                    <TrendingUp className="h-5 w-5 text-amber-600" />
+                  </div>
+                </div>
+              </div>
+              <div className="rounded-xl border bg-white p-5 shadow-sm">
+                <div className="flex items-start justify-between">
+                  <div>
+                    <p className="text-xs font-medium text-slate-500">Solde disponible</p>
+                    <p className={`mt-1 text-2xl font-bold ${remaining >= 0 ? 'text-emerald-600' : 'text-red-600'}`}>
+                      {fmt(remaining)}
+                    </p>
+                  </div>
+                  <div className={`rounded-lg p-2 ${remaining >= 0 ? 'bg-emerald-50' : 'bg-red-50'}`}>
+                    <BarChart3 className={`h-5 w-5 ${remaining >= 0 ? 'text-emerald-600' : 'text-red-600'}`} />
+                  </div>
+                </div>
+              </div>
+              <div className="rounded-xl border bg-white p-5 shadow-sm">
+                <div className="flex items-start justify-between">
+                  <div>
+                    <p className="text-xs font-medium text-slate-500">Financement total</p>
+                    <p className="mt-1 text-2xl font-bold text-slate-900">{fmt(totalFunding)}</p>
+                    <p className="mt-0.5 text-xs text-slate-400">{fundingSources.length} bailleur{fundingSources.length !== 1 ? 's' : ''}</p>
+                  </div>
+                  <div className="rounded-lg bg-violet-50 p-2">
+                    <HandCoins className="h-5 w-5 text-violet-600" />
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Progress by plan type */}
+            <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
+              <div className="rounded-xl border bg-white p-5 shadow-sm">
+                <h2 className="mb-4 text-sm font-semibold text-slate-700">Avancement global du projet</h2>
+                <div className="mb-4">
+                  <div className="mb-1 flex justify-between text-sm">
+                    <span className="text-slate-600">Progression moyenne</span>
+                    <span className="font-bold text-indigo-700">{avgProgress}%</span>
+                  </div>
+                  <div className="h-3 w-full overflow-hidden rounded-full bg-slate-100">
+                    <div
+                      className="h-3 rounded-full bg-gradient-to-r from-indigo-500 to-indigo-600 transition-all"
+                      style={{ width: `${avgProgress}%` }}
+                    />
+                  </div>
+                </div>
+                <div className="grid grid-cols-2 gap-3">
+                  {Object.entries(STATUS_CONFIG).map(([key, cfg]) => {
+                    const count = planItems.filter((p: any) => p.status === key).length;
+                    return (
+                      <div key={key} className="flex items-center justify-between rounded-lg bg-slate-50 px-3 py-2 text-sm">
+                        <span className={`flex items-center gap-1.5 rounded-full px-2 py-0.5 text-xs font-medium ${cfg.color}`}>
+                          {cfg.icon}
+                          {cfg.label}
+                        </span>
+                        <span className="font-bold text-slate-800">{count}</span>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+
+              {/* RAID summary */}
+              <div className="rounded-xl border bg-white p-5 shadow-sm">
+                <h2 className="mb-4 text-sm font-semibold text-slate-700">Registre RAID — Synthèse</h2>
+                {raidItems.length === 0 ? (
+                  <p className="text-sm text-slate-400">Aucun élément RAID enregistré.</p>
+                ) : (
+                  <div className="space-y-2">
+                    {Object.entries(RAID_TYPE_CONFIG).map(([type, cfg]) => {
+                      const items = raidItems.filter((r: any) => r.type === type);
+                      if (items.length === 0) return null;
+                      const high = items.filter((r: any) => (r.probability || 1) * (r.impact || 1) >= 9);
+                      return (
+                        <div key={type} className="flex items-center justify-between rounded-lg bg-slate-50 px-3 py-2 text-sm">
+                          <span className={`rounded-full px-2 py-0.5 text-xs font-semibold ${cfg.color}`}>{cfg.label}</span>
+                          <div className="flex items-center gap-3">
+                            <span className="text-slate-600">{items.length} total</span>
+                            {high.length > 0 && (
+                              <span className="font-semibold text-red-600">{high.length} élevé{high.length > 1 ? 's' : ''}</span>
+                            )}
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+
+                {/* Funding sources mini list */}
+                {fundingSources.length > 0 && (
+                  <>
+                    <h2 className="mb-3 mt-5 text-sm font-semibold text-slate-700">Sources de financement</h2>
+                    <div className="space-y-1">
+                      {fundingSources.map((fs: any) => (
+                        <div key={fs.id} className="flex items-center justify-between text-sm">
+                          <span className="text-slate-700">{fs.donorName}</span>
+                          <span className="font-semibold text-indigo-700">{fmt(fs.amount, fs.currency)}</span>
+                        </div>
+                      ))}
+                    </div>
+                  </>
+                )}
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* ═══════════════════════════════════════════════════════════════ */}
+        {/* TAB: CADRE LOGIQUE                                             */}
+        {/* ═══════════════════════════════════════════════════════════════ */}
+        {activeTab === 'logframe' && (
+          <div className="space-y-4">
+            <div className="flex items-center justify-between">
+              <div>
+                <h2 className="text-base font-bold text-slate-800">Cadre Logique (Chaîne de Résultats)</h2>
+                <p className="text-sm text-slate-500">Hiérarchie Impact → Résultat → Extrant</p>
+              </div>
+              <Button size="sm" onClick={() => setShowResultNodeForm(!showResultNodeForm)}>
+                <Plus className="mr-2 h-4 w-4" />
+                Ajouter un nœud
+              </Button>
+            </div>
+
+            {/* Add Result Node Form */}
+            {showResultNodeForm && (
+              <div className="rounded-xl border border-indigo-200 bg-indigo-50 p-5 shadow-sm">
+                <h3 className="mb-4 text-sm font-semibold text-indigo-800">Nouveau nœud de résultat</h3>
+                <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                  <div>
+                    <label className="mb-1 block text-xs font-medium text-slate-600">Niveau</label>
+                    <select
+                      value={rnLevel}
+                      onChange={(e) => setRnLevel(e.target.value as typeof rnLevel)}
+                      className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm"
+                    >
+                      <option value="impact">Impact</option>
+                      <option value="outcome">Résultat (Outcome)</option>
+                      <option value="output">Extrant (Output)</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label className="mb-1 block text-xs font-medium text-slate-600">Nœud parent (optionnel)</label>
+                    <select
+                      value={rnParentId}
+                      onChange={(e) => setRnParentId(e.target.value)}
+                      className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm"
+                    >
+                      <option value="">— Aucun (racine) —</option>
+                      {resultNodes.map((rn: any) => (
+                        <option key={rn.id} value={rn.id}>
+                          [{LEVEL_CONFIG[rn.level as keyof typeof LEVEL_CONFIG]?.label}] {rn.title}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                  <div className="sm:col-span-2">
+                    <label className="mb-1 block text-xs font-medium text-slate-600">Titre *</label>
+                    <Input value={rnTitle} onChange={(e) => setRnTitle(e.target.value)} placeholder="Ex: Améliorer l'accès à la formation..." />
+                  </div>
+                  <div className="sm:col-span-2">
+                    <label className="mb-1 block text-xs font-medium text-slate-600">Description (optionnel)</label>
+                    <textarea
+                      value={rnDesc}
+                      onChange={(e) => setRnDesc(e.target.value)}
+                      rows={2}
+                      className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm"
+                      placeholder="Contexte, indicateurs visés..."
+                    />
+                  </div>
+                </div>
+                <div className="mt-4 flex gap-2">
+                  <Button size="sm" onClick={() => addResultNode.mutate()} disabled={!rnTitle.trim() || addResultNode.isPending}>
+                    Enregistrer
+                  </Button>
+                  <Button size="sm" variant="ghost" onClick={() => setShowResultNodeForm(false)}>
+                    Annuler
+                  </Button>
+                </div>
+              </div>
+            )}
+
+            {/* Result Nodes Tree */}
+            {resultNodes.length === 0 ? (
+              <div className="rounded-xl border border-dashed border-slate-200 bg-white p-10 text-center">
+                <Target className="mx-auto mb-3 h-10 w-10 text-slate-300" />
+                <p className="text-sm font-medium text-slate-500">Aucun nœud de résultat défini</p>
+                <p className="mt-1 text-xs text-slate-400">Commencez par définir l'impact principal du projet.</p>
+              </div>
+            ) : (
+              <div className="space-y-2">
+                {(['impact', 'outcome', 'output'] as const).map((level) => {
+                  const nodes = resultNodes.filter((n: any) => n.level === level);
+                  if (nodes.length === 0) return null;
+                  const cfg = LEVEL_CONFIG[level];
+                  return (
+                    <div key={level}>
+                      <div className={`mb-1 flex items-center gap-2 text-xs font-bold uppercase tracking-wider`} style={{ paddingLeft: `${cfg.indent * 24}px` }}>
+                        <span className={`rounded-full border px-2 py-0.5 ${cfg.color}`}>{cfg.label}</span>
+                      </div>
+                      {nodes.map((node: any) => (
+                        <div
+                          key={node.id}
+                          className={`mb-2 rounded-lg border bg-white p-4 shadow-sm`}
+                          style={{ marginLeft: `${cfg.indent * 24}px` }}
+                        >
+                          <p className="font-medium text-slate-800">{node.title}</p>
+                          {node.description && (
+                            <p className="mt-1 text-sm text-slate-500">{node.description}</p>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* ═══════════════════════════════════════════════════════════════ */}
+        {/* TAB: PLANIFICATION (WBS)                                       */}
+        {/* ═══════════════════════════════════════════════════════════════ */}
+        {activeTab === 'wbs' && (
+          <div className="space-y-4">
+            <div className="flex items-center justify-between">
+              <div>
+                <h2 className="text-base font-bold text-slate-800">Structure de Découpage du Travail (WBS)</h2>
+                <p className="text-sm text-slate-500">Phases, activités, tâches, jalons et livrables</p>
+              </div>
+              <Button size="sm" onClick={() => setShowPlanItemForm(!showPlanItemForm)}>
+                <Plus className="mr-2 h-4 w-4" />
+                Ajouter un élément
+              </Button>
+            </div>
+
+            {/* Add Plan Item Form */}
+            {showPlanItemForm && (() => {
+              const selectedParent = planItems.find((p: any) => p.id === piParentId);
+              
+              // Calcul automatique du WBS suggéré
+              const getSuggestedWbs = () => {
+                if (piWbs) return piWbs;
+                if (!piParentId) {
+                  const rootItems = planItems.filter((p: any) => !p.parentId);
+                  return `${rootItems.length + 1}`;
+                }
+                const siblings = planItems.filter((p: any) => p.parentId === piParentId);
+                return selectedParent ? `${selectedParent.wbs}.${siblings.length + 1}` : '';
+              };
+
+              const suggestedWbs = getSuggestedWbs();
+
+              return (
+                <div className="rounded-xl border border-indigo-200 bg-indigo-50 p-5 shadow-sm">
+                  <h3 className="mb-4 text-sm font-semibold text-indigo-800">Nouvel élément de plan</h3>
+                  <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+                    <div>
+                      <label className="mb-1 block text-xs font-medium text-slate-600">Type</label>
+                      <select
+                        value={piType}
+                        onChange={(e) => {
+                          const newType = e.target.value as PlanItem['type'];
+                          setPiType(newType);
+                          if (newType === 'milestone') {
+                            // Jalon : date unique (aligner date début et fin si une date existe)
+                            const dateToUse = piEnd || piStart;
+                            setPiStart(dateToUse);
+                            setPiEnd(dateToUse);
+                          }
+                        }}
+                        className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm"
+                      >
+                        {Object.entries(TYPE_CONFIG).map(([k, v]) => (
+                          <option key={k} value={k}>{v.label}</option>
+                        ))}
+                      </select>
+                    </div>
+                    <div>
+                      <label className="mb-1 block text-xs font-medium text-slate-600">Élément parent</label>
+                      <select
+                        value={piParentId}
+                        onChange={(e) => {
+                          const newParentId = e.target.value;
+                          setPiParentId(newParentId);
+                          // Auto-remplir le WBS suggéré
+                          const parent = planItems.find((p: any) => p.id === newParentId);
+                          if (parent) {
+                            const siblings = planItems.filter((p: any) => p.parentId === newParentId);
+                            setPiWbs(`${parent.wbs}.${siblings.length + 1}`);
+                            // Pré-remplir / adapter les dates
+                            if (piType === 'milestone') {
+                              const milestoneDate = parent.endDate || parent.startDate || '';
+                              setPiStart(milestoneDate);
+                              setPiEnd(milestoneDate);
+                            } else {
+                              if (parent.startDate && (!piStart || piStart < parent.startDate)) {
+                                setPiStart(parent.startDate);
+                              }
+                              if (parent.endDate && (!piEnd || piEnd > parent.endDate)) {
+                                setPiEnd(parent.endDate);
+                              }
+                            }
+                          } else {
+                            const rootItems = planItems.filter((p: any) => !p.parentId);
+                            setPiWbs(`${rootItems.length + 1}`);
+                          }
+                        }}
+                        className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm"
+                      >
+                        <option value="">— Aucun (Racine - Phase / Projet) —</option>
+                        {planItems.filter((p: any) => p.type === 'phase' || p.type === 'activity').map((p: any) => (
+                          <option key={p.id} value={p.id}>
+                            {p.wbs} — {p.title} {p.startDate && p.endDate ? `(${p.startDate} au ${p.endDate})` : ''}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                    <div>
+                      <label className="mb-1 block text-xs font-medium text-slate-600">
+                        Code WBS (automatique ou manuel)
+                      </label>
+                      <Input
+                        value={piWbs || suggestedWbs}
+                        onChange={(e) => setPiWbs(e.target.value)}
+                        placeholder={suggestedWbs || '1.1'}
+                      />
+                    </div>
+                    <div className="sm:col-span-3">
+                      <label className="mb-1 block text-xs font-medium text-slate-600">Titre *</label>
+                      <Input
+                        value={piTitle}
+                        onChange={(e) => setPiTitle(e.target.value)}
+                        placeholder={
+                          piType === 'milestone'
+                            ? 'Ex: Validation finale du rapport, Livraison des équipements...'
+                            : piType === 'phase'
+                              ? 'Ex: Phase 1 — Cadrage et préparation...'
+                              : 'Ex: Réaliser les entretiens avec les bénéficiaires...'
+                        }
+                      />
+                    </div>
+
+                    {/* Dates conditionnelles : Jalon = date unique / Autres = période début-fin */}
+                    {piType === 'milestone' ? (
+                      <div className="sm:col-span-3">
+                        <label className="mb-1 block text-xs font-medium text-slate-600">
+                          Date cible du Jalon *
+                          {selectedParent?.startDate && selectedParent?.endDate && (
+                            <span className="ml-1 text-[10px] text-indigo-600">
+                              (doit être entre le {selectedParent.startDate} et le {selectedParent.endDate})
+                            </span>
+                          )}
+                        </label>
+                        <Input
+                          type="date"
+                          value={piEnd || piStart}
+                          min={selectedParent?.startDate || undefined}
+                          max={selectedParent?.endDate || undefined}
+                          onChange={(e) => {
+                            setPiStart(e.target.value);
+                            setPiEnd(e.target.value);
+                          }}
+                        />
+                      </div>
+                    ) : (
+                      <>
+                        <div>
+                          <label className="mb-1 block text-xs font-medium text-slate-600">
+                            Date de début
+                            {selectedParent?.startDate && (
+                              <span className="ml-1 text-[10px] text-indigo-600">(min: {selectedParent.startDate})</span>
+                            )}
+                          </label>
+                          <Input
+                            type="date"
+                            value={piStart}
+                            min={selectedParent?.startDate || undefined}
+                            max={selectedParent?.endDate || piEnd || undefined}
+                            onChange={(e) => setPiStart(e.target.value)}
+                          />
+                        </div>
+                        <div>
+                          <label className="mb-1 block text-xs font-medium text-slate-600">
+                            Date de fin
+                            {selectedParent?.endDate && (
+                              <span className="ml-1 text-[10px] text-indigo-600">(max: {selectedParent.endDate})</span>
+                            )}
+                          </label>
+                          <Input
+                            type="date"
+                            value={piEnd}
+                            min={piStart || selectedParent?.startDate || undefined}
+                            max={selectedParent?.endDate || undefined}
+                            onChange={(e) => setPiEnd(e.target.value)}
+                          />
+                        </div>
+                      </>
+                    )}
+                  </div>
+
+                  {selectedParent && (
+                    <div className="mt-3 rounded-lg bg-indigo-100/60 p-2.5 text-xs text-indigo-900">
+                      <strong>Intervalle du parent ({selectedParent.wbs}) :</strong>{' '}
+                      {selectedParent.startDate && selectedParent.endDate
+                        ? `${selectedParent.startDate} au ${selectedParent.endDate}`
+                        : selectedParent.startDate
+                          ? `À partir du ${selectedParent.startDate}`
+                          : 'Aucune date limite définie sur le parent'}
+                    </div>
+                  )}
+
+                  <div className="mt-4 flex gap-2">
+                    <Button
+                      size="sm"
+                      onClick={() => {
+                        if (!piWbs && suggestedWbs) {
+                          setPiWbs(suggestedWbs);
+                        }
+                        if (piType === 'milestone') {
+                          // Assurer que les deux dates correspondent pour un jalon
+                          const milestoneDate = piEnd || piStart;
+                          setPiStart(milestoneDate);
+                          setPiEnd(milestoneDate);
+                        }
+                        addPlanItem.mutate();
+                      }}
+                      disabled={!piTitle.trim() || addPlanItem.isPending}
+                    >
+                      Enregistrer
+                    </Button>
+                    <Button size="sm" variant="ghost" onClick={() => setShowPlanItemForm(false)}>
+                      Annuler
+                    </Button>
+                  </div>
+                </div>
+              );
+            })()}
+
+            {/* WBS Table */}
+            {planItems.length === 0 ? (
+              <div className="rounded-xl border border-dashed border-slate-200 bg-white p-10 text-center">
+                <ListTodo className="mx-auto mb-3 h-10 w-10 text-slate-300" />
+                <p className="text-sm font-medium text-slate-500">Aucun élément de plan défini</p>
+                <p className="mt-1 text-xs text-slate-400">Structurez le projet en phases, activités, tâches et jalons.</p>
+              </div>
+            ) : (
+              <div className="overflow-hidden rounded-xl border bg-white shadow-sm">
+                <table className="w-full text-sm">
+                  <thead className="border-b bg-slate-50">
+                    <tr className="text-left text-xs font-semibold uppercase tracking-wide text-slate-500">
+                      <th className="px-4 py-3">WBS</th>
+                      <th className="px-4 py-3">Type</th>
+                      <th className="px-4 py-3">Titre</th>
+                      <th className="px-4 py-3">Période / Date</th>
+                      <th className="w-44 px-4 py-3">Avancement</th>
+                      <th className="px-4 py-3">Statut</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100">
+                    {[...planItems]
+                      .sort((a: any, b: any) => a.wbs.localeCompare(b.wbs, undefined, { numeric: true }))
+                      .map((item: any) => {
+                        const depth = item.parentId ? 1 : 0;
+                        const statusCfg = STATUS_CONFIG[item.status] || STATUS_CONFIG.todo;
+                        const typeCfg = TYPE_CONFIG[item.type] || TYPE_CONFIG.task;
+                        const isMilestone = item.type === 'milestone';
+
+                        return (
+                          <tr key={item.id} className="group hover:bg-slate-50">
+                            <td className="px-4 py-3 font-mono text-xs font-medium text-slate-500">{item.wbs}</td>
+                            <td className="px-4 py-3">
+                              <span className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-0.5 text-xs font-medium ${typeCfg.badgeClass}`}>
+                                {typeCfg.icon}
+                                {typeCfg.label}
+                              </span>
+                            </td>
+                            <td className="px-4 py-3">
+                              <span
+                                className={`font-medium ${isMilestone ? 'text-amber-900 font-semibold' : 'text-slate-800'}`}
+                                style={{ paddingLeft: `${depth * 16}px` }}
+                              >
+                                {depth > 0 && <span className="mr-1 text-slate-300">↳</span>}
+                                {item.title}
+                              </span>
+                            </td>
+                            <td className="px-4 py-3 text-xs text-slate-600">
+                              {isMilestone ? (
+                                <span className="inline-flex items-center gap-1 rounded bg-amber-50 px-2 py-0.5 font-medium text-amber-800 border border-amber-200">
+                                  <Flag className="h-3 w-3 text-amber-600" />
+                                  {item.endDate || item.startDate || '—'}
+                                </span>
+                              ) : item.startDate && item.endDate ? (
+                                <span className="flex items-center gap-1">
+                                  <Calendar className="h-3 w-3 text-slate-400" />
+                                  {item.startDate} → {item.endDate}
+                                </span>
+                              ) : (
+                                item.startDate || '—'
+                              )}
+                            </td>
+                            <td className="px-4 py-3">
+                              <InlineProgress item={item} projectId={id!} onSaved={invalidate} />
+                            </td>
+                            <td className="px-4 py-3">
+                              <span className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-medium ${statusCfg.color}`}>
+                                {statusCfg.icon}
+                                {statusCfg.label}
+                              </span>
+                            </td>
+                          </tr>
+                        );
+                      })}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* ═══════════════════════════════════════════════════════════════ */}
+        {/* TAB: TÂCHES & ÉVOLUTION                                         */}
+        {/* ═══════════════════════════════════════════════════════════════ */}
+        {activeTab === 'tasks' && (
+          <div className="space-y-6">
+            <div className="flex items-center justify-between">
+              <div>
+                <h2 className="text-base font-bold text-slate-800">Centre d'Évolution des Tâches & Livrables</h2>
+                <p className="text-sm text-slate-500">
+                  Cliquez sur n'importe quelle tâche pour ouvrir son journal d'évolution, consigner des logs, signaler un blocage ou déposer un livrable.
+                </p>
+              </div>
+            </div>
+
+            {/* Kanban Columns */}
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-5">
+              {Object.entries(STATUS_CONFIG).map(([statusKey, cfg]) => {
+                const items = planItems.filter((p: any) => p.status === statusKey && (p.type === 'task' || p.type === 'milestone'));
+                return (
+                  <div key={statusKey} className="space-y-3">
+                    <div className={`flex items-center justify-between rounded-lg px-3 py-2 text-xs font-semibold ${cfg.color}`}>
+                      <span className="flex items-center gap-1.5">{cfg.icon} {cfg.label}</span>
+                      <span className="rounded-full bg-white/70 px-2 py-0.5 font-bold">{items.length}</span>
+                    </div>
+                    {items.length === 0 && (
+                      <div className="rounded-xl border border-dashed border-slate-200 p-4 text-center text-xs text-slate-300">
+                        Aucune tâche
+                      </div>
+                    )}
+                    {items.map((item: any) => {
+                      const typeCfg = TYPE_CONFIG[item.type] || TYPE_CONFIG.task;
+                      const isMilestone = item.type === 'milestone';
+                      const taskUpdates = updates.filter((u: any) => u.planItemId === item.id);
+                      const taskDeliverables = deliverables.filter((d: any) => d.planItemId === item.id);
+                      const hasBlocker = item.status === 'blocked';
+
+                      return (
+                        <div
+                          key={item.id}
+                          onClick={() => {
+                            setSelectedTask(item);
+                            setLogProgress(item.progressPct || 0);
+                            setLogIsBlocked(item.status === 'blocked');
+                          }}
+                          className={`cursor-pointer rounded-xl border bg-white p-4 shadow-sm transition hover:border-indigo-400 hover:shadow-md ${
+                            hasBlocker ? 'border-red-300 bg-red-50/30' : ''
+                          }`}
+                        >
+                          <div className="mb-2 flex items-center justify-between">
+                            <span className="font-mono text-xs font-bold text-slate-500">{item.wbs}</span>
+                            <span className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] ${typeCfg.badgeClass}`}>
+                              {typeCfg.icon}
+                              {typeCfg.label}
+                            </span>
+                          </div>
+                          <p className="text-sm font-semibold text-slate-900">{item.title}</p>
+                          
+                          {item.endDate && (
+                            <p className="mt-2 flex items-center gap-1 text-xs text-slate-500">
+                              {isMilestone ? <Flag className="h-3.5 w-3.5 text-amber-500" /> : <Calendar className="h-3.5 w-3.5 text-slate-400" />}
+                              {isMilestone ? `Jalon le : ${item.endDate}` : `Échéance : ${item.endDate}`}
+                            </p>
+                          )}
+
+                          <div className="mt-3">
+                            <ProgressBar value={item.progressPct || 0} />
+                          </div>
+
+                          {/* Mini badges for updates and deliverables */}
+                          <div className="mt-3 flex items-center gap-3 border-t border-slate-100 pt-2 text-[11px] text-slate-500">
+                            <span className="flex items-center gap-1">
+                              <MessageSquare className="h-3 w-3 text-indigo-500" />
+                              {taskUpdates.length} log{taskUpdates.length !== 1 ? 's' : ''}
+                            </span>
+                            <span className="flex items-center gap-1">
+                              <PackageCheck className="h-3 w-3 text-emerald-500" />
+                              {taskDeliverables.length} livrable{taskDeliverables.length !== 1 ? 's' : ''}
+                            </span>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                );
+              })}
+            </div>
+
+            {/* Non-task items (phases, activities, deliverables) */}
+            {planItems.filter((p: any) => p.type === 'phase' || p.type === 'activity' || p.type === 'deliverable').length > 0 && (
+              <div className="mt-8">
+                <h3 className="mb-3 text-sm font-bold text-slate-700">Phases, Activités & Livrables Globaux</h3>
+                <div className="overflow-hidden rounded-xl border bg-white shadow-sm">
+                  <table className="w-full text-sm">
+                    <thead className="border-b bg-slate-50">
+                      <tr className="text-left text-xs font-semibold uppercase text-slate-500">
+                        <th className="px-4 py-3">WBS</th>
+                        <th className="px-4 py-3">Type</th>
+                        <th className="px-4 py-3">Titre</th>
+                        <th className="px-4 py-3">Logs & Livrables</th>
+                        <th className="px-4 py-3">Avancement</th>
+                        <th className="px-4 py-3">Action</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-100">
+                      {planItems
+                        .filter((p: any) => p.type === 'phase' || p.type === 'activity' || p.type === 'deliverable')
+                        .sort((a: any, b: any) => a.wbs.localeCompare(b.wbs, undefined, { numeric: true }))
+                        .map((item: any) => {
+                          const typeCfg = TYPE_CONFIG[item.type] || TYPE_CONFIG.activity;
+                          const taskUpdates = updates.filter((u: any) => u.planItemId === item.id);
+                          const taskDeliverables = deliverables.filter((d: any) => d.planItemId === item.id);
+
+                          return (
+                            <tr key={item.id} className="group hover:bg-slate-50">
+                              <td className="px-4 py-3 font-mono text-xs font-semibold text-slate-400">{item.wbs}</td>
+                              <td className="px-4 py-3">
+                                <span className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-medium ${typeCfg.badgeClass}`}>
+                                  {typeCfg.icon}
+                                  {typeCfg.label}
+                                </span>
+                              </td>
+                              <td className="px-4 py-3 font-semibold text-slate-800">{item.title}</td>
+                              <td className="px-4 py-3 text-xs text-slate-500">
+                                <span className="mr-3 inline-flex items-center gap-1">
+                                  <MessageSquare className="h-3 w-3 text-indigo-500" /> {taskUpdates.length}
+                                </span>
+                                <span className="inline-flex items-center gap-1">
+                                  <PackageCheck className="h-3 w-3 text-emerald-500" /> {taskDeliverables.length}
+                                </span>
+                              </td>
+                              <td className="w-44 px-4 py-3">
+                                <ProgressBar value={item.progressPct || 0} />
+                              </td>
+                              <td className="px-4 py-3">
+                                <Button
+                                  size="sm"
+                                  variant="outline"
+                                  className="h-7 text-xs"
+                                  onClick={() => {
+                                    setSelectedTask(item);
+                                    setLogProgress(item.progressPct || 0);
+                                    setLogIsBlocked(item.status === 'blocked');
+                                  }}
+                                >
+                                  Ouvrir journal
+                                </Button>
+                              </td>
+                            </tr>
+                          );
+                        })}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* ═══════════════════════════════════════════════════════════════ */}
+        {/* TAB: ÉQUIPE, PARTIES PRENANTES & MATRICE RACI 2D               */}
+        {/* ═══════════════════════════════════════════════════════════════ */}
+        {activeTab === 'team' && (() => {
+          // Sort items for RACI Matrix
+          const sortedPlanItems = [...planItems].sort((a: any, b: any) => {
+            const partsA = (a.wbs || '').split('.').map((n: string) => parseInt(n, 10) || 0);
+            const partsB = (b.wbs || '').split('.').map((n: string) => parseInt(n, 10) || 0);
+            const len = Math.max(partsA.length, partsB.length);
+            for (let i = 0; i < len; i++) {
+              const valA = partsA[i] ?? -1;
+              const valB = partsB[i] ?? -1;
+              if (valA !== valB) return valA - valB;
+            }
+            return (a.title || '').localeCompare(b.title || '');
+          });
+
+          // Filter plan items for RACI view
+          const filteredRaciItems = sortedPlanItems.filter((item: any) => {
+            if (raciFilterType !== 'all' && item.type !== raciFilterType) return false;
+            if (raciSearch.trim() && !item.title.toLowerCase().includes(raciSearch.toLowerCase()) && !item.wbs.includes(raciSearch)) {
+              return false;
+            }
+            return true;
+          });
+
+          // Compute overall RACI coverage (items with at least 1 R and 1 A)
+          const compliantItemsCount = planItems.filter((item: any) => {
+            const itemRacis = raci.filter((r: any) => r.planItemId === item.id);
+            const countA = itemRacis.filter((r: any) => r.raciRole === 'A').length;
+            const countR = itemRacis.filter((r: any) => r.raciRole === 'R').length;
+            return countA === 1 && countR >= 1;
+          }).length;
+
+          const raciCoveragePct = planItems.length > 0 ? Math.round((compliantItemsCount / planItems.length) * 100) : 0;
+
+          return (
+            <div className="space-y-8">
+              {/* Header & KPI Summary */}
+              <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+                <div>
+                  <h2 className="text-xl font-bold text-slate-900 flex items-center gap-2">
+                    <Users className="h-6 w-6 text-indigo-600" />
+                    Parties Prenantes & Matrice RACI
+                  </h2>
+                  <p className="text-sm text-slate-500 mt-1">
+                    Affectation des membres de l'organisation et gouvernance fine des responsabilités par Phase, Activité et Livrable
+                  </p>
+                </div>
+                <Button
+                  onClick={() => {
+                    setShowMemberForm(true);
+                    setTmSourceType('personnel');
+                    setTmPartyId('');
+                    setTmName('');
+                    setTmEmail('');
+                  }}
+                  className="shadow-sm"
+                >
+                  <Plus className="mr-2 h-4 w-4" />
+                  Ajouter une partie prenante
+                </Button>
+              </div>
+
+              {/* KPI Cards */}
+              <div className="grid grid-cols-1 gap-4 sm:grid-cols-4">
+                <div className="rounded-xl border bg-white p-4 shadow-sm">
+                  <span className="text-xs font-semibold uppercase tracking-wider text-slate-500">Parties prenantes</span>
+                  <p className="mt-1 text-2xl font-bold text-slate-900">{members.length}</p>
+                  <p className="text-xs text-slate-400 mt-0.5">Affectées à ce projet</p>
+                </div>
+                <div className="rounded-xl border bg-white p-4 shadow-sm">
+                  <span className="text-xs font-semibold uppercase tracking-wider text-slate-500">Éléments WBS couverts</span>
+                  <p className="mt-1 text-2xl font-bold text-indigo-600">{compliantItemsCount} / {planItems.length}</p>
+                  <p className="text-xs text-slate-400 mt-0.5">Avec Approbateur (A) & Réalisateur (R)</p>
+                </div>
+                <div className="rounded-xl border bg-white p-4 shadow-sm">
+                  <span className="text-xs font-semibold uppercase tracking-wider text-slate-500">Conformité RACI</span>
+                  <p className={`mt-1 text-2xl font-bold ${raciCoveragePct >= 80 ? 'text-emerald-600' : raciCoveragePct >= 50 ? 'text-amber-600' : 'text-slate-700'}`}>
+                    {raciCoveragePct}%
+                  </p>
+                  <p className="text-xs text-slate-400 mt-0.5">Qualité de la gouvernance</p>
+                </div>
+                <div className="rounded-xl border bg-white p-4 shadow-sm">
+                  <span className="text-xs font-semibold uppercase tracking-wider text-slate-500">Affectations actives</span>
+                  <p className="mt-1 text-2xl font-bold text-purple-600">{raci.length}</p>
+                  <p className="text-xs text-slate-400 mt-0.5">Rôles attribués dans la grille</p>
+                </div>
+              </div>
+
+              {/* Stakeholder Addition Modal / Form */}
+              {showMemberForm && (
+                <div className="rounded-xl border border-indigo-200 bg-indigo-50/70 p-6 shadow-md animate-in fade-in duration-200">
+                  <div className="flex items-center justify-between border-b border-indigo-100 pb-3 mb-4">
+                    <div>
+                      <h3 className="text-base font-bold text-indigo-950 flex items-center gap-2">
+                        <UserCheck className="h-5 w-5 text-indigo-600" />
+                        Ajouter une partie prenante ou un membre au projet
+                      </h3>
+                      <p className="text-xs text-slate-600">
+                        Sélectionnez un membre existant du personnel ou ajoutez un partenaire / consultant externe
+                      </p>
+                    </div>
+                    <Button variant="ghost" size="sm" onClick={() => setShowMemberForm(false)}>
+                      <X className="h-5 w-5" />
+                    </Button>
+                  </div>
+
+                  {/* Mode Selector Tabs */}
+                  <div className="mb-4 flex gap-2">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setTmSourceType('personnel');
+                        setTmPartyId('');
+                        setTmName('');
+                        setTmEmail('');
+                      }}
+                      className={`rounded-lg px-4 py-2 text-xs font-bold transition ${
+                        tmSourceType === 'personnel'
+                          ? 'bg-indigo-600 text-white shadow-sm'
+                          : 'bg-white text-slate-700 hover:bg-slate-100 border'
+                      }`}
+                    >
+                      👥 Personnel / Membre de l'organisation
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setTmSourceType('external');
+                        setTmPartyId('');
+                        setTmName('');
+                        setTmEmail('');
+                      }}
+                      className={`rounded-lg px-4 py-2 text-xs font-bold transition ${
+                        tmSourceType === 'external'
+                          ? 'bg-indigo-600 text-white shadow-sm'
+                          : 'bg-white text-slate-700 hover:bg-slate-100 border'
+                      }`}
+                    >
+                      🌐 Partie prenante externe / Consultant / Partenaire
+                    </button>
+                  </div>
+
+                  <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+                    {/* Personnel Selector from Org People Directory */}
+                    {tmSourceType === 'personnel' ? (
+                      <div className="sm:col-span-2">
+                        <label className="mb-1 block text-xs font-bold text-slate-700">
+                          Sélectionner un membre du personnel / contact existant *
+                        </label>
+                        <select
+                          value={tmPartyId}
+                          onChange={(e) => {
+                            const pId = e.target.value;
+                            setTmPartyId(pId);
+                            const found = orgPeople.find((p: any) => p.id === pId);
+                            if (found) {
+                              setTmName(`${found.firstName || ''} ${found.lastName || ''}`.trim() || 'Sans nom');
+                              setTmEmail(found.email || '');
+                            } else {
+                              setTmName('');
+                              setTmEmail('');
+                            }
+                          }}
+                          className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500"
+                        >
+                          <option value="">— Choisir dans le répertoire de l'organisation —</option>
+                          {orgPeople.map((p: any) => (
+                            <option key={p.id} value={p.id}>
+                              {p.firstName} {p.lastName} {p.email ? `(${p.email})` : ''}
+                            </option>
+                          ))}
+                        </select>
+                        {orgPeople.length === 0 && (
+                          <p className="mt-1 text-xs text-amber-600">
+                            Aucune personne enregistrée dans l'annuaire. Vous pouvez basculer en mode externe ou enregistrer du personnel dans le module Personnes.
+                          </p>
+                        )}
+                      </div>
+                    ) : (
+                      <>
+                        <div>
+                          <label className="mb-1 block text-xs font-bold text-slate-700">Nom complet *</label>
+                          <Input
+                            value={tmName}
+                            onChange={(e) => setTmName(e.target.value)}
+                            placeholder="Ex: Jean Dupont"
+                            className="bg-white"
+                          />
+                        </div>
+                        <div>
+                          <label className="mb-1 block text-xs font-bold text-slate-700">Courriel</label>
+                          <Input
+                            type="email"
+                            value={tmEmail}
+                            onChange={(e) => setTmEmail(e.target.value)}
+                            placeholder="jean.dupont@partenaire.org"
+                            className="bg-white"
+                          />
+                        </div>
+                      </>
+                    )}
+
+                    {/* Role in Project */}
+                    <div>
+                      <label className="mb-1 block text-xs font-bold text-slate-700">Rôle dans le projet *</label>
+                      <select
+                        value={tmRole}
+                        onChange={(e) => setTmRole(e.target.value as ProjectMember['role'])}
+                        className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500"
+                      >
+                        {Object.entries(MEMBER_ROLE_LABELS).map(([k, v]) => (
+                          <option key={k} value={k}>{v.label}</option>
+                        ))}
+                      </select>
+                    </div>
+
+                    {/* Allocation % */}
+                    <div>
+                      <label className="mb-1 block text-xs font-bold text-slate-700">Taux d'allocation prévisionnel (%)</label>
+                      <Input
+                        type="number"
+                        min={1}
+                        max={100}
+                        value={tmAllocation}
+                        onChange={(e) => setTmAllocation(e.target.value)}
+                        className="bg-white"
+                      />
+                    </div>
+                  </div>
+
+                  <div className="mt-5 flex items-center justify-end gap-2">
+                    <Button variant="ghost" size="sm" onClick={() => setShowMemberForm(false)}>
+                      Annuler
+                    </Button>
+                    <Button
+                      size="sm"
+                      onClick={() => addMemberMutation.mutate()}
+                      disabled={!tmName.trim() || addMemberMutation.isPending}
+                    >
+                      <Check className="mr-1.5 h-4 w-4" />
+                      Confirmer l'affectation
+                    </Button>
+                  </div>
+                </div>
+              )}
+
+              {/* ─────────────────────────────────────────────────────────── */}
+              {/* SECTION 1: RÉPERTOIRE DES PARTIES PRENANTES & ÉQUIPE PROJET */}
+              {/* ─────────────────────────────────────────────────────────── */}
+              <div className="rounded-xl border bg-white shadow-sm overflow-hidden">
+                <div className="flex items-center justify-between border-b bg-slate-50 px-6 py-4">
+                  <div>
+                    <h3 className="font-bold text-slate-900">1. Répertoire des Parties Prenantes & Équipe Projet</h3>
+                    <p className="text-xs text-slate-500">Liste des intervenants avec bilan de leurs responsabilités sur le projet</p>
+                  </div>
+                  <span className="text-xs font-semibold text-slate-500">{members.length} membre(s)</span>
+                </div>
+
+                {members.length === 0 ? (
+                  <div className="p-8 text-center text-slate-400">
+                    <Users className="mx-auto mb-2 h-8 w-8 text-slate-300" />
+                    <p className="text-sm font-medium">Aucune partie prenante affectée au projet.</p>
+                    <p className="text-xs mt-1">Ajoutez des membres de l'organisation pour pouvoir leur assigner des rôles RACI.</p>
+                  </div>
+                ) : (
+                  <table className="w-full text-left text-sm">
+                    <thead className="border-b bg-slate-50/70 text-xs font-semibold uppercase text-slate-500">
+                      <tr>
+                        <th className="px-6 py-3">Nom & Contact</th>
+                        <th className="px-6 py-3">Provenance</th>
+                        <th className="px-6 py-3">Rôle projet</th>
+                        <th className="px-6 py-3 text-center">Implication</th>
+                        <th className="px-6 py-3 text-center">Bilan des Rôles RACI</th>
+                        <th className="px-6 py-3 text-right">Action</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-100">
+                      {members.map((member: any) => {
+                        const roleCfg = MEMBER_ROLE_LABELS[member.role] || MEMBER_ROLE_LABELS.contributor;
+                        const memberRacis = raci.filter((r: any) => r.projectMemberId === member.id);
+                        const countR = memberRacis.filter((r: any) => r.raciRole === 'R').length;
+                        const countA = memberRacis.filter((r: any) => r.raciRole === 'A').length;
+                        const countC = memberRacis.filter((r: any) => r.raciRole === 'C').length;
+                        const countI = memberRacis.filter((r: any) => r.raciRole === 'I').length;
+
+                        return (
+                          <tr key={member.id} className="hover:bg-slate-50">
+                            <td className="px-6 py-3">
+                              <div className="font-bold text-slate-900">{member.name}</div>
+                              {member.email && <div className="text-xs text-slate-400">{member.email}</div>}
+                            </td>
+                            <td className="px-6 py-3">
+                              <span className={`inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-xs font-semibold ${
+                                member.partyId || member.userId
+                                  ? 'bg-blue-50 text-blue-700 border border-blue-200'
+                                  : 'bg-slate-100 text-slate-600 border border-slate-200'
+                              }`}>
+                                {member.partyId || member.userId ? '🏢 Membre Organisation' : '🌐 Externe / Partenaire'}
+                              </span>
+                            </td>
+                            <td className="px-6 py-3">
+                              <span className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-semibold border ${roleCfg.color}`}>
+                                {roleCfg.label}
+                              </span>
+                            </td>
+                            <td className="px-6 py-3 text-center font-mono text-xs font-bold text-slate-700">
+                              {member.allocationPct}%
+                            </td>
+                            <td className="px-6 py-3">
+                              <div className="flex items-center justify-center gap-1.5">
+                                <span title="Réalisateur (R)" className="inline-flex items-center gap-0.5 rounded px-1.5 py-0.5 text-[11px] font-bold bg-indigo-100 text-indigo-800 border border-indigo-200">
+                                  R: {countR}
+                                </span>
+                                <span title="Approbateur (A)" className="inline-flex items-center gap-0.5 rounded px-1.5 py-0.5 text-[11px] font-bold bg-amber-100 text-amber-900 border border-amber-200">
+                                  A: {countA}
+                                </span>
+                                <span title="Consulté (C)" className="inline-flex items-center gap-0.5 rounded px-1.5 py-0.5 text-[11px] font-bold bg-purple-100 text-purple-800 border border-purple-200">
+                                  C: {countC}
+                                </span>
+                                <span title="Informé (I)" className="inline-flex items-center gap-0.5 rounded px-1.5 py-0.5 text-[11px] font-bold bg-teal-100 text-teal-800 border border-teal-200">
+                                  I: {countI}
+                                </span>
+                              </div>
+                            </td>
+                            <td className="px-6 py-3 text-right">
+                              <Button
+                                size="sm"
+                                variant="ghost"
+                                className="text-red-600 hover:bg-red-50 hover:text-red-700 h-8 w-8 p-0"
+                                onClick={() => removeMemberMutation.mutate(member.id)}
+                              >
+                                <Trash2 className="h-4 w-4" />
+                              </Button>
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                )}
+              </div>
+
+              {/* ─────────────────────────────────────────────────────────── */}
+              {/* SECTION 2: MATRICE RACI 2D PAR PHASE / ACTIVITÉ / TÂCHE     */}
+              {/* ─────────────────────────────────────────────────────────── */}
+              <div className="rounded-xl border bg-white shadow-sm overflow-hidden">
+                {/* RACI Matrix Header & Toolbar */}
+                <div className="border-b bg-slate-50 p-6 space-y-4">
+                  <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                    <div>
+                      <h3 className="text-base font-bold text-slate-900 flex items-center gap-2">
+                        <ShieldCheck className="h-5 w-5 text-indigo-600" />
+                        2. Matrice RACI 2D par Phase, Activité et Livrable
+                      </h3>
+                      <p className="text-xs text-slate-500 mt-0.5">
+                        Définissez les responsabilités précises pour chaque élément WBS en attribuant les rôles aux parties prenantes
+                      </p>
+                    </div>
+                  </div>
+
+                  {/* Filter Toolbar */}
+                  <div className="flex flex-wrap items-center justify-between gap-3 pt-2">
+                    {/* Type filter buttons */}
+                    <div className="flex flex-wrap gap-1">
+                      {[
+                        { key: 'all', label: 'Tout afficher' },
+                        { key: 'phase', label: 'Phases' },
+                        { key: 'activity', label: 'Activités' },
+                        { key: 'task', label: 'Tâches' },
+                        { key: 'deliverable', label: 'Livrables' },
+                      ].map((f) => (
+                        <button
+                          key={f.key}
+                          type="button"
+                          onClick={() => setRaciFilterType(f.key)}
+                          className={`rounded-lg px-3 py-1.5 text-xs font-semibold transition ${
+                            raciFilterType === f.key
+                              ? 'bg-indigo-600 text-white shadow-sm'
+                              : 'bg-white text-slate-600 border hover:bg-slate-100'
+                          }`}
+                        >
+                          {f.label}
+                        </button>
+                      ))}
+                    </div>
+
+                    {/* Quick Search */}
+                    <div className="w-64">
+                      <Input
+                        value={raciSearch}
+                        onChange={(e) => setRaciSearch(e.target.value)}
+                        placeholder="Rechercher une phase ou activité..."
+                        className="h-8 text-xs bg-white"
+                      />
+                    </div>
+                  </div>
+                </div>
+
+                {/* RACI Matrix Table */}
+                {planItems.length === 0 ? (
+                  <div className="p-10 text-center text-slate-400">
+                    <Layers className="mx-auto mb-2 h-8 w-8 text-slate-300" />
+                    <p className="text-sm font-medium">Aucun élément dans le WBS pour l'instant.</p>
+                    <p className="text-xs mt-1">Créez des phases, activités ou tâches dans l'onglet Planification (WBS) pour construire la matrice RACI.</p>
+                  </div>
+                ) : members.length === 0 ? (
+                  <div className="p-10 text-center text-slate-400">
+                    <Users className="mx-auto mb-2 h-8 w-8 text-slate-300" />
+                    <p className="text-sm font-medium">Veuillez d'abord ajouter au moins une partie prenante ci-dessus.</p>
+                  </div>
+                ) : (
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-left text-xs border-collapse">
+                      <thead className="border-b bg-slate-100/90 text-slate-700 font-bold sticky top-0 z-10">
+                        <tr>
+                          {/* WBS Item Column */}
+                          <th className="min-w-[280px] max-w-[340px] px-4 py-3.5 border-r border-slate-200">
+                            Élément du Projet (WBS)
+                          </th>
+
+                          {/* Dynamic Member Columns */}
+                          {members.map((member: any) => (
+                            <th key={member.id} className="min-w-[130px] px-3 py-3 text-center border-r border-slate-200 bg-slate-50/60">
+                              <div className="font-bold text-slate-900 truncate" title={member.name}>
+                                {member.name}
+                              </div>
+                              <div className="text-[10px] font-medium text-slate-500 truncate" title={MEMBER_ROLE_LABELS[member.role]?.label || member.role}>
+                                {MEMBER_ROLE_LABELS[member.role]?.label || member.role}
+                              </div>
+                            </th>
+                          ))}
+
+                          {/* Governance Checker Column */}
+                          <th className="min-w-[170px] px-4 py-3.5 text-center bg-slate-100">
+                            Gouvernance RACI
+                          </th>
+                        </tr>
+                      </thead>
+
+                      <tbody className="divide-y divide-slate-200">
+                        {filteredRaciItems.map((item: any) => {
+                          const depth = (item.wbs.split('.').length - 1);
+                          const typeCfg = TYPE_CONFIG[item.type] || TYPE_CONFIG.activity;
+
+                          // Governance check
+                          const itemRacis = raci.filter((r: any) => r.planItemId === item.id);
+                          const countA = itemRacis.filter((r: any) => r.raciRole === 'A').length;
+                          const countR = itemRacis.filter((r: any) => r.raciRole === 'R').length;
+
+                          const isCompliant = countA === 1 && countR >= 1;
+
+                          return (
+                            <tr key={item.id} className={`hover:bg-indigo-50/30 transition ${item.type === 'phase' ? 'bg-slate-50/60 font-semibold' : ''}`}>
+                              {/* WBS Title & Info */}
+                              <td className="px-4 py-3 border-r border-slate-200">
+                                <div className="flex items-center gap-2" style={{ paddingLeft: `${depth * 14}px` }}>
+                                  <span className="font-mono text-[11px] font-bold text-slate-500">{item.wbs}</span>
+                                  <span className={`inline-flex items-center gap-0.5 rounded px-1.5 py-0.5 text-[10px] font-bold ${typeCfg.badgeClass}`}>
+                                    {typeCfg.icon}
+                                    {typeCfg.label}
+                                  </span>
+                                  <span className="font-medium text-slate-900 truncate" title={item.title}>
+                                    {item.title}
+                                  </span>
+                                </div>
+                              </td>
+
+                              {/* Member RACI Cells */}
+                              {members.map((member: any) => {
+                                const assignment = raci.find(
+                                  (r: any) => r.planItemId === item.id && r.projectMemberId === member.id
+                                );
+                                const currentRole = assignment?.raciRole as ('R' | 'A' | 'C' | 'I' | undefined);
+
+                                return (
+                                  <td key={member.id} className="px-2 py-2 text-center border-r border-slate-200">
+                                    <div className="flex items-center justify-center">
+                                      <select
+                                        value={currentRole || ''}
+                                        onChange={(e) => {
+                                          const val = e.target.value as 'R' | 'A' | 'C' | 'I' | '';
+                                          setRaciMutation.mutate({
+                                            planItemId: item.id,
+                                            projectMemberId: member.id,
+                                            raciRole: val ? val : null,
+                                          });
+                                        }}
+                                        className={`w-24 rounded-lg px-2 py-1 text-xs font-bold text-center border cursor-pointer transition ${
+                                          currentRole === 'R'
+                                            ? 'bg-indigo-600 text-white border-indigo-700 shadow-sm'
+                                            : currentRole === 'A'
+                                              ? 'bg-amber-500 text-white border-amber-600 shadow-sm'
+                                              : currentRole === 'C'
+                                                ? 'bg-purple-600 text-white border-purple-700 shadow-sm'
+                                                : currentRole === 'I'
+                                                  ? 'bg-teal-600 text-white border-teal-700 shadow-sm'
+                                                  : 'bg-slate-50 text-slate-400 border-slate-200 hover:border-slate-300'
+                                        }`}
+                                      >
+                                        <option value="">— Aucun —</option>
+                                        <option value="R">R (Réalisateur)</option>
+                                        <option value="A">A (Approbateur)</option>
+                                        <option value="C">C (Consulté)</option>
+                                        <option value="I">I (Informé)</option>
+                                      </select>
+                                    </div>
+                                  </td>
+                                );
+                              })}
+
+                              {/* Governance status */}
+                              <td className="px-4 py-2 text-center">
+                                {isCompliant ? (
+                                  <span className="inline-flex items-center gap-1 rounded-full bg-emerald-100 px-2.5 py-0.5 text-[11px] font-bold text-emerald-800">
+                                    <CheckCircle2 className="h-3 w-3" />
+                                    Conforme (1 A, {countR} R)
+                                  </span>
+                                ) : countA === 0 ? (
+                                  <span className="inline-flex items-center gap-1 rounded-full bg-amber-100 px-2.5 py-0.5 text-[11px] font-bold text-amber-900" title="Chaque élément du projet devrait avoir un décideur / approbateur unique">
+                                    <AlertTriangle className="h-3 w-3 text-amber-700" />
+                                    Aucun Approbateur (A)
+                                  </span>
+                                ) : countA > 1 ? (
+                                  <span className="inline-flex items-center gap-1 rounded-full bg-red-100 px-2.5 py-0.5 text-[11px] font-bold text-red-800" title="Il est déconseillé d'avoir plusieurs 'A' (confusion sur la responsabilité finale)">
+                                    <AlertTriangle className="h-3 w-3 text-red-700" />
+                                    Conflit ({countA} 'A')
+                                  </span>
+                                ) : (
+                                  <span className="inline-flex items-center gap-1 rounded-full bg-blue-100 px-2.5 py-0.5 text-[11px] font-bold text-blue-800">
+                                    ℹ️ Aucun Réalisateur (R)
+                                  </span>
+                                )}
+                              </td>
+                            </tr>
+                          );
+                        })}
+                      </tbody>
+
+                      {/* Summary Footer: Totals per member */}
+                      <tfoot className="border-t-2 border-slate-300 bg-slate-100 text-slate-700 font-bold">
+                        <tr>
+                          <td className="px-4 py-3 border-r border-slate-200">
+                            Total des Rôles par Partie Prenante
+                          </td>
+                          {members.map((member: any) => {
+                            const memberRacis = raci.filter((r: any) => r.projectMemberId === member.id);
+                            const countR = memberRacis.filter((r: any) => r.raciRole === 'R').length;
+                            const countA = memberRacis.filter((r: any) => r.raciRole === 'A').length;
+                            const countC = memberRacis.filter((r: any) => r.raciRole === 'C').length;
+                            const countI = memberRacis.filter((r: any) => r.raciRole === 'I').length;
+
+                            return (
+                              <td key={member.id} className="px-2 py-3 text-center border-r border-slate-200">
+                                <div className="flex flex-col gap-0.5 text-[10px]">
+                                  <span className="text-indigo-700">R: {countR}</span>
+                                  <span className="text-amber-700">A: {countA}</span>
+                                  <span className="text-purple-700">C: {countC}</span>
+                                  <span className="text-teal-700">I: {countI}</span>
+                                </div>
+                              </td>
+                            );
+                          })}
+                          <td className="px-4 py-3 text-center text-[11px] text-slate-500">
+                            {raci.length} rôles attribués
+                          </td>
+                        </tr>
+                      </tfoot>
+                    </table>
+                  </div>
+                )}
+              </div>
+
+              {/* RACI Best Practices & Legend Guide */}
+              <div className="rounded-xl border bg-slate-50 p-6">
+                <h4 className="font-bold text-slate-900 mb-3 flex items-center gap-2">
+                  <ShieldCheck className="h-4 w-4 text-indigo-600" />
+                  Guide Méthodologique RACI & Bonnes Pratiques de Gestion de Projet
+                </h4>
+                <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
+                  {Object.entries(RACI_CONFIG).map(([key, cfg]) => (
+                    <div key={key} className="rounded-lg border bg-white p-4 shadow-sm">
+                      <div className="flex items-center gap-2">
+                        <span className={`inline-flex h-6 w-6 items-center justify-center rounded text-xs font-bold ${cfg.color}`}>
+                          {key}
+                        </span>
+                        <span className="font-bold text-slate-800 text-xs">{cfg.label}</span>
+                      </div>
+                      <p className="mt-2 text-xs text-slate-600 leading-relaxed">{cfg.desc}</p>
+                    </div>
+                  ))}
+                </div>
+                <div className="mt-4 rounded-lg bg-indigo-50 border border-indigo-100 p-3 text-xs text-indigo-900">
+                  💡 <strong>Règle d'or de la gouvernance :</strong> Chaque phase, activité ou tâche doit comporter <strong>exactement 1 Approbateur (A)</strong> (évite la dilution des responsabilités) et au moins <strong>1 Réalisateur (R)</strong>. Les parties prenantes consultées (C) et informées (I) facilitent la coordination sans alourdir la décision.
+                </div>
+              </div>
+            </div>
+          );
+        })()}
+
+        {/* ═══════════════════════════════════════════════════════════════ */}
+        {/* TAB: BUDGET & FINANCES                                         */}
+        {/* ═══════════════════════════════════════════════════════════════ */}
+        {activeTab === 'budget' && (
+          <div className="space-y-6">
+            {/* Budget Summary */}
+            <div className="grid grid-cols-3 gap-4">
+              <div className="rounded-xl border bg-white p-5 shadow-sm text-center">
+                <p className="text-xs text-slate-500">Budget total</p>
+                <p className="mt-1 text-2xl font-bold text-slate-900">{fmt(totalBudget)}</p>
+              </div>
+              <div className="rounded-xl border bg-white p-5 shadow-sm text-center">
+                <p className="text-xs text-slate-500">Dépensé (approuvé)</p>
+                <p className="mt-1 text-2xl font-bold text-indigo-600">{fmt(totalApprovedExpenses)}</p>
+              </div>
+              <div className="rounded-xl border bg-white p-5 shadow-sm text-center">
+                <p className="text-xs text-slate-500">Solde disponible</p>
+                <p className={`mt-1 text-2xl font-bold ${remaining >= 0 ? 'text-emerald-600' : 'text-red-600'}`}>{fmt(remaining)}</p>
+              </div>
+            </div>
+
+            {/* Budget Lines */}
+            <div className="rounded-xl border bg-white shadow-sm">
+              <div className="flex items-center justify-between border-b px-5 py-4">
+                <h2 className="font-semibold text-slate-800">Lignes budgétaires</h2>
+                <Button size="sm" onClick={() => setShowBudgetLineForm(!showBudgetLineForm)}>
+                  <Plus className="mr-1 h-4 w-4" />
+                  Ajouter une ligne
+                </Button>
+              </div>
+              {showBudgetLineForm && (
+                <div className="border-b bg-indigo-50 p-4">
+                  <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+                    <div>
+                      <label className="mb-1 block text-xs font-medium text-slate-600">Catégorie</label>
+                      <select
+                        value={blCategory}
+                        onChange={(e) => setBlCategory(e.target.value)}
+                        className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm"
+                      >
+                        {Object.entries(CATEGORY_LABELS).map(([k, v]) => (
+                          <option key={k} value={k}>{v}</option>
+                        ))}
+                      </select>
+                    </div>
+                    <div>
+                      <label className="mb-1 block text-xs font-medium text-slate-600">Description *</label>
+                      <Input value={blDescription} onChange={(e) => setBlDescription(e.target.value)} placeholder="Ex: Salaire coordonnateur..." />
+                    </div>
+                    <div>
+                      <label className="mb-1 block text-xs font-medium text-slate-600">Montant (CAD) *</label>
+                      <Input type="number" value={blAmount} onChange={(e) => setBlAmount(e.target.value)} placeholder="0.00" />
+                    </div>
+                  </div>
+                  <div className="mt-3 flex gap-2">
+                    <Button size="sm" onClick={() => addBudgetLine.mutate()} disabled={!blDescription.trim() || !blAmount || addBudgetLine.isPending}>
+                      Enregistrer
+                    </Button>
+                    <Button size="sm" variant="ghost" onClick={() => setShowBudgetLineForm(false)}>Annuler</Button>
+                  </div>
+                </div>
+              )}
+              {(!projBudget?.lines || projBudget.lines.length === 0) ? (
+                <div className="p-8 text-center text-sm text-slate-400">Aucune ligne budgétaire définie.</div>
+              ) : (
+                <table className="w-full text-sm">
+                  <thead className="border-b bg-slate-50 text-xs font-semibold uppercase text-slate-500">
+                    <tr>
+                      <th className="px-5 py-3 text-left">Catégorie</th>
+                      <th className="px-5 py-3 text-left">Description</th>
+                      <th className="px-5 py-3 text-right">Montant planifié</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100">
+                    {projBudget.lines.map((line: any) => (
+                      <tr key={line.id} className="hover:bg-slate-50">
+                        <td className="px-5 py-3">
+                          <span className="rounded-full bg-slate-100 px-2 py-0.5 text-xs font-medium text-slate-600">
+                            {CATEGORY_LABELS[line.categoryCode] || line.categoryCode}
+                          </span>
+                        </td>
+                        <td className="px-5 py-3 text-slate-700">{line.description}</td>
+                        <td className="px-5 py-3 text-right font-semibold text-slate-900">{fmt(line.amount)}</td>
+                      </tr>
+                    ))}
+                    <tr className="border-t-2 border-slate-200 bg-slate-50">
+                      <td colSpan={2} className="px-5 py-3 font-bold text-slate-700">Total</td>
+                      <td className="px-5 py-3 text-right font-bold text-slate-900">{fmt(totalBudget)}</td>
+                    </tr>
+                  </tbody>
+                </table>
+              )}
+            </div>
+
+            {/* Expenses */}
+            <div className="rounded-xl border bg-white shadow-sm">
+              <div className="flex items-center justify-between border-b px-5 py-4">
+                <h2 className="font-semibold text-slate-800">Dépenses</h2>
+                <div className="flex items-center gap-2">
+                  <Button size="sm" variant="outline" onClick={() => window.open(`/api/v1/projects/${id}/expenses/export`, '_blank')}>
+                    <FileSpreadsheet className="mr-1 h-4 w-4 text-emerald-600" />
+                    Exporter CSV
+                  </Button>
+                  <Button size="sm" onClick={() => setShowExpenseForm(!showExpenseForm)}>
+                    <Plus className="mr-1 h-4 w-4" />
+                    Saisir une dépense
+                  </Button>
+                </div>
+              </div>
+              {showExpenseForm && (
+                <div className="border-b bg-indigo-50 p-4">
+                  <div className="grid grid-cols-1 gap-3 sm:grid-cols-4">
+                    <div>
+                      <label className="mb-1 block text-xs font-medium text-slate-600">Ligne budgétaire *</label>
+                      <select
+                        value={expBudgetLineId}
+                        onChange={(e) => setExpBudgetLineId(e.target.value)}
+                        className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm"
+                      >
+                        <option value="">— Sélectionner —</option>
+                        {(projBudget?.lines || []).map((line: any) => (
+                          <option key={line.id} value={line.id}>
+                            {CATEGORY_LABELS[line.categoryCode] || line.categoryCode} — {line.description}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                    <div>
+                      <label className="mb-1 block text-xs font-medium text-slate-600">Fournisseur *</label>
+                      <Input value={expVendor} onChange={(e) => setExpVendor(e.target.value)} placeholder="Nom du fournisseur" />
+                    </div>
+                    <div>
+                      <label className="mb-1 block text-xs font-medium text-slate-600">Montant (CAD) *</label>
+                      <Input type="number" value={expAmount} onChange={(e) => setExpAmount(e.target.value)} placeholder="0.00" />
+                    </div>
+                    <div>
+                      <label className="mb-1 block text-xs font-medium text-slate-600">Date *</label>
+                      <Input type="date" value={expDate} onChange={(e) => setExpDate(e.target.value)} />
+                    </div>
+                  </div>
+                  <div className="mt-3 flex gap-2">
+                    <Button
+                      size="sm"
+                      onClick={() => addExpense.mutate()}
+                      disabled={!expVendor.trim() || !expAmount || !expBudgetLineId || addExpense.isPending}
+                    >
+                      Soumettre
+                    </Button>
+                    <Button size="sm" variant="ghost" onClick={() => setShowExpenseForm(false)}>Annuler</Button>
+                  </div>
+                </div>
+              )}
+              {expenses.length === 0 ? (
+                <div className="p-8 text-center text-sm text-slate-400">Aucune dépense enregistrée.</div>
+              ) : (
+                <table className="w-full text-sm">
+                  <thead className="border-b bg-slate-50 text-xs font-semibold uppercase text-slate-500">
+                    <tr>
+                      <th className="px-5 py-3 text-left">Date</th>
+                      <th className="px-5 py-3 text-left">Fournisseur</th>
+                      <th className="px-5 py-3 text-right">Montant</th>
+                      <th className="px-5 py-3 text-center">Statut</th>
+                      <th className="px-5 py-3"></th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100">
+                    {expenses.map((exp: any) => (
+                      <tr key={exp.id} className="hover:bg-slate-50">
+                        <td className="px-5 py-3 text-slate-500">{exp.date}</td>
+                        <td className="px-5 py-3 font-medium text-slate-900">{exp.vendor}</td>
+                        <td className="px-5 py-3 text-right font-mono">
+                          {fmt(exp.amount)}
+                        </td>
+                        <td className="px-5 py-3 text-center">
+                          <span className={`rounded-full px-2 py-0.5 text-xs font-semibold ${
+                            exp.status === 'approved' || exp.status === 'paid'
+                              ? 'bg-emerald-100 text-emerald-800'
+                              : exp.status === 'submitted'
+                                ? 'bg-amber-100 text-amber-800'
+                                : 'bg-slate-100 text-slate-600'
+                          }`}>
+                            {exp.status === 'approved' ? 'Approuvée' : exp.status === 'submitted' ? 'En attente' : exp.status === 'paid' ? 'Payée' : exp.status}
+                          </span>
+                        </td>
+                        <td className="px-5 py-3 text-right">
+                          {exp.status === 'submitted' && (
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              onClick={() => approveExpense.mutate(exp.id)}
+                              disabled={approveExpense.isPending}
+                              className="text-emerald-700 hover:bg-emerald-50"
+                            >
+                              <Check className="mr-1 h-3 w-3" />
+                              Approuver
+                            </Button>
+                          )}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              )}
+            </div>
+          </div>
+        )}
+
+        {/* ═══════════════════════════════════════════════════════════════ */}
+        {/* TAB: RAID                                                       */}
+        {/* ═══════════════════════════════════════════════════════════════ */}
+        {activeTab === 'raid' && (
+          <div className="space-y-4">
+            <div className="flex items-center justify-between">
+              <div>
+                <h2 className="text-base font-bold text-slate-800">Registre RAID</h2>
+                <p className="text-sm text-slate-500">Risques · Hypothèses · Enjeux · Dépendances</p>
+              </div>
+              <Button size="sm" onClick={() => setShowRaidForm(!showRaidForm)}>
+                <Plus className="mr-2 h-4 w-4" />
+                Ajouter un élément
+              </Button>
+            </div>
+
+            {/* RAID form */}
+            {showRaidForm && (
+              <div className="rounded-xl border border-orange-200 bg-orange-50 p-5 shadow-sm">
+                <h3 className="mb-4 text-sm font-semibold text-orange-800">Nouvel élément RAID</h3>
+                <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+                  <div>
+                    <label className="mb-1 block text-xs font-medium text-slate-600">Type</label>
+                    <select
+                      value={raidType}
+                      onChange={(e) => setRaidType(e.target.value as RaidItem['type'])}
+                      className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm"
+                    >
+                      {Object.entries(RAID_TYPE_CONFIG).map(([k, v]) => (
+                        <option key={k} value={k}>{v.label}</option>
+                      ))}
+                    </select>
+                  </div>
+                  <div className="sm:col-span-2">
+                    <label className="mb-1 block text-xs font-medium text-slate-600">Titre *</label>
+                    <Input value={raidTitle} onChange={(e) => setRaidTitle(e.target.value)} placeholder="Décrivez le risque ou l'enjeu..." />
+                  </div>
+                  <div className="sm:col-span-3">
+                    <label className="mb-1 block text-xs font-medium text-slate-600">Description</label>
+                    <textarea
+                      value={raidDesc}
+                      onChange={(e) => setRaidDesc(e.target.value)}
+                      rows={2}
+                      className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm"
+                      placeholder="Contexte, mitigation, notes..."
+                    />
+                  </div>
+                  <div>
+                    <label className="mb-1 block text-xs font-medium text-slate-600">Probabilité (1-5)</label>
+                    <div className="flex items-center gap-3">
+                      <input
+                        type="range" min={1} max={5} value={raidProb}
+                        onChange={(e) => setRaidProb(e.target.value)}
+                        className="flex-1"
+                      />
+                      <span className="w-6 text-center font-bold text-orange-700">{raidProb}</span>
+                    </div>
+                  </div>
+                  <div>
+                    <label className="mb-1 block text-xs font-medium text-slate-600">Impact (1-5)</label>
+                    <div className="flex items-center gap-3">
+                      <input
+                        type="range" min={1} max={5} value={raidImpact}
+                        onChange={(e) => setRaidImpact(e.target.value)}
+                        className="flex-1"
+                      />
+                      <span className="w-6 text-center font-bold text-orange-700">{raidImpact}</span>
+                    </div>
+                  </div>
+                  <div>
+                    <label className="mb-1 block text-xs font-medium text-slate-600">Responsable</label>
+                    <Input value={raidOwner} onChange={(e) => setRaidOwner(e.target.value)} placeholder="Nom du responsable" />
+                  </div>
+                </div>
+                <div className="mt-2 rounded-lg bg-white/60 px-3 py-2 text-xs text-orange-700">
+                  Score de sévérité: <strong>{parseInt(raidProb) * parseInt(raidImpact)} / 25</strong>
+                </div>
+                <div className="mt-3 flex gap-2">
+                  <Button size="sm" onClick={() => addRaidItem.mutate()} disabled={!raidTitle.trim() || addRaidItem.isPending}>
+                    Enregistrer
+                  </Button>
+                  <Button size="sm" variant="ghost" onClick={() => setShowRaidForm(false)}>Annuler</Button>
+                </div>
+              </div>
+            )}
+
+            {/* RAID Table grouped by type */}
+            {raidItems.length === 0 ? (
+              <div className="rounded-xl border border-dashed border-slate-200 bg-white p-10 text-center">
+                <AlertTriangle className="mx-auto mb-3 h-10 w-10 text-slate-300" />
+                <p className="text-sm font-medium text-slate-500">Aucun élément RAID enregistré</p>
+                <p className="mt-1 text-xs text-slate-400">Identifiez et documentez les risques du projet.</p>
+              </div>
+            ) : (
+              <div className="space-y-4">
+                {(['risk', 'issue', 'assumption', 'dependency'] as const).map((type) => {
+                  const items = raidItems.filter((r: any) => r.type === type);
+                  if (items.length === 0) return null;
+                  const cfg = RAID_TYPE_CONFIG[type];
+                  return (
+                    <div key={type} className="overflow-hidden rounded-xl border bg-white shadow-sm">
+                      <div className={`border-b px-5 py-3`}>
+                        <h3 className={`text-sm font-bold`}>
+                          <span className={`mr-2 rounded-full px-2 py-0.5 ${cfg.color}`}>{cfg.label}</span>
+                          <span className="text-slate-400">({items.length})</span>
+                        </h3>
+                      </div>
+                      <table className="w-full text-sm">
+                        <thead className="border-b bg-slate-50 text-xs font-semibold uppercase text-slate-500">
+                          <tr>
+                            <th className="px-5 py-2 text-left">Titre</th>
+                            <th className="px-5 py-2 text-left">Description</th>
+                            <th className="px-5 py-2 text-center">Sévérité</th>
+                            <th className="px-5 py-2 text-left">Responsable</th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-slate-100">
+                          {[...items]
+                            .sort((a: any, b: any) => (b.probability || 1) * (b.impact || 1) - (a.probability || 1) * (a.impact || 1))
+                            .map((item: any) => (
+                              <tr key={item.id} className="hover:bg-slate-50">
+                                <td className="px-5 py-3 font-medium text-slate-800">{item.title}</td>
+                                <td className="px-5 py-3 text-slate-500">{item.description || '—'}</td>
+                                <td className="px-5 py-3 text-center">
+                                  <SeverityBadge probability={item.probability} impact={item.impact} />
+                                </td>
+                                <td className="px-5 py-3 text-slate-600">{item.ownerName || '—'}</td>
+                              </tr>
+                            ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* ═══════════════════════════════════════════════════════════════ */}
+        {/* TAB: FINANCEMENT                                               */}
+        {/* ═══════════════════════════════════════════════════════════════ */}
+        {activeTab === 'funding' && (
+          <div className="space-y-4">
+            <div className="flex items-center justify-between">
+              <div>
+                <h2 className="text-base font-bold text-slate-800">Sources de Financement</h2>
+                <p className="text-sm text-slate-500">Bailleurs de fonds, subventions et dons</p>
+              </div>
+              <Button size="sm" onClick={() => setShowFundingForm(!showFundingForm)}>
+                <Plus className="mr-2 h-4 w-4" />
+                Ajouter un bailleur
+              </Button>
+            </div>
+
+            {/* Funding form */}
+            {showFundingForm && (
+              <div className="rounded-xl border border-violet-200 bg-violet-50 p-5 shadow-sm">
+                <h3 className="mb-4 text-sm font-semibold text-violet-800">Nouveau bailleur de fonds</h3>
+                <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                  <div>
+                    <label className="mb-1 block text-xs font-medium text-slate-600">Nom du bailleur *</label>
+                    <Input value={fsName} onChange={(e) => setFsName(e.target.value)} placeholder="Ex: Fondation XYZ, MSSS..." />
+                  </div>
+                  <div>
+                    <label className="mb-1 block text-xs font-medium text-slate-600">Type de financement</label>
+                    <select
+                      value={fsType}
+                      onChange={(e) => setFsType(e.target.value)}
+                      className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm"
+                    >
+                      {Object.entries(FUNDING_TYPE_LABELS).map(([k, v]) => (
+                        <option key={k} value={k}>{v}</option>
+                      ))}
+                    </select>
+                  </div>
+                  <div>
+                    <label className="mb-1 block text-xs font-medium text-slate-600">Montant (CAD) *</label>
+                    <Input type="number" value={fsAmount} onChange={(e) => setFsAmount(e.target.value)} placeholder="0.00" />
+                  </div>
+                  <div>
+                    <label className="mb-1 block text-xs font-medium text-slate-600">Date de rapport due</label>
+                    <Input type="date" value={fsDue} onChange={(e) => setFsDue(e.target.value)} />
+                  </div>
+                </div>
+                <div className="mt-4 flex gap-2">
+                  <Button size="sm" onClick={() => addFunding.mutate()} disabled={!fsName.trim() || !fsAmount || addFunding.isPending}>
+                    Enregistrer
+                  </Button>
+                  <Button size="sm" variant="ghost" onClick={() => setShowFundingForm(false)}>Annuler</Button>
+                </div>
+              </div>
+            )}
+
+            {/* Total */}
+            {fundingSources.length > 0 && (
+              <div className="flex items-center justify-between rounded-xl border bg-violet-50 px-5 py-4">
+                <span className="text-sm font-semibold text-violet-800">Total financé</span>
+                <span className="text-xl font-bold text-violet-900">{fmt(totalFunding)}</span>
+              </div>
+            )}
+
+            {/* Funding cards */}
+            {fundingSources.length === 0 ? (
+              <div className="rounded-xl border border-dashed border-slate-200 bg-white p-10 text-center">
+                <HandCoins className="mx-auto mb-3 h-10 w-10 text-slate-300" />
+                <p className="text-sm font-medium text-slate-500">Aucune source de financement</p>
+                <p className="mt-1 text-xs text-slate-400">Ajoutez les bailleurs de fonds du projet.</p>
+              </div>
+            ) : (
+              <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
+                {fundingSources.map((fs: any) => (
+                  <div key={fs.id} className="rounded-xl border bg-white p-5 shadow-sm">
+                    <div className="mb-3 flex items-start justify-between">
+                      <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-violet-100">
+                        <HandCoins className="h-5 w-5 text-violet-600" />
+                      </div>
+                      <span className="rounded-full bg-slate-100 px-2 py-0.5 text-xs font-medium text-slate-600">
+                        {FUNDING_TYPE_LABELS[fs.fundingType] || fs.fundingType}
+                      </span>
+                    </div>
+                    <h3 className="font-semibold text-slate-800">{fs.donorName}</h3>
+                    <p className="mt-1 text-xl font-bold text-violet-700">{fmt(fs.amount, fs.currency || 'CAD')}</p>
+                    {fs.reportDueAt && (
+                      <p className="mt-2 text-xs text-slate-400">
+                        Rapport dû: <span className="font-medium text-slate-600">{fs.reportDueAt}</span>
+                      </p>
+                    )}
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
+      </main>
+
+      {/* ═══════════════════════════════════════════════════════════════ */}
+      {/* DRAWER / MODAL: DÉTAIL DE TÂCHE, LOGS & LIVRABLES              */}
+      {/* ═══════════════════════════════════════════════════════════════ */}
+      {selectedTask && (() => {
+        const typeCfg = TYPE_CONFIG[selectedTask.type] || TYPE_CONFIG.task;
+        const taskUpdates = updates.filter((u: any) => u.planItemId === selectedTask.id);
+        const taskDeliverables = deliverables.filter((d: any) => d.planItemId === selectedTask.id);
+        const taskAssignee = members.find((m: any) => m.id === selectedTask.assigneePartyId);
+
+        return (
+          <div className="fixed inset-0 z-50 flex items-center justify-end bg-slate-900/50 backdrop-blur-sm">
+            <div className="flex h-full w-full max-w-2xl flex-col bg-white shadow-2xl animate-in slide-in-from-right duration-200">
+              {/* Drawer Header */}
+              <div className="flex items-start justify-between border-b bg-slate-50 p-6">
+                <div>
+                  <div className="flex items-center gap-2">
+                    <span className="font-mono text-xs font-bold text-slate-500">{selectedTask.wbs}</span>
+                    <span className={`inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-xs font-semibold ${typeCfg.badgeClass}`}>
+                      {typeCfg.icon}
+                      {typeCfg.label}
+                    </span>
+                    <span className={`inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-xs font-semibold ${
+                      STATUS_CONFIG[selectedTask.status]?.color || 'bg-slate-100 text-slate-600'
+                    }`}>
+                      {STATUS_CONFIG[selectedTask.status]?.icon}
+                      {STATUS_CONFIG[selectedTask.status]?.label}
+                    </span>
+                  </div>
+                  <h2 className="mt-2 text-xl font-bold text-slate-900">{selectedTask.title}</h2>
+                  {selectedTask.startDate && selectedTask.endDate && (
+                    <p className="mt-1 flex items-center gap-1 text-xs text-slate-500">
+                      <Calendar className="h-3.5 w-3.5 text-slate-400" />
+                      Période : {selectedTask.startDate} au {selectedTask.endDate}
+                    </p>
+                  )}
+                </div>
+                <Button variant="ghost" size="sm" onClick={() => setSelectedTask(null)}>
+                  <X className="h-5 w-5" />
+                </Button>
+              </div>
+
+              {/* Drawer Body */}
+              <div className="flex-1 space-y-6 overflow-y-auto p-6">
+                {/* 1. Affectation / Responsable & Statut Dérivé */}
+                <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                  <div className="rounded-xl border bg-slate-50 p-4">
+                    <span className="text-xs font-bold uppercase tracking-wider text-slate-500">Responsable affecté</span>
+                    <p className="mt-1 font-semibold text-slate-800">
+                      {taskAssignee ? `${taskAssignee.name} (${taskAssignee.role})` : 'Non affecté'}
+                    </p>
+                    <div className="mt-2">
+                      <select
+                        value={selectedTask.assigneePartyId || ''}
+                        onChange={async (e) => {
+                          const newAssigneeId = e.target.value || null;
+                          await fetch(`/api/v1/projects/${id}/plan-items/${selectedTask.id}`, {
+                            method: 'PATCH',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ assigneePartyId: newAssigneeId }),
+                          });
+                          invalidate();
+                          setSelectedTask({ ...selectedTask, assigneePartyId: newAssigneeId });
+                        }}
+                        className="w-full rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-xs font-medium text-slate-700 shadow-sm"
+                      >
+                        <option value="">— Modifier l'affectation —</option>
+                        {members.map((m: any) => (
+                          <option key={m.id} value={m.id}>
+                            {m.name} ({m.raciRole} — {m.role})
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                  </div>
+
+                  <div className="rounded-xl border bg-slate-50 p-4">
+                    <span className="text-xs font-bold uppercase tracking-wider text-slate-500">Statut actuel du système</span>
+                    <div className="mt-1 flex items-center gap-2">
+                      <span className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-bold ${
+                        STATUS_CONFIG[selectedTask.status]?.color || 'bg-slate-100 text-slate-600'
+                      }`}>
+                        {STATUS_CONFIG[selectedTask.status]?.icon}
+                        {STATUS_CONFIG[selectedTask.status]?.label}
+                      </span>
+                      <span className="text-xs text-slate-400">
+                        (Avancement : {selectedTask.progressPct || 0}%)
+                      </span>
+                    </div>
+                    <p className="mt-2 text-[11px] text-slate-500">
+                      * Le statut est calculé automatiquement dès que l'avancement évolue.
+                    </p>
+                  </div>
+                </div>
+
+                {/* 2. Évolution de l'avancement & Point d'étape */}
+                <div className="rounded-xl border border-indigo-200 bg-indigo-50/40 p-5 shadow-sm">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <h3 className="flex items-center gap-2 font-bold text-indigo-950">
+                        <Sparkles className="h-4 w-4 text-indigo-600" />
+                        Faire évoluer l'avancement
+                      </h3>
+                      <p className="text-xs text-slate-500">
+                        Ajustez la barre de progression pour recalculer le statut et consigner le journal de bord.
+                      </p>
+                    </div>
+                    <span className="rounded-lg bg-indigo-600 px-3 py-1 text-sm font-bold text-white shadow-sm">
+                      {logProgress}%
+                    </span>
+                  </div>
+
+                  <div className="mt-4 space-y-4">
+                    {/* Slider */}
+                    <div>
+                      <div className="mb-1 flex justify-between text-xs font-semibold text-slate-700">
+                        <span>0% (À faire)</span>
+                        <span>50% (En cours)</span>
+                        <span>100% (Terminé)</span>
+                      </div>
+                      <input
+                        type="range"
+                        min={0}
+                        max={100}
+                        step={5}
+                        value={logProgress}
+                        onChange={(e) => setLogProgress(Number(e.target.value))}
+                        className="h-2.5 w-full cursor-pointer appearance-none rounded-lg bg-indigo-200 accent-indigo-600"
+                      />
+                    </div>
+
+                    {/* Statut projeté automatique */}
+                    <div className="flex items-center justify-between rounded-lg bg-white p-3 border border-indigo-100 text-xs">
+                      <span className="text-slate-600 font-medium">Statut automatique résultant :</span>
+                      <span className={`inline-flex items-center gap-1 font-bold ${
+                        logIsBlocked
+                          ? 'text-red-700'
+                          : logProgress >= 100
+                            ? 'text-emerald-700'
+                            : logProgress > 0
+                              ? 'text-indigo-700'
+                              : 'text-slate-600'
+                      }`}>
+                        {logIsBlocked
+                          ? '🔴 Bloqué'
+                          : logProgress >= 100
+                            ? '✅ Terminé (100%)'
+                            : logProgress > 0
+                              ? '⏳ En cours'
+                              : '⚪ À faire (0%)'}
+                      </span>
+                    </div>
+
+                    {/* Option Signalement de blocage ou attente */}
+                    <div className="rounded-lg border bg-white p-3">
+                      <label className="flex items-center gap-2 text-xs font-bold text-slate-700 cursor-pointer">
+                        <input
+                          type="checkbox"
+                          checked={logIsBlocked}
+                          onChange={(e) => setLogIsBlocked(e.target.checked)}
+                          className="h-4 w-4 rounded border-slate-300 text-red-600 focus:ring-red-500"
+                        />
+                        Signaler un blocage ou une attente extérieure
+                      </label>
+                      {logIsBlocked && (
+                        <div className="mt-2">
+                          <Input
+                            value={logBlocker}
+                            onChange={(e) => setLogBlocker(e.target.value)}
+                            placeholder="Raison du blocage (ex: attente de validation du bailleur, pièce manquante...)"
+                            className="border-red-300 bg-red-50/50 text-xs"
+                          />
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Commentaire de compte-rendu */}
+                    <div>
+                      <label className="mb-1 block text-xs font-semibold text-slate-700">
+                        Commentaire / Note d'évolution *
+                      </label>
+                      <textarea
+                        value={logComment}
+                        onChange={(e) => setLogComment(e.target.value)}
+                        rows={2}
+                        className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500"
+                        placeholder="Ex: 50% réalisé, matériel configuré par l'équipe..."
+                      />
+                    </div>
+
+                    <Button
+                      size="sm"
+                      onClick={() => addUpdateLogMutation.mutate()}
+                      disabled={!logComment.trim() || addUpdateLogMutation.isPending}
+                    >
+                      <Send className="mr-1.5 h-3.5 w-3.5" />
+                      Mettre à jour l'avancement
+                    </Button>
+                  </div>
+                </div>
+
+                {/* 3. Section Livrables & Preuves d'achèvement (Activée seulement si tâche terminée) */}
+                <div className="rounded-xl border bg-white p-5 shadow-sm">
+                  <div className="flex items-center justify-between border-b pb-3">
+                    <div>
+                      <h3 className="flex items-center gap-2 font-bold text-slate-900">
+                        <PackageCheck className="h-5 w-5 text-emerald-600" />
+                        Livrables & Preuves d'Achèvement
+                      </h3>
+                      <p className="text-xs text-slate-500">
+                        {selectedTask.status === 'completed' || selectedTask.progressPct === 100
+                          ? 'Comptes-rendus, documents finaux et validation formelle de fin'
+                          : '⚠️ Les livrables ne peuvent être déposés que lorsque la tâche est marquée comme Terminée (100%).'}
+                      </p>
+                    </div>
+                    {(selectedTask.status === 'completed' || selectedTask.progressPct === 100) && (
+                      <Button size="sm" onClick={() => setShowDeliverableModal(!showDeliverableModal)}>
+                        <Plus className="mr-1 h-4 w-4" />
+                        Déposer
+                      </Button>
+                    )}
+                  </div>
+
+                  {/* Formulaire dépôt livrable si tâche terminée */}
+                  {showDeliverableModal && (selectedTask.status === 'completed' || selectedTask.progressPct === 100) && (
+                    <div className="mt-4 rounded-lg border border-emerald-200 bg-emerald-50 p-4">
+                      <h4 className="mb-2 text-xs font-bold text-emerald-900">Nouveau livrable de fin de tâche</h4>
+                      <div className="space-y-3">
+                        <Input
+                          value={delivTitle}
+                          onChange={(e) => setDelivTitle(e.target.value)}
+                          placeholder="Intitulé du livrable (ex: Rapport d'évaluation final)"
+                        />
+                        <textarea
+                          value={delivDesc}
+                          onChange={(e) => setDelivDesc(e.target.value)}
+                          rows={2}
+                          className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs"
+                          placeholder="Détails ou synthèse des résultats..."
+                        />
+                        <Input
+                          value={delivUrl}
+                          onChange={(e) => setDelivUrl(e.target.value)}
+                          placeholder="Lien web / Document partagé (https://...)"
+                        />
+                      </div>
+                      <div className="mt-3 flex gap-2">
+                        <Button
+                          size="sm"
+                          onClick={() => addDeliverableMutation.mutate()}
+                          disabled={!delivTitle.trim() || addDeliverableMutation.isPending}
+                        >
+                          Enregistrer le livrable
+                        </Button>
+                        <Button size="sm" variant="ghost" onClick={() => setShowDeliverableModal(false)}>
+                          Annuler
+                        </Button>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Liste des livrables */}
+                  <div className="mt-4 space-y-2">
+                    {taskDeliverables.length === 0 ? (
+                      <p className="text-center text-xs text-slate-400 py-3">
+                        {selectedTask.status === 'completed'
+                          ? 'Aucun livrable déposé pour le moment.'
+                          : 'Tâche non achevée. Le dépôt sera débloqué à 100%.'}
+                      </p>
+                    ) : (
+                      taskDeliverables.map((deliv: any) => (
+                        <div key={deliv.id} className="flex items-center justify-between rounded-lg border bg-slate-50 p-3">
+                          <div>
+                            <div className="flex items-center gap-2">
+                              <span className="font-semibold text-slate-900">{deliv.title}</span>
+                              <span className={`rounded-full px-2 py-0.5 text-[10px] font-bold ${
+                                deliv.status === 'approved'
+                                  ? 'bg-emerald-100 text-emerald-800'
+                                  : deliv.status === 'rejected'
+                                    ? 'bg-red-100 text-red-800'
+                                    : 'bg-amber-100 text-amber-800'
+                              }`}>
+                                {deliv.status === 'approved' ? 'Validé' : deliv.status === 'rejected' ? 'Rejeté' : 'En attente de validation'}
+                              </span>
+                            </div>
+                            {deliv.description && <p className="mt-1 text-xs text-slate-500">{deliv.description}</p>}
+                            {deliv.fileUrl && (
+                              <a
+                                href={deliv.fileUrl}
+                                target="_blank"
+                                rel="noreferrer"
+                                className="mt-1 inline-flex items-center gap-1 text-xs text-indigo-600 hover:underline"
+                              >
+                                <ExternalLink className="h-3 w-3" /> {deliv.fileUrl}
+                              </a>
+                            )}
+                          </div>
+                          {deliv.status === 'pending' && (
+                            <div className="flex gap-1">
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                className="h-7 text-xs text-emerald-700 hover:bg-emerald-50"
+                                onClick={() => verifyDeliverableMutation.mutate({ deliverableId: deliv.id, status: 'approved' })}
+                              >
+                                <Check className="mr-1 h-3 w-3" /> Valider
+                              </Button>
+                            </div>
+                          )}
+                        </div>
+                      ))
+                    )}
+                  </div>
+                </div>
+
+                {/* 4. Fil d'actualité & Historique de la tâche */}
+                <div className="space-y-3">
+                  <h3 className="flex items-center gap-2 font-bold text-slate-900">
+                    <MessageSquare className="h-4 w-4 text-slate-500" />
+                    Fil d'Actualité & Historique ({taskUpdates.length})
+                  </h3>
+
+                  {taskUpdates.length === 0 ? (
+                    <p className="text-center text-xs text-slate-400 py-4">Aucune mise à jour publiée sur cette tâche.</p>
+                  ) : (
+                    <div className="space-y-3">
+                      {[...taskUpdates]
+                        .sort((a: any, b: any) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
+                        .map((upd: any) => (
+                          <div key={upd.id} className="rounded-xl border bg-white p-4 shadow-sm">
+                            <div className="flex items-center justify-between text-xs">
+                              <span className="font-bold text-slate-800">{upd.authorName}</span>
+                              <span className="text-slate-400">
+                                {new Date(upd.createdAt).toLocaleDateString('fr-CA', {
+                                  day: 'numeric',
+                                  month: 'short',
+                                  hour: '2-digit',
+                                  minute: '2-digit',
+                                })}
+                              </span>
+                            </div>
+                            <p className="mt-2 text-sm text-slate-700">{upd.comment}</p>
+                            {upd.blockerReason && (
+                              <div className="mt-2 rounded bg-red-50 p-2 text-xs font-semibold text-red-700">
+                                ⚠️ Blocage : {upd.blockerReason}
+                              </div>
+                            )}
+                            <div className="mt-3 flex items-center gap-3 border-t pt-2 text-xs text-slate-500">
+                              <span>Progression : <strong>{upd.progressPct}%</strong></span>
+                              {upd.status && (
+                                <span className={`rounded px-1.5 py-0.5 text-[10px] ${STATUS_CONFIG[upd.status]?.color}`}>
+                                  {STATUS_CONFIG[upd.status]?.label}
+                                </span>
+                              )}
+                            </div>
+                          </div>
+                        ))}
+                    </div>
+                  )}
+                </div>
+              </div>
+            </div>
+          </div>
+        );
+      })()}
+    </div>
+  );
+}

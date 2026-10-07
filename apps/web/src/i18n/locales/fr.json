@@ -1,0 +1,61 @@
+{
+  "common": {
+    "appName": "OrgDashio",
+    "login": "Connexion",
+    "logout": "Déconnexion",
+    "register": "Créer un compte",
+    "email": "Adresse courriel",
+    "password": "Mot de passe",
+    "cancel": "Annuler",
+    "save": "Enregistrer",
+    "create": "Créer",
+    "loading": "Chargement...",
+    "language": "Langue",
+    "back": "Retour"
+  },
+  "auth": {
+    "loginTitle": "Connectez-vous à votre espace",
+    "registerTitle": "Créer une nouvelle association",
+    "tenantName": "Nom de l'organisme / association",
+    "adminEmail": "Courriel de l'administrateur",
+    "noAccount": "Pas encore de compte ?",
+    "registerHere": "Inscrire mon organisme",
+    "alreadyHaveAccount": "Déjà un compte ?",
+    "loginHere": "Se connecter"
+  },
+  "project": {
+    "title": "Projets & Programmes",
+    "createProject": "Nouveau projet",
+    "code": "Code du projet",
+    "name": "Nom du projet",
+    "status": "Statut",
+    "actions": "Actions",
+    "empty": "Aucun projet trouvé pour cette association.",
+    "tabs": {
+      "overview": "Vue d'ensemble",
+      "logframe": "Cadre Logique",
+      "wbs": "Planification & Tâches",
+      "budget": "Budget & Dépenses",
+      "funding": "Financement",
+      "raid": "Registre RAID"
+    },
+    "budget": {
+      "approved": "Budget Approuvé",
+      "spent": "Dépensé",
+      "remaining": "Solde Réparti",
+      "addExpense": "Saisir une dépense",
+      "exportCsv": "Exporter CSV Comptable",
+      "category": "Poste Budgétaire",
+      "vendor": "Fournisseur",
+      "amount": "Montant",
+      "approve": "Approuver"
+    },
+    "raid": {
+      "addRisk": "Ajouter un risque",
+      "type": "Type",
+      "title": "Titre",
+      "severity": "Sévérité (P × I)",
+      "owner": "Propriétaire"
+    }
+  }
+}
