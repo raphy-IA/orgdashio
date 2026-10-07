@@ -49,11 +49,19 @@ export const CreateStaffSchema = z.object({
   hireDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Format YYYY-MM-DD').optional(),
   emergencyContact: z.string().optional(),
   notes: z.string().optional(),
+  createAccount: z.boolean().optional().default(false),
+  password: z.string().min(6, 'Le mot de passe doit contenir au moins 6 caractères').optional().or(z.literal('')),
+  roleId: z.string().uuid().optional().nullable(),
   sendInviteEmail: z.boolean().optional().default(false),
-  roleId: z.string().uuid().optional(),
 });
 
 export type CreateStaffInput = z.infer<typeof CreateStaffSchema>;
 
 export const UpdateStaffSchema = CreateStaffSchema.partial();
 export type UpdateStaffInput = z.infer<typeof UpdateStaffSchema>;
+
+export const CreateStaffAccountSchema = z.object({
+  password: z.string().min(6, 'Le mot de passe doit comporter au moins 6 caractères').optional().or(z.literal('')),
+  roleId: z.string().uuid().optional().nullable(),
+});
+export type CreateStaffAccountInput = z.infer<typeof CreateStaffAccountSchema>;

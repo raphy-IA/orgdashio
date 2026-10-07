@@ -5,6 +5,7 @@ import {
   CreatePersonSchema,
   CreateStaffSchema,
   UpdateStaffSchema,
+  CreateStaffAccountSchema,
   RecordConsentSchema,
   AddServiceDeliverySchema,
 } from '@orgdashio/shared';
@@ -13,6 +14,11 @@ import {
 @UseGuards(AuthGuard)
 export class PeopleController {
   constructor(@Inject(PeopleService) private readonly peopleService: PeopleService) {}
+
+  @Get('roles')
+  async findAllRoles(@Req() req: any) {
+    return this.peopleService.findAllRoles(req.tenantId);
+  }
 
   @Get('departments')
   async findAllDepartments(@Req() req: any) {
@@ -48,6 +54,12 @@ export class PeopleController {
   async updateStaff(@Req() req: any, @Param('id') id: string, @Body() body: any) {
     const parsed = UpdateStaffSchema.parse(body);
     return this.peopleService.updateStaff(req.tenantId, id, parsed);
+  }
+
+  @Post('staff/:id/account')
+  async createStaffAccount(@Req() req: any, @Param('id') id: string, @Body() body: any) {
+    const parsed = CreateStaffAccountSchema.parse(body || {});
+    return this.peopleService.createStaffAccount(req.tenantId, id, parsed);
   }
 
   @Delete('staff/:id')

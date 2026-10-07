@@ -10,6 +10,7 @@ import {
   Building2,
   HeartHandshake,
   ShieldCheck,
+  ShieldAlert,
   Plus,
   Mail,
   Phone,
@@ -17,6 +18,7 @@ import {
   AlertTriangle,
   Trash2,
   Pencil,
+  KeyRound,
   CheckCircle2,
   X,
   Filter,
@@ -52,8 +54,9 @@ export function PeopleListScreen() {
   const [deptFilter, setDeptFilter] = useState<string>('all');
   const [statusFilter, setStatusFilter] = useState<string>('all');
 
-  // Staff / Volunteer Modal State
+  // Staff / Volunteer Modal State (Create or Edit)
   const [showStaffModal, setShowStaffModal] = useState(false);
+  const [editingStaff, setEditingStaff] = useState<any>(null);
   const [staffModalMode, setStaffModalMode] = useState<'staff' | 'volunteer'>('staff');
   const [staffFirstName, setStaffFirstName] = useState('');
   const [staffLastName, setStaffLastName] = useState('');
@@ -66,7 +69,16 @@ export function PeopleListScreen() {
   const [staffHireDate, setStaffHireDate] = useState(new Date().toISOString().split('T')[0]);
   const [staffEmergencyContact, setStaffEmergencyContact] = useState('');
   const [staffNotes, setStaffNotes] = useState('');
+  const [staffCreateAccount, setStaffCreateAccount] = useState(true);
+  const [staffPassword, setStaffPassword] = useState('');
+  const [staffRoleId, setStaffRoleId] = useState('');
   const [staffSendInvite, setStaffSendInvite] = useState(false);
+
+  // Quick Account Modal State
+  const [showAccountModal, setShowAccountModal] = useState(false);
+  const [targetStaffForAccount, setTargetStaffForAccount] = useState<any>(null);
+  const [accountPassword, setAccountPassword] = useState('OrgDash2026!');
+  const [accountRoleId, setAccountRoleId] = useState('');
 
   // Department Modal State
   const [showDeptModal, setShowDeptModal] = useState(false);
@@ -105,6 +117,16 @@ export function PeopleListScreen() {
     },
   });
 
+  // Fetch Roles for tenant
+  const { data: roles = [] } = useQuery({
+    queryKey: ['roles'],
+    queryFn: async () => {
+      const res = await fetch('/api/v1/people/roles');
+      if (!res.ok) return [];
+      return res.json();
+    },
+  });
+
   // Create Staff Mutation
   const createStaffMutation = useMutation({
     mutationFn: async (newStaff: any) => {
@@ -133,6 +155,54 @@ export function PeopleListScreen() {
     },
   });
 
+  // Update Staff Mutation
+  const updateStaffMutation = useMutation({
+    mutationFn: async ({ partyId, data }: { partyId: string; data: any }) => {
+      const res = await fetch(`/api/v1/people/staff/${partyId}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(data),
+      });
+      if (!res.ok) {
+        const errData = await res.json();
+        throw new Error(errData.message || 'Erreur mise à jour collaborateur');
+      }
+      return res.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['people'] });
+      setShowStaffModal(false);
+      resetStaffForm();
+    },
+    onError: (err: any) => {
+      setError(err.message);
+    },
+  });
+
+  // Create Account For Existing Staff Mutation
+  const createAccountMutation = useMutation({
+    mutationFn: async ({ partyId, password, roleId }: { partyId: string; password?: string; roleId?: string }) => {
+      const res = await fetch(`/api/v1/people/staff/${partyId}/account`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ password, roleId: roleId || undefined }),
+      });
+      if (!res.ok) {
+        const errData = await res.json();
+        throw new Error(errData.message || 'Erreur création compte');
+      }
+      return res.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['people'] });
+      setShowAccountModal(false);
+      setTargetStaffForAccount(null);
+    },
+    onError: (err: any) => {
+      setError(err.message);
+    },
+  });
+
   // Delete Staff Mutation
   const deleteStaffMutation = useMutation({
     mutationFn: async (partyId: string) => {
@@ -148,36 +218,28 @@ export function PeopleListScreen() {
   // Create / Update Department Mutation
   const saveDeptMutation = useMutation({
     mutationFn: async (dept: { id?: string; name: string; code?: string; parentId?: string | null }) => {
-      const isEdit = !!dept.id;
-      const url = isEdit ? `/api/v1/people/departments/${dept.id}` : '/api/v1/people/departments';
-      const method = isEdit ? 'PATCH' : 'POST';
+      const url = dept.id ? `/api/v1/people/departments/${dept.id}` : '/api/v1/people/departments';
+      const method = dept.id ? 'PATCH' : 'POST';
       const res = await fetch(url, {
         method,
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(dept),
       });
-      if (!res.ok) throw new Error(isEdit ? 'Erreur mise à jour département' : 'Erreur création département');
+      if (!res.ok) throw new Error('Erreur enregistrement département');
       return res.json();
     },
-    onSuccess: (created) => {
+    onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['departments'] });
-      queryClient.invalidateQueries({ queryKey: ['people'] });
       setShowDeptModal(false);
       setEditingDept(null);
-      setNewDeptName('');
-      setNewDeptCode('');
-      setNewDeptParentId('');
-      if (showStaffModal && created?.id) {
-        setStaffDepartmentId(created.id);
-      }
     },
   });
 
   // Delete Department Mutation
   const deleteDeptMutation = useMutation({
-    mutationFn: async (deptId: string) => {
-      const res = await fetch(`/api/v1/people/departments/${deptId}`, { method: 'DELETE' });
-      if (!res.ok) throw new Error('Erreur suppression département');
+    mutationFn: async (id: string) => {
+      const res = await fetch(`/api/v1/people/departments/${id}`, { method: 'DELETE' });
+      if (!res.ok) throw new Error('Erreur suppression');
       return res.json();
     },
     onSuccess: () => {
@@ -188,11 +250,11 @@ export function PeopleListScreen() {
 
   // Create Beneficiary Mutation
   const createBeneficiaryMutation = useMutation({
-    mutationFn: async (newPerson: any) => {
+    mutationFn: async (newBen: any) => {
       const res = await fetch('/api/v1/people', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(newPerson),
+        body: JSON.stringify(newBen),
       });
       if (!res.ok) {
         const data = await res.json();
@@ -218,6 +280,7 @@ export function PeopleListScreen() {
   });
 
   const resetStaffForm = (mode: 'staff' | 'volunteer' = 'staff') => {
+    setEditingStaff(null);
     setStaffModalMode(mode);
     setStaffFirstName('');
     setStaffLastName('');
@@ -230,15 +293,43 @@ export function PeopleListScreen() {
     setStaffHireDate(new Date().toISOString().split('T')[0]);
     setStaffEmergencyContact('');
     setStaffNotes('');
+    setStaffCreateAccount(true);
+    setStaffPassword('OrgDash2026!');
+    setStaffRoleId('');
     setStaffSendInvite(false);
     setStaffWarnings([]);
     setError('');
   };
 
+  const openEditStaffModal = (person: any) => {
+    setEditingStaff(person);
+    const mode = person.staff?.employmentType === 'volunteer' ? 'volunteer' : 'staff';
+    setStaffModalMode(mode);
+    setStaffFirstName(person.firstName || '');
+    setStaffLastName(person.lastName || '');
+    setStaffEmail(person.email || '');
+    setStaffPhone(person.phone || '');
+    setStaffJobTitle(person.staff?.jobTitle || '');
+    setStaffEmploymentType(person.staff?.employmentType || 'employee');
+    setStaffDepartmentId(person.staff?.departmentId || '');
+    setStaffStatus(person.staff?.status || 'active');
+    setStaffHireDate(person.staff?.hireDate || '');
+    setStaffEmergencyContact(person.staff?.emergencyContact || '');
+    setStaffNotes(person.staff?.notes || '');
+    setStaffCreateAccount(!!person.staff?.userId);
+    setStaffPassword('');
+    setStaffRoleId(person.staff?.roles?.[0]?.id || '');
+    setStaffSendInvite(false);
+    setStaffWarnings([]);
+    setError('');
+    setShowStaffModal(true);
+  };
+
   const handleStaffSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
-    createStaffMutation.mutate({
+
+    const payload: any = {
       firstName: staffFirstName,
       lastName: staffLastName,
       email: staffEmail || undefined,
@@ -250,8 +341,17 @@ export function PeopleListScreen() {
       hireDate: staffHireDate || undefined,
       emergencyContact: staffEmergencyContact || undefined,
       notes: staffNotes || undefined,
+      createAccount: staffCreateAccount,
+      password: staffPassword || undefined,
+      roleId: staffRoleId || undefined,
       sendInviteEmail: staffSendInvite,
-    });
+    };
+
+    if (editingStaff) {
+      updateStaffMutation.mutate({ partyId: editingStaff.id, data: payload });
+    } else {
+      createStaffMutation.mutate(payload);
+    }
   };
 
   const handleBeneficiarySubmit = (e: React.FormEvent) => {
@@ -328,7 +428,7 @@ export function PeopleListScreen() {
               Répertoire de l'Organisation & Équipes
             </h1>
             <p className="text-sm text-slate-500 mt-1">
-              Gestion distincte du personnel salarié, des bénévoles, des départements et des usagers accompagnés
+              Gestion centralisée du personnel salarié, des comptes d'accès, des bénévoles et des pôles
             </p>
           </div>
 
@@ -450,8 +550,8 @@ export function PeopleListScreen() {
                   >
                     <option value="all">Tous les types</option>
                     <option value="employee">Salarié(e)</option>
-                    <option value="board_member">Direction & CA</option>
-                    <option value="contractor">Contractuel(le)</option>
+                    <option value="board_member">Conseil d'Administration / Direction</option>
+                    <option value="contractor">Contractuel(le) / Consultant</option>
                     <option value="intern">Stagiaire</option>
                   </select>
                 </div>
@@ -514,6 +614,7 @@ export function PeopleListScreen() {
                       <th className="px-6 py-3">Poste / Fonction</th>
                       <th className="px-6 py-3">Département / Pôle</th>
                       <th className="px-6 py-3">Type d'engagement</th>
+                      <th className="px-6 py-3">Compte & Accès</th>
                       <th className="px-6 py-3">Contact</th>
                       <th className="px-6 py-3">Statut</th>
                       <th className="px-6 py-3 text-right">Actions</th>
@@ -523,6 +624,8 @@ export function PeopleListScreen() {
                     {filteredStaff.map((p: any) => {
                       const typeCfg = EMPLOYMENT_TYPE_CONFIG[p.staff?.employmentType] || EMPLOYMENT_TYPE_CONFIG.employee;
                       const statusCfg = STAFF_STATUS_CONFIG[p.staff?.status] || STAFF_STATUS_CONFIG.active;
+                      const hasAccount = !!p.staff?.userAccount;
+                      const assignedRole = p.staff?.roles?.[0]?.name || (hasAccount ? 'Utilisateur actif' : null);
 
                       return (
                         <tr key={p.id} className="hover:bg-slate-50 transition">
@@ -545,6 +648,38 @@ export function PeopleListScreen() {
                               {typeCfg.label}
                             </span>
                           </td>
+                          <td className="px-6 py-4">
+                            {hasAccount ? (
+                              <div className="space-y-0.5">
+                                <span className="inline-flex items-center gap-1 rounded-full bg-emerald-50 px-2 py-0.5 text-xs font-semibold text-emerald-700 border border-emerald-200">
+                                  <ShieldCheck className="h-3.5 w-3.5" />
+                                  Compte Actif
+                                </span>
+                                {assignedRole && (
+                                  <div className="text-[11px] text-slate-500 font-medium">{assignedRole}</div>
+                                )}
+                              </div>
+                            ) : (
+                              <div className="flex items-center gap-2">
+                                <span className="inline-flex items-center rounded-full bg-slate-100 px-2 py-0.5 text-xs font-medium text-slate-600">
+                                  Sans compte
+                                </span>
+                                {p.email && (
+                                  <button
+                                    onClick={() => {
+                                      setTargetStaffForAccount(p);
+                                      setAccountPassword('OrgDash2026!');
+                                      setAccountRoleId(roles[0]?.id || '');
+                                      setShowAccountModal(true);
+                                    }}
+                                    className="text-[11px] font-bold text-indigo-600 hover:text-indigo-800 hover:underline"
+                                  >
+                                    Créer accès
+                                  </button>
+                                )}
+                              </div>
+                            )}
+                          </td>
                           <td className="px-6 py-4 text-xs text-slate-500">
                             {p.email && <div className="flex items-center gap-1"><Mail className="h-3 w-3 text-slate-400" /> {p.email}</div>}
                             {p.phone && <div className="flex items-center gap-1 mt-0.5"><Phone className="h-3 w-3 text-slate-400" /> {p.phone}</div>}
@@ -557,7 +692,21 @@ export function PeopleListScreen() {
                           </td>
                           <td className="px-6 py-4 text-right">
                             <div className="flex items-center justify-end gap-1">
-                              <Button variant="ghost" size="sm" onClick={() => navigate(`/people/${p.id}`)}>
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                className="h-8 w-8 p-0 text-slate-500 hover:text-indigo-600 hover:bg-indigo-50"
+                                title="Modifier la fiche et les accès"
+                                onClick={() => openEditStaffModal(p)}
+                              >
+                                <Pencil className="h-4 w-4" />
+                              </Button>
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                onClick={() => navigate(`/people/${p.id}`)}
+                                title="Voir la fiche détaillée"
+                              >
                                 Fiche
                                 <ArrowRight className="ml-1 h-3 w-3" />
                               </Button>
@@ -565,6 +714,7 @@ export function PeopleListScreen() {
                                 variant="ghost"
                                 size="sm"
                                 className="text-red-600 hover:bg-red-50 h-8 w-8 p-0"
+                                title="Supprimer le membre"
                                 onClick={() => {
                                   if (confirm(`Confirmer la suppression de ${p.firstName} ${p.lastName} ?`)) {
                                     deleteStaffMutation.mutate(p.id);
@@ -586,11 +736,10 @@ export function PeopleListScreen() {
         )}
 
         {/* ═════════════════════════════════════════════════════════════════ */}
-        {/* TAB 2: BÉNÉVOLES & VOLONTAIRES (ONGLET SPÉCIFIQUE DÉDIÉ)          */}
+        {/* TAB 2: BÉNÉVOLES & VOLONTAIRES                                    */}
         {/* ═════════════════════════════════════════════════════════════════ */}
         {activeTab === 'volunteers' && (
           <div className="space-y-6">
-            {/* KPI Cards Bénévoles */}
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
               <div className="rounded-xl border bg-white p-4 shadow-sm border-l-4 border-l-emerald-500">
                 <span className="text-xs font-semibold uppercase tracking-wider text-slate-500">Total Bénévoles</span>
@@ -611,7 +760,6 @@ export function PeopleListScreen() {
               </div>
             </div>
 
-            {/* Filter Toolbar Bénévoles */}
             <div className="flex flex-wrap items-center justify-between gap-4 rounded-xl border bg-white p-4 shadow-sm">
               <div className="flex flex-wrap items-center gap-3">
                 <div className="flex items-center gap-2">
@@ -655,7 +803,6 @@ export function PeopleListScreen() {
               </div>
             </div>
 
-            {/* Volunteers Table */}
             <div className="overflow-hidden rounded-xl border bg-white shadow-sm">
               {isLoading ? (
                 <div className="p-8 text-center text-slate-500">Chargement des bénévoles...</div>
@@ -700,18 +847,16 @@ export function PeopleListScreen() {
                               <div>
                                 <div className="font-bold text-slate-900">{p.firstName} {p.lastName}</div>
                                 {p.staff?.hireDate && (
-                                  <div className="text-[11px] text-slate-400">Bénévole depuis le {p.staff.hireDate}</div>
+                                  <div className="text-[11px] text-slate-400">Inscrit le {p.staff.hireDate}</div>
                                 )}
                               </div>
                             </div>
                           </td>
                           <td className="px-6 py-4">
-                            <span className="font-semibold text-slate-800">{p.staff?.jobTitle || 'Bénévole général'}</span>
+                            <span className="font-semibold text-slate-800">{p.staff?.jobTitle || 'Bénévole'}</span>
                           </td>
-                          <td className="px-6 py-4">
-                            <span className="text-xs text-slate-600">
-                              {p.staff?.department?.name || 'Tous pôles'}
-                            </span>
+                          <td className="px-6 py-4 text-xs text-slate-600">
+                            {p.staff?.department?.name || '—'}
                           </td>
                           <td className="px-6 py-4 text-xs text-slate-500">
                             {p.email && <div className="flex items-center gap-1"><Mail className="h-3 w-3 text-slate-400" /> {p.email}</div>}
@@ -719,7 +864,7 @@ export function PeopleListScreen() {
                             {!p.email && !p.phone && <span className="text-slate-400">—</span>}
                           </td>
                           <td className="px-6 py-4 text-xs text-slate-600 max-w-xs truncate">
-                            {p.staff?.notes || <span className="text-slate-400 italic">Aucune note</span>}
+                            {p.staff?.notes || '—'}
                           </td>
                           <td className="px-6 py-4">
                             <span className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-semibold ${statusCfg.color}`}>
@@ -728,6 +873,14 @@ export function PeopleListScreen() {
                           </td>
                           <td className="px-6 py-4 text-right">
                             <div className="flex items-center justify-end gap-1">
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                className="h-8 w-8 p-0 text-slate-500 hover:text-emerald-600 hover:bg-emerald-50"
+                                onClick={() => openEditStaffModal(p)}
+                              >
+                                <Pencil className="h-4 w-4" />
+                              </Button>
                               <Button variant="ghost" size="sm" onClick={() => navigate(`/people/${p.id}`)}>
                                 Fiche
                                 <ArrowRight className="ml-1 h-3 w-3" />
@@ -737,7 +890,7 @@ export function PeopleListScreen() {
                                 size="sm"
                                 className="text-red-600 hover:bg-red-50 h-8 w-8 p-0"
                                 onClick={() => {
-                                  if (confirm(`Confirmer la suppression du bénévole ${p.firstName} ${p.lastName} ?`)) {
+                                  if (confirm(`Supprimer le bénévole ${p.firstName} ${p.lastName} ?`)) {
                                     deleteStaffMutation.mutate(p.id);
                                   }
                                 }}
@@ -757,7 +910,7 @@ export function PeopleListScreen() {
         )}
 
         {/* ═════════════════════════════════════════════════════════════════ */}
-        {/* TAB 3: DÉPARTEMENTS & PÔLES (GESTION COMPLÈTE)                    */}
+        {/* TAB 3: DÉPARTEMENTS & PÔLES                                       */}
         {/* ═════════════════════════════════════════════════════════════════ */}
         {activeTab === 'departments' && (
           <div className="space-y-6">
@@ -777,7 +930,7 @@ export function PeopleListScreen() {
                 <Building2 className="mx-auto h-12 w-12 text-slate-300" />
                 <h3 className="text-base font-bold text-slate-800">Aucun département défini</h3>
                 <p className="text-sm text-slate-500 max-w-md mx-auto">
-                  Définissez des départements (ex: Direction, Programmes & Projets, Bénévolat & Communauté, Finances, Ressources Humaines) pour catégoriser vos équipes et filtrer les budgets.
+                  Définissez des départements (ex: Direction, Programmes, Bénévolat, Finances, RH) pour catégoriser vos équipes.
                 </p>
                 <Button onClick={() => { setEditingDept(null); setNewDeptName(''); setNewDeptCode(''); setNewDeptParentId(''); setShowDeptModal(true); }}>
                   Créer le premier département
@@ -823,7 +976,7 @@ export function PeopleListScreen() {
                             size="sm"
                             className="h-8 w-8 p-0 text-red-400 hover:text-red-700"
                             onClick={() => {
-                              if (confirm(`Confirmer la suppression du département "${dept.name}" ? Les membres associés seront détachés sans être supprimés.`)) {
+                              if (confirm(`Confirmer la suppression du département "${dept.name}" ?`)) {
                                 deleteDeptMutation.mutate(dept.id);
                               }
                             }}
@@ -833,7 +986,6 @@ export function PeopleListScreen() {
                         </div>
                       </div>
 
-                      {/* Member counts */}
                       <div className="grid grid-cols-2 gap-2 pt-2 border-t text-xs">
                         <div className="rounded-lg bg-slate-50 p-2 text-center">
                           <span className="text-slate-400 block">Salariés / Staff</span>
@@ -845,7 +997,6 @@ export function PeopleListScreen() {
                         </div>
                       </div>
 
-                      {/* Member list preview */}
                       {totalMembers > 0 ? (
                         <div className="space-y-1">
                           <span className="text-[11px] font-bold uppercase tracking-wider text-slate-400 block">Membres rattachés</span>
@@ -945,7 +1096,7 @@ export function PeopleListScreen() {
         )}
 
         {/* ═════════════════════════════════════════════════════════════════ */}
-        {/* MODAL: NOUVEAU MEMBRE DU PERSONNEL / BÉNÉVOLE DIRECT              */}
+        {/* MODAL: CRÉER / MODIFIER UN COLLABORATEUR DU PERSONNEL / BÉNÉVOLE  */}
         {/* ═════════════════════════════════════════════════════════════════ */}
         {showStaffModal && (
           <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
@@ -955,12 +1106,12 @@ export function PeopleListScreen() {
                   {staffModalMode === 'volunteer' ? (
                     <>
                       <HeartHandshake className="h-5 w-5 text-emerald-600" />
-                      Nouveau Bénévole / Volontaire
+                      {editingStaff ? 'Modifier le Bénévole' : 'Nouveau Bénévole / Volontaire'}
                     </>
                   ) : (
                     <>
                       <Briefcase className="h-5 w-5 text-indigo-600" />
-                      Nouveau Membre du Personnel / Direction
+                      {editingStaff ? 'Modifier le Membre du Personnel' : 'Nouveau Membre du Personnel / Salarié'}
                     </>
                   )}
                 </h2>
@@ -985,7 +1136,13 @@ export function PeopleListScreen() {
                 <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                   <Input label="Prénom *" value={staffFirstName} onChange={(e) => setStaffFirstName(e.target.value)} required />
                   <Input label="Nom *" value={staffLastName} onChange={(e) => setStaffLastName(e.target.value)} required />
-                  <Input label="Courriel (Optionnel)" type="email" value={staffEmail} onChange={(e) => setStaffEmail(e.target.value)} placeholder="personne@association.org" />
+                  <Input
+                    label="Courriel (Login d'accès applicatif)"
+                    type="email"
+                    value={staffEmail}
+                    onChange={(e) => setStaffEmail(e.target.value)}
+                    placeholder="personne@association.org"
+                  />
                   <Input label="Téléphone" value={staffPhone} onChange={(e) => setStaffPhone(e.target.value)} placeholder="514-555-0199" />
                 </div>
 
@@ -998,7 +1155,7 @@ export function PeopleListScreen() {
                     <Input
                       value={staffJobTitle}
                       onChange={(e) => setStaffJobTitle(e.target.value)}
-                      placeholder={staffModalMode === 'volunteer' ? 'Ex: Animation ateliers, Chauffeur bénévole...' : 'Ex: Directeur Général, Coordonnateur...'}
+                      placeholder={staffModalMode === 'volunteer' ? 'Ex: Animation ateliers, Chauffeur...' : 'Ex: Directeur Général, Comptable...'}
                       required
                     />
                   </div>
@@ -1056,31 +1213,89 @@ export function PeopleListScreen() {
                 <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 border-t pt-4">
                   <Input label="Contact d'urgence" value={staffEmergencyContact} onChange={(e) => setStaffEmergencyContact(e.target.value)} placeholder="Nom & Téléphone du contact" />
                   <div>
-                    <label className="mb-1 block text-xs font-bold text-slate-700">
-                      {staffModalMode === 'volunteer' ? 'Disponibilités & Compétences' : 'Notes RH / Observations'}
-                    </label>
+                    <label className="mb-1 block text-xs font-bold text-slate-700">Statut</label>
+                    <select
+                      value={staffStatus}
+                      onChange={(e) => setStaffStatus(e.target.value)}
+                      className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm"
+                    >
+                      <option value="active">Actif</option>
+                      <option value="on_leave">En congé</option>
+                      <option value="inactive">Inactif</option>
+                      <option value="archived">Archivé</option>
+                    </select>
+                  </div>
+
+                  <div className="sm:col-span-2">
+                    <label className="mb-1 block text-xs font-bold text-slate-700">Notes RH / Observations</label>
                     <textarea
                       value={staffNotes}
                       onChange={(e) => setStaffNotes(e.target.value)}
                       rows={2}
                       className="w-full rounded-lg border border-slate-300 px-3 py-1.5 text-xs"
-                      placeholder={staffModalMode === 'volunteer' ? 'Ex: Disponible les fins de semaine, permis de conduire, bilingue...' : 'Remarques, compétences clés...'}
+                      placeholder="Remarques, compétences clés..."
                     />
                   </div>
                 </div>
 
-                {/* Option to invite by email */}
+                {/* User Account / Login Setup */}
                 {staffEmail && (
-                  <div className="rounded-lg bg-indigo-50/70 border border-indigo-100 p-3">
-                    <label className="flex items-center gap-2 text-xs font-bold text-indigo-950 cursor-pointer">
-                      <input
-                        type="checkbox"
-                        checked={staffSendInvite}
-                        onChange={(e) => setStaffSendInvite(e.target.checked)}
-                        className="h-4 w-4 rounded border-slate-300 text-indigo-600 focus:ring-indigo-500"
-                      />
-                      Générer également une invitation d'accès informatique par courriel pour cette personne
-                    </label>
+                  <div className="rounded-xl bg-indigo-50/70 border border-indigo-100 p-4 space-y-3">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-2">
+                        <KeyRound className="h-4 w-4 text-indigo-600" />
+                        <span className="text-xs font-bold text-indigo-950">
+                          {editingStaff?.staff?.userAccount ? 'Compte utilisateur actif lié' : 'Création automatique du compte d\'accès (Login)'}
+                        </span>
+                      </div>
+                      {!editingStaff?.staff?.userAccount && (
+                        <label className="flex items-center gap-2 text-xs font-bold text-indigo-900 cursor-pointer">
+                          <input
+                            type="checkbox"
+                            checked={staffCreateAccount}
+                            onChange={(e) => setStaffCreateAccount(e.target.checked)}
+                            className="h-4 w-4 rounded border-slate-300 text-indigo-600 focus:ring-indigo-500"
+                          />
+                          Activer le compte d'accès
+                        </label>
+                      )}
+                    </div>
+
+                    {(staffCreateAccount || editingStaff?.staff?.userAccount) && (
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-2">
+                        <div>
+                          <label className="mb-1 block text-xs font-semibold text-slate-700">Rôle d'accès système</label>
+                          <select
+                            value={staffRoleId}
+                            onChange={(e) => setStaffRoleId(e.target.value)}
+                            className="w-full rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-xs focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500"
+                          >
+                            <option value="">— Rôle par défaut —</option>
+                            {roles.map((r: any) => (
+                              <option key={r.id} value={r.id}>{r.name} ({r.code})</option>
+                            ))}
+                          </select>
+                        </div>
+
+                        <div>
+                          <label className="mb-1 block text-xs font-semibold text-slate-700">
+                            {editingStaff?.staff?.userAccount ? 'Réinitialiser le mot de passe (laisser vide pour inchangé)' : 'Mot de passe initial'}
+                          </label>
+                          <Input
+                            type="text"
+                            value={staffPassword}
+                            onChange={(e) => setStaffPassword(e.target.value)}
+                            placeholder={editingStaff?.staff?.userAccount ? 'Nouveau mot de passe...' : 'Ex: OrgDash2026!'}
+                            className="h-8 text-xs"
+                          />
+                        </div>
+
+                        <div className="sm:col-span-2 text-[11px] text-slate-500 flex items-center gap-1.5">
+                          <CheckCircle2 className="h-3.5 w-3.5 text-emerald-600 shrink-0" />
+                          <span>L'identifiant de connexion (Login) sera synchronisé avec <strong>{staffEmail}</strong>.</span>
+                        </div>
+                      </div>
+                    )}
                   </div>
                 )}
 
@@ -1091,16 +1306,89 @@ export function PeopleListScreen() {
                   <Button
                     type="submit"
                     className={staffModalMode === 'volunteer' ? 'bg-emerald-600 hover:bg-emerald-700' : ''}
-                    disabled={createStaffMutation.isPending || !staffFirstName.trim() || !staffLastName.trim() || !staffJobTitle.trim()}
+                    disabled={createStaffMutation.isPending || updateStaffMutation.isPending || !staffFirstName.trim() || !staffLastName.trim() || !staffJobTitle.trim()}
                   >
-                    {createStaffMutation.isPending
+                    {createStaffMutation.isPending || updateStaffMutation.isPending
                       ? 'Enregistrement...'
-                      : staffModalMode === 'volunteer'
-                        ? 'Enregistrer le bénévole'
-                        : 'Enregistrer le collaborateur'}
+                      : editingStaff
+                        ? 'Enregistrer les modifications'
+                        : staffModalMode === 'volunteer'
+                          ? 'Enregistrer le bénévole'
+                          : 'Enregistrer le salarié'}
                   </Button>
                 </div>
               </form>
+            </div>
+          </div>
+        )}
+
+        {/* ═════════════════════════════════════════════════════════════════ */}
+        {/* MODAL: CRÉER RAPIDEMENT UN COMPTE UTILISATEUR D'ACCÈS             */}
+        {/* ═════════════════════════════════════════════════════════════════ */}
+        {showAccountModal && targetStaffForAccount && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
+            <div className="w-full max-w-md rounded-xl bg-white p-6 shadow-2xl space-y-4">
+              <div className="flex items-center justify-between border-b pb-3">
+                <h3 className="text-base font-bold text-slate-900 flex items-center gap-2">
+                  <KeyRound className="h-5 w-5 text-indigo-600" />
+                  Activer le compte d'accès applicatif
+                </h3>
+                <Button variant="ghost" size="sm" onClick={() => setShowAccountModal(false)}>
+                  <X className="h-5 w-5" />
+                </Button>
+              </div>
+
+              <div className="rounded-lg bg-slate-50 p-3 border text-xs space-y-1">
+                <div><strong>Employé :</strong> {targetStaffForAccount.firstName} {targetStaffForAccount.lastName}</div>
+                <div><strong>Identifiant / Login :</strong> {targetStaffForAccount.email}</div>
+                <div><strong>Poste :</strong> {targetStaffForAccount.staff?.jobTitle}</div>
+              </div>
+
+              {error && <div className="rounded bg-red-50 p-3 text-sm text-red-700">{error}</div>}
+
+              <div className="space-y-3">
+                <div>
+                  <label className="mb-1 block text-xs font-bold text-slate-700">Rôle attribué</label>
+                  <select
+                    value={accountRoleId}
+                    onChange={(e) => setAccountRoleId(e.target.value)}
+                    className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500"
+                  >
+                    <option value="">— Rôle standard —</option>
+                    {roles.map((r: any) => (
+                      <option key={r.id} value={r.id}>{r.name} ({r.code})</option>
+                    ))}
+                  </select>
+                </div>
+
+                <div>
+                  <label className="mb-1 block text-xs font-bold text-slate-700">Mot de passe temporaire initial</label>
+                  <Input
+                    type="text"
+                    value={accountPassword}
+                    onChange={(e) => setAccountPassword(e.target.value)}
+                    placeholder="Ex: OrgDash2026!"
+                    required
+                  />
+                </div>
+              </div>
+
+              <div className="flex justify-end gap-2 pt-3 border-t">
+                <Button variant="ghost" size="sm" onClick={() => setShowAccountModal(false)}>
+                  Annuler
+                </Button>
+                <Button
+                  size="sm"
+                  onClick={() => createAccountMutation.mutate({
+                    partyId: targetStaffForAccount.id,
+                    password: accountPassword,
+                    roleId: accountRoleId || undefined,
+                  })}
+                  disabled={createAccountMutation.isPending}
+                >
+                  {createAccountMutation.isPending ? 'Création...' : 'Créer et activer le compte'}
+                </Button>
+              </div>
             </div>
           </div>
         )}
