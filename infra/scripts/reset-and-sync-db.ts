@@ -20,13 +20,15 @@ async function resetAndSyncDatabase() {
     await client.query(`
       DROP SCHEMA IF EXISTS public CASCADE;
       CREATE SCHEMA public;
-      GRANT ALL ON SCHEMA public TO postgres;
       GRANT ALL ON SCHEMA public TO public;
     `);
     console.log('✅ Schéma public réinitialisé à neuf.');
 
     // 2. Apply Full Migration DDL
-    const ddlFile = path.resolve(__dirname, '../../packages/shared/drizzle/0000_fine_firedrake.sql');
+    let ddlFile = path.resolve(process.cwd(), 'packages/shared/drizzle/0000_fine_firedrake.sql');
+    if (!fs.existsSync(ddlFile)) {
+      ddlFile = path.resolve(__dirname, '../../packages/shared/drizzle/0000_fine_firedrake.sql');
+    }
     if (!fs.existsSync(ddlFile)) {
       throw new Error(`Fichier de migration DDL introuvable : ${ddlFile}`);
     }
@@ -42,7 +44,10 @@ async function resetAndSyncDatabase() {
     console.log('✅ 52 tables, clés étrangères et contraintes créées avec succès.');
 
     // 3. Inject Seed Data
-    const seedFile = path.resolve(__dirname, '../seeds/test-database-seed.sql');
+    let seedFile = path.resolve(process.cwd(), 'infra/seeds/test-database-seed.sql');
+    if (!fs.existsSync(seedFile)) {
+      seedFile = path.resolve(__dirname, '../seeds/test-database-seed.sql');
+    }
     if (fs.existsSync(seedFile)) {
       console.log('3️⃣ Injection des données de référence (Seed Data)...');
       const seedSql = fs.readFileSync(seedFile, 'utf-8');
