@@ -767,7 +767,7 @@ export function ProjectDetailScreen() {
     deliverables = [],
   } = data;
 
-  // ── Derived stats ──
+  // ── Derived stats & Real Progress Rollup ──
   const totalBudget = (projBudget?.lines || []).reduce((s: number, l: any) => s + parseFloat(l.amount || '0'), 0);
   const totalApprovedExpenses = expenses
     .filter((e: any) => e.status === 'approved' || e.status === 'paid')
@@ -777,12 +777,92 @@ export function ProjectDetailScreen() {
     .reduce((s: number, e: any) => s + parseFloat(e.amount || '0'), 0);
   const totalFunding = fundingSources.reduce((s: number, f: any) => s + parseFloat(f.amount || '0'), 0);
   const remaining = totalBudget - totalApprovedExpenses;
-  const avgProgress =
-    planItems.length > 0
-      ? Math.round(planItems.reduce((s: number, p: any) => s + (p.progressPct || 0), 0) / planItems.length)
-      : 0;
-  const completedTasks = planItems.filter((p: any) => p.status === 'completed').length;
+
+  // Calcul d'avancement réel pondéré WBS (Rollup racines)
+  const rootPlanItems = planItems.filter((p: any) => !p.parentId);
+  const totalRootWeight = rootPlanItems.reduce((s: number, p: any) => s + (p.durationDays || 1), 0);
+  const overallProgress =
+    rootPlanItems.length > 0 && totalRootWeight > 0
+      ? Math.round(
+          rootPlanItems.reduce((s: number, p: any) => s + (p.progressPct || 0) * (p.durationDays || 1), 0) /
+            totalRootWeight
+        )
+      : planItems.length > 0
+        ? Math.round(planItems.reduce((s: number, p: any) => s + (p.progressPct || 0), 0) / planItems.length)
+        : 0;
+
+  const totalTasks = planItems.length;
+  const completedTasks = planItems.filter((p: any) => p.status === 'completed' || (p.progressPct ?? 0) === 100).length;
+  const inProgressTasks = planItems.filter((p: any) => (p.progressPct ?? 0) > 0 && (p.progressPct ?? 0) < 100).length;
   const blockedTasks = planItems.filter((p: any) => p.status === 'blocked').length;
+
+  // Calcul de la santé temporelle des phases (Comparaison dates réelles vs temps écoulé vs % réalisé)
+  const todayStr = new Date().toISOString().split('T')[0];
+  const phasesWithHealth = rootPlanItems.map((phase: any) => {
+    const childTasks = planItems.filter((item: any) => item.parentId === phase.id);
+    const completedChildCount = childTasks.filter(
+      (c: any) => c.status === 'completed' || (c.progressPct ?? 0) === 100
+    ).length;
+
+    const pct = phase.progressPct || 0;
+    let health: 'completed' | 'delayed' | 'at_risk' | 'on_track' | 'upcoming' = 'upcoming';
+    let healthLabel = 'À venir';
+    let healthColor = 'bg-slate-100 text-slate-700 border-slate-200';
+
+    if (pct === 100 || phase.status === 'completed') {
+      health = 'completed';
+      healthLabel = 'Terminée';
+      healthColor = 'bg-emerald-100 text-emerald-800 border-emerald-300';
+    } else if (phase.endDate && todayStr > phase.endDate) {
+      health = 'delayed';
+      healthLabel = 'En retard';
+      healthColor = 'bg-red-100 text-red-800 border-red-300';
+    } else if (phase.startDate && todayStr >= phase.startDate) {
+      if (phase.endDate) {
+        const startTs = new Date(phase.startDate).getTime();
+        const endTs = new Date(phase.endDate).getTime();
+        const nowTs = new Date().getTime();
+        const totalDuration = Math.max(endTs - startTs, 1);
+        const elapsed = Math.min(Math.max(nowTs - startTs, 0), totalDuration);
+        const expectedPct = Math.round((elapsed / totalDuration) * 100);
+
+        if (pct < expectedPct - 15) {
+          health = 'at_risk';
+          healthLabel = 'À risque';
+          healthColor = 'bg-amber-100 text-amber-800 border-amber-300';
+        } else {
+          health = 'on_track';
+          healthLabel = 'Sur les rails';
+          healthColor = 'bg-emerald-50 text-emerald-700 border-emerald-200';
+        }
+      } else {
+        health = pct > 0 ? 'on_track' : 'at_risk';
+        healthLabel = pct > 0 ? 'Sur les rails' : 'À démarrer';
+        healthColor = pct > 0 ? 'bg-emerald-50 text-emerald-700 border-emerald-200' : 'bg-amber-50 text-amber-700 border-amber-200';
+      }
+    }
+
+    return {
+      ...phase,
+      childTasks,
+      childCount: childTasks.length,
+      completedChildCount,
+      health,
+      healthLabel,
+      healthColor,
+    };
+  });
+
+  const isProjectDelayed = phasesWithHealth.some((ph: any) => ph.health === 'delayed') || blockedTasks > 0;
+  const isProjectAtRisk = phasesWithHealth.some((ph: any) => ph.health === 'at_risk');
+  const projectHealth =
+    overallProgress === 100
+      ? { label: 'Projet Terminé', color: 'bg-emerald-100 text-emerald-800 border-emerald-300' }
+      : isProjectDelayed
+      ? { label: 'Attention : En retard', color: 'bg-red-100 text-red-800 border-red-300' }
+      : isProjectAtRisk
+      ? { label: 'Vigilance : À risque', color: 'bg-amber-100 text-amber-800 border-amber-300' }
+      : { label: 'Sur les rails', color: 'bg-emerald-50 text-emerald-700 border-emerald-200' };
 
   const TABS = [
     { key: 'overview' as TabKey, label: 'Vue d\'ensemble', icon: FolderKanban },
@@ -850,17 +930,27 @@ export function ProjectDetailScreen() {
           </div>
 
           {/* Quick stats strip */}
-          <div className="flex items-center gap-6 pb-3 text-xs text-slate-500">
+          <div className="flex flex-wrap items-center gap-6 pb-3 text-xs text-slate-500">
             <span className="flex items-center gap-1">
-              <BarChart3 className="h-3.5 w-3.5" />
-              <strong className="text-slate-700">{avgProgress}%</strong> avancement global
+              <BarChart3 className="h-3.5 w-3.5 text-indigo-600" />
+              <strong className="text-slate-800 font-bold">{overallProgress}%</strong> avancement WBS
+            </span>
+            <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-semibold border ${projectHealth.color}`}>
+              <CheckCircle2 className="h-3 w-3" />
+              {projectHealth.label}
             </span>
             <span className="flex items-center gap-1">
               <CheckCircle2 className="h-3.5 w-3.5 text-emerald-600" />
-              <strong className="text-slate-700">{completedTasks}</strong>/{planItems.length} éléments terminés
+              <strong className="text-slate-700">{completedTasks}</strong>/{totalTasks} tâches & jalons terminés
             </span>
+            {inProgressTasks > 0 && (
+              <span className="flex items-center gap-1 text-sky-600">
+                <Clock className="h-3.5 w-3.5" />
+                <strong>{inProgressTasks}</strong> en cours
+              </span>
+            )}
             {blockedTasks > 0 && (
-              <span className="flex items-center gap-1 text-red-600">
+              <span className="flex items-center gap-1 text-red-600 font-semibold">
                 <Flame className="h-3.5 w-3.5" />
                 <strong>{blockedTasks}</strong> bloqué{blockedTasks > 1 ? 's' : ''}
               </span>
@@ -876,7 +966,7 @@ export function ProjectDetailScreen() {
           </div>
 
           {/* Tab navigation */}
-          <div className="-mb-px flex gap-0">
+          <div className="-mb-px flex gap-0 overflow-x-auto">
             {TABS.map((tab) => {
               const Icon = tab.icon;
               const isActive = activeTab === tab.key;
@@ -884,9 +974,9 @@ export function ProjectDetailScreen() {
                 <button
                   key={tab.key}
                   onClick={() => setActiveTab(tab.key)}
-                  className={`flex items-center gap-1.5 border-b-2 px-4 py-2.5 text-sm font-medium transition-colors ${
+                  className={`flex items-center gap-1.5 border-b-2 px-4 py-2.5 text-sm font-medium whitespace-nowrap transition-colors ${
                     isActive
-                      ? 'border-indigo-600 text-indigo-700'
+                      ? 'border-indigo-600 text-indigo-700 font-bold'
                       : 'border-transparent text-slate-500 hover:border-slate-300 hover:text-slate-700'
                   }`}
                 >
@@ -960,28 +1050,39 @@ export function ProjectDetailScreen() {
               </div>
             </div>
 
-            {/* Progress by plan type */}
-            <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
-              <div className="rounded-xl border bg-white p-5 shadow-sm">
-                <h2 className="mb-4 text-sm font-semibold text-slate-700">Avancement global du projet</h2>
-                <div className="mb-4">
+            {/* Évolution & Progression WBS */}
+            <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
+              {/* Carte Avancement Global du Projet */}
+              <div className="rounded-xl border bg-white p-5 shadow-sm space-y-4">
+                <div className="flex items-center justify-between">
+                  <h2 className="text-sm font-bold text-slate-800">Avancement Global du Projet</h2>
+                  <span className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-semibold border ${projectHealth.color}`}>
+                    {projectHealth.label}
+                  </span>
+                </div>
+
+                <div>
                   <div className="mb-1 flex justify-between text-sm">
-                    <span className="text-slate-600">Progression moyenne</span>
-                    <span className="font-bold text-indigo-700">{avgProgress}%</span>
+                    <span className="text-xs font-medium text-slate-500">Complétion WBS pondérée</span>
+                    <span className="font-extrabold text-indigo-700 text-base">{overallProgress}%</span>
                   </div>
-                  <div className="h-3 w-full overflow-hidden rounded-full bg-slate-100">
+                  <div className="h-3.5 w-full overflow-hidden rounded-full bg-slate-100 border border-slate-200">
                     <div
-                      className="h-3 rounded-full bg-gradient-to-r from-indigo-500 to-indigo-600 transition-all"
-                      style={{ width: `${avgProgress}%` }}
+                      className="h-3.5 rounded-full bg-gradient-to-r from-indigo-500 via-indigo-600 to-emerald-500 transition-all duration-500"
+                      style={{ width: `${overallProgress}%` }}
                     />
                   </div>
+                  <p className="mt-1.5 text-[11px] text-slate-400">
+                    Calculé en temps réel à partir de la durée et du statut de chaque tâche racine.
+                  </p>
                 </div>
-                <div className="grid grid-cols-2 gap-3">
+
+                <div className="grid grid-cols-2 gap-2 pt-2 border-t border-slate-100">
                   {Object.entries(STATUS_CONFIG).map(([key, cfg]) => {
                     const count = planItems.filter((p: any) => p.status === key).length;
                     return (
-                      <div key={key} className="flex items-center justify-between rounded-lg bg-slate-50 px-3 py-2 text-sm">
-                        <span className={`flex items-center gap-1.5 rounded-full px-2 py-0.5 text-xs font-medium ${cfg.color}`}>
+                      <div key={key} className="flex items-center justify-between rounded-lg bg-slate-50 px-2.5 py-1.5 text-xs">
+                        <span className={`flex items-center gap-1 rounded-full px-1.5 py-0.5 text-[10px] font-medium ${cfg.color}`}>
                           {cfg.icon}
                           {cfg.label}
                         </span>
@@ -992,6 +1093,94 @@ export function ProjectDetailScreen() {
                 </div>
               </div>
 
+              {/* Évolution des Phases & Santé Calendrier */}
+              <div className="rounded-xl border bg-white p-5 shadow-sm lg:col-span-2 space-y-4">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <Layers className="h-4 w-4 text-indigo-600" />
+                    <h2 className="text-sm font-bold text-slate-800">Évolution des Phases & Calendrier (WBS)</h2>
+                  </div>
+                  <span className="text-xs font-mono text-slate-400">
+                    {phasesWithHealth.length} phase{phasesWithHealth.length > 1 ? 's' : ''}
+                  </span>
+                </div>
+
+                {phasesWithHealth.length === 0 ? (
+                  <div className="py-8 text-center text-xs text-slate-400">
+                    Aucune phase définie. Ajoutez des phases dans l'onglet « Planification » pour structurer le WBS.
+                  </div>
+                ) : (
+                  <div className="space-y-3">
+                    {phasesWithHealth.map((phase: any) => {
+                      const phaseProgress = phase.progressPct || 0;
+                      return (
+                        <div
+                          key={phase.id}
+                          className="rounded-lg border border-slate-200 bg-slate-50/70 p-3.5 space-y-2 hover:border-slate-300 transition"
+                        >
+                          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1">
+                            <div className="flex items-center gap-2">
+                              <span className="rounded bg-indigo-100 px-1.5 py-0.5 font-mono text-[11px] font-bold text-indigo-800 shrink-0">
+                                {phase.wbs}
+                              </span>
+                              <span className="font-bold text-slate-800 text-xs sm:text-sm">{phase.title}</span>
+                            </div>
+                            <div className="flex items-center gap-2">
+                              <span
+                                className={`inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-semibold border ${phase.healthColor}`}
+                              >
+                                {phase.healthLabel}
+                              </span>
+                              <span className="text-xs font-bold text-indigo-700 font-mono w-10 text-right">
+                                {phaseProgress}%
+                              </span>
+                            </div>
+                          </div>
+
+                          {/* Progress bar */}
+                          <div className="h-2 w-full overflow-hidden rounded-full bg-slate-200">
+                            <div
+                              className={`h-2 rounded-full transition-all duration-500 ${
+                                phaseProgress === 100
+                                  ? 'bg-emerald-500'
+                                  : phase.health === 'delayed'
+                                  ? 'bg-red-500'
+                                  : phase.health === 'at_risk'
+                                  ? 'bg-amber-500'
+                                  : 'bg-indigo-600'
+                              }`}
+                              style={{ width: `${phaseProgress}%` }}
+                            />
+                          </div>
+
+                          <div className="flex flex-wrap items-center justify-between gap-2 text-[11px] text-slate-500">
+                            <div className="flex items-center gap-3">
+                              <span className="flex items-center gap-1">
+                                <Calendar className="h-3 w-3 text-slate-400" />
+                                {phase.startDate ? new Date(phase.startDate).toLocaleDateString('fr-CA') : '—'} au{' '}
+                                {phase.endDate ? new Date(phase.endDate).toLocaleDateString('fr-CA') : '—'}
+                              </span>
+                              {phase.durationDays && (
+                                <span className="font-mono text-slate-400">({phase.durationDays} jours)</span>
+                              )}
+                            </div>
+                            <div className="flex items-center gap-1 font-medium">
+                              <CheckCircle2 className="h-3 w-3 text-emerald-600" />
+                              <span>
+                                {phase.completedChildCount} / {phase.childCount} tâche{phase.childCount > 1 ? 's' : ''} terminée{phase.childCount > 1 ? 's' : ''}
+                              </span>
+                            </div>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {/* RAID & Financements */}
+            <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
               {/* RAID summary */}
               <div className="rounded-xl border bg-white p-5 shadow-sm">
                 <h2 className="mb-4 text-sm font-semibold text-slate-700">Registre RAID — Synthèse</h2>
@@ -1017,20 +1206,22 @@ export function ProjectDetailScreen() {
                     })}
                   </div>
                 )}
+              </div>
 
-                {/* Funding sources mini list */}
-                {fundingSources.length > 0 && (
-                  <>
-                    <h2 className="mb-3 mt-5 text-sm font-semibold text-slate-700">Sources de financement</h2>
-                    <div className="space-y-1">
-                      {fundingSources.map((fs: any) => (
-                        <div key={fs.id} className="flex items-center justify-between text-sm">
-                          <span className="text-slate-700">{fs.donorName}</span>
-                          <span className="font-semibold text-indigo-700">{fmt(fs.amount, fs.currency)}</span>
-                        </div>
-                      ))}
-                    </div>
-                  </>
+              {/* Funding sources mini list */}
+              <div className="rounded-xl border bg-white p-5 shadow-sm">
+                <h2 className="mb-4 text-sm font-semibold text-slate-700">Sources de financement</h2>
+                {fundingSources.length === 0 ? (
+                  <p className="text-sm text-slate-400">Aucune source de financement enregistrée.</p>
+                ) : (
+                  <div className="space-y-2">
+                    {fundingSources.map((fs: any) => (
+                      <div key={fs.id} className="flex items-center justify-between rounded-lg bg-slate-50 px-3 py-2 text-sm">
+                        <span className="text-slate-700 font-medium">{fs.donorName}</span>
+                        <span className="font-semibold text-indigo-700">{fmt(fs.amount, fs.currency)}</span>
+                      </div>
+                    ))}
+                  </div>
                 )}
               </div>
             </div>
