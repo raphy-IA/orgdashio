@@ -14,7 +14,9 @@
     "verify": "pnpm lint && pnpm typecheck && pnpm test && pnpm check:rls",
     "db:generate": "pnpm --filter @orgdashio/shared db:generate",
     "db:migrate": "pnpm --filter @orgdashio/shared db:migrate",
-    "db:push": "pnpm --filter @orgdashio/shared db:push"
+    "db:push": "pnpm --filter @orgdashio/shared db:push",
+    "db:export:test": "tsx infra/scripts/generate-seed-export.ts",
+    "db:restore:test": "tsx infra/scripts/restore-seed.ts"
   },
   "devDependencies": {
     "turbo": "^2.1.0",
