@@ -25,8 +25,6 @@ async function generateSeedExport() {
     }
   }
 
-  console.log(`📋 ${schemaTableColumns.size} tables identifiées dans le schéma TypeScript.`);
-
   // Ensure seeds directory exists
   const seedsDir = path.resolve(process.cwd(), 'infra/seeds');
   if (!fs.existsSync(seedsDir)) {
@@ -36,14 +34,6 @@ async function generateSeedExport() {
   const sqlFile = path.join(seedsDir, 'test-database-seed.sql');
   const jsonFile = path.join(seedsDir, 'test-database-seed.json');
 
-  const tablesRes = await client.query(`
-    SELECT table_name 
-    FROM information_schema.tables 
-    WHERE table_schema = 'public' AND table_type = 'BASE TABLE'
-    ORDER BY table_name;
-  `);
-
-  const tables = tablesRes.rows.map((r) => r.table_name);
   const fullData: Record<string, any[]> = {};
   const sqlStatements: string[] = [];
 
@@ -53,9 +43,72 @@ async function generateSeedExport() {
   sqlStatements.push('-- =================================================================\n');
   sqlStatements.push('SET session_replication_role = \'replica\';\n');
 
-  for (const table of tables) {
+  // Topological / Foreign Key order (Parents first)
+  const orderedTables = [
+    'tenant_registry',
+    'user_account',
+    'user_credential',
+    'user_session',
+    'role',
+    'permission',
+    'role_permission',
+    'org_unit',
+    'party',
+    'staff_profile',
+    'beneficiary_profile',
+    'household',
+    'household_member',
+    'membership',
+    'membership_role',
+    'invitation',
+    'program',
+    'project',
+    'program_project',
+    'project_member',
+    'funding_source',
+    'budget',
+    'budget_line',
+    'expense',
+    'plan_item',
+    'plan_dependency',
+    'plan_item_update',
+    'plan_item_deliverable',
+    'plan_item_raci',
+    'raid_item',
+    'result_node',
+    'training_program',
+    'course',
+    'training_program_course',
+    'training_session',
+    'session_occurrence',
+    'enrollment',
+    'attendance',
+    'certificate',
+    'case_file',
+    'case_assignment',
+    'case_note',
+    'break_glass_log',
+    'consent_purpose',
+    'consent_record',
+    'service_delivery',
+    'indicator',
+    'indicator_observation',
+    'document',
+    'notification',
+    'support_access_grant',
+    'audit_log'
+  ];
+
+  // 1. Truncate in reverse order
+  sqlStatements.push('-- 1. Nettoyage initial');
+  for (const table of [...orderedTables].reverse()) {
+    sqlStatements.push(`TRUNCATE TABLE "${table}" CASCADE;`);
+  }
+  sqlStatements.push('\n-- 2. Insertion des données ordonnées');
+
+  for (const table of orderedTables) {
     const validCols = schemaTableColumns.get(table);
-    if (!validCols) continue; // Skip tables not defined in schema
+    if (!validCols) continue;
 
     const rowsRes = await client.query(`SELECT * FROM "${table}";`);
     const rows = rowsRes.rows;
@@ -78,7 +131,6 @@ async function generateSeedExport() {
     console.log(`✓ Table "${table}": ${rows.length} lignes extraites (${columns.length} colonnes conformes au schéma).`);
 
     sqlStatements.push(`-- Table: ${table} (${rows.length} rows)`);
-    sqlStatements.push(`TRUNCATE TABLE "${table}" CASCADE;`);
 
     const colsList = columns.map((c) => `"${c}"`).join(', ');
 
