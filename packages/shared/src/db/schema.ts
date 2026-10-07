@@ -1283,6 +1283,7 @@ export const indicator = pgTable(
     resultNodeId: uuid('result_node_id'),
     code: text('code').notNull(),
     name: text('name').notNull(),
+    description: text('description'),
     level: text('level', { enum: ['impact', 'outcome', 'output', 'activity'] }).notNull(),
     unit: text('unit').notNull().default('count'),
     baselineValue: numeric('baseline_value', { precision: 19, scale: 4 }).notNull().default('0'),
@@ -1291,7 +1292,11 @@ export const indicator = pgTable(
     frequency: text('frequency', { enum: ['monthly', 'quarterly', 'annual', 'total'] })
       .notNull()
       .default('quarterly'),
+    meansOfVerification: text('means_of_verification'),
+    disaggregationDimensions: jsonb('disaggregation_dimensions').$type<string[]>(),
+    status: text('status', { enum: ['active', 'archived', 'achieved'] }).notNull().default('active'),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
   },
   (table) => ({
     tenantIdIdUk: unique().on(table.tenantId, table.id),
@@ -1308,7 +1313,15 @@ export const indicatorObservation = pgTable(
     indicatorId: uuid('indicator_id').notNull(),
     periodLabel: text('period_label').notNull(),
     recordedValue: numeric('recorded_value', { precision: 19, scale: 4 }).notNull(),
+    disaggregationData: jsonb('disaggregation_data').$type<{
+      gender?: Record<string, number>;
+      ageGroup?: Record<string, number>;
+      immigrationStatus?: Record<string, number>;
+      region?: Record<string, number>;
+      custom?: Record<string, number>;
+    }>(),
     notes: text('notes'),
+    sourceFileUrl: text('source_file_url'),
     recordedAt: timestamp('recorded_at', { withTimezone: true }).notNull().defaultNow(),
   },
   (table) => ({
