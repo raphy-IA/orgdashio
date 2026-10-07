@@ -853,6 +853,102 @@ export const fundingSource = pgTable(
   })
 );
 
+// Module GRN: Grants & Funding Applications (GRN-01)
+export const grantRecord = pgTable(
+  'grant_record',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    tenantId: uuid('tenant_id').notNull(),
+    code: text('code').notNull(),
+    title: text('title').notNull(),
+    funderName: text('funder_name').notNull(),
+    funderType: text('funder_type', {
+      enum: ['federal', 'provincial', 'municipal', 'foundation', 'corporate', 'other'],
+    }).notNull().default('foundation'),
+    programName: text('program_name'),
+    projectId: uuid('project_id'),
+    status: text('status', {
+      enum: ['prospect', 'drafting', 'submitted', 'approved', 'rejected', 'closed'],
+    }).notNull().default('prospect'),
+    requestedAmount: numeric('requested_amount', { precision: 19, scale: 4 }).notNull().default('0'),
+    awardedAmount: numeric('awarded_amount', { precision: 19, scale: 4 }).default('0'),
+    currency: text('currency').notNull().default('CAD'),
+    submissionDeadline: date('submission_deadline'),
+    submittedAt: date('submitted_at'),
+    startDate: date('start_date'),
+    endDate: date('end_date'),
+    managerUserId: uuid('manager_user_id').references(() => userAccount.id, { onDelete: 'set null' }),
+    notes: text('notes'),
+    contractUrl: text('contract_url'),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => ({
+    projectFk: foreignKey({
+      columns: [table.tenantId, table.projectId],
+      foreignColumns: [project.tenantId, project.id],
+    }).onDelete('set null'),
+    tenantIdIdUk: unique().on(table.tenantId, table.id),
+    tenantIdCodeUk: unique().on(table.tenantId, table.code),
+  })
+);
+
+// Module GRN: Grant Installments / Tranches de Versement (GRN-02)
+export const grantInstallment = pgTable(
+  'grant_installment',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    tenantId: uuid('tenant_id').notNull(),
+    grantId: uuid('grant_id').notNull(),
+    installmentNumber: integer('installment_number').notNull().default(1),
+    expectedDate: date('expected_date').notNull(),
+    amount: numeric('amount', { precision: 19, scale: 4 }).notNull(),
+    status: text('status', {
+      enum: ['scheduled', 'received', 'delayed', 'cancelled'],
+    }).notNull().default('scheduled'),
+    receivedAt: date('received_at'),
+    receivedAmount: numeric('received_amount', { precision: 19, scale: 4 }),
+    conditions: text('conditions'),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => ({
+    grantFk: foreignKey({
+      columns: [table.tenantId, table.grantId],
+      foreignColumns: [grantRecord.tenantId, grantRecord.id],
+    }).onDelete('cascade'),
+    tenantIdIdUk: unique().on(table.tenantId, table.id),
+  })
+);
+
+// Module GRN: Grant Deliverables & Reports (GRN-03)
+export const grantDeliverable = pgTable(
+  'grant_deliverable',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    tenantId: uuid('tenant_id').notNull(),
+    grantId: uuid('grant_id').notNull(),
+    title: text('title').notNull(),
+    deliverableType: text('deliverable_type', {
+      enum: ['narrative_report', 'financial_report', 'audit', 'evaluation', 'other'],
+    }).notNull().default('narrative_report'),
+    dueDate: date('due_date').notNull(),
+    status: text('status', {
+      enum: ['pending', 'in_progress', 'submitted', 'approved', 'overdue'],
+    }).notNull().default('pending'),
+    submittedAt: date('submitted_at'),
+    notes: text('notes'),
+    fileUrl: text('file_url'),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => ({
+    grantFk: foreignKey({
+      columns: [table.tenantId, table.grantId],
+      foreignColumns: [grantRecord.tenantId, grantRecord.id],
+    }).onDelete('cascade'),
+    tenantIdIdUk: unique().on(table.tenantId, table.id),
+  })
+);
+
 // Module PRJ: Result Nodes / Cadre Logique (PRJ-04)
 export const resultNode = pgTable(
   'result_node',

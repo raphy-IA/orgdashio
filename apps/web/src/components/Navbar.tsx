@@ -21,6 +21,7 @@ import {
   Key,
   Lock,
   CreditCard,
+  Landmark,
 } from 'lucide-react';
 
 export function Navbar() {
@@ -75,6 +76,7 @@ export function Navbar() {
   const navLinks = [
     { path: '/dashboard', label: 'Tableau de bord', icon: LayoutDashboard },
     { path: '/projects', label: 'Projets', icon: FolderKanban },
+    { path: '/grants', label: 'Subventions', icon: Landmark },
     { path: '/people', label: 'Personnes & Équipe', icon: Users },
     { path: '/training', label: 'Formations', icon: GraduationCap },
     { path: '/cases', label: 'Suivi de cas', icon: ShieldAlert },

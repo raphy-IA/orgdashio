@@ -23,6 +23,8 @@ import { OrganizationSettingsScreen } from './features/settings/OrganizationSett
 import { PrivacySettingsScreen } from './features/settings/PrivacySettingsScreen';
 import { UserProfileSettingsScreen } from './features/settings/UserProfileSettingsScreen';
 import { BillingScreen } from './features/billing/BillingScreen';
+import { GrantListScreen } from './features/grants/GrantListScreen';
+import { GrantDetailScreen } from './features/grants/GrantDetailScreen';
 
 export default function App() {
   return (
@@ -42,6 +44,8 @@ export default function App() {
       <Route path="/cases/:id" element={<CaseDetailScreen />} />
       <Route path="/indicators" element={<IndicatorListScreen />} />
       <Route path="/dashboard/impact" element={<ImpactDashboardScreen />} />
+      <Route path="/grants" element={<GrantListScreen />} />
+      <Route path="/grants/:id" element={<GrantDetailScreen />} />
       <Route path="/billing" element={<BillingScreen />} />
       <Route path="/settings/billing" element={<BillingScreen />} />
       <Route path="/settings/profile" element={<UserProfileSettingsScreen />} />

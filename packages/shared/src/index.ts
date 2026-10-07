@@ -10,3 +10,4 @@ export * from './schemas/training.schema';
 export * from './schemas/cases.schema';
 export * from './schemas/indicators.schema';
 export * from './schemas/billing.schema';
+export * from './schemas/grants.schema';
