@@ -22,6 +22,7 @@ import { ImpactDashboardScreen } from './features/indicators/ImpactDashboardScre
 import { OrganizationSettingsScreen } from './features/settings/OrganizationSettingsScreen';
 import { PrivacySettingsScreen } from './features/settings/PrivacySettingsScreen';
 import { UserProfileSettingsScreen } from './features/settings/UserProfileSettingsScreen';
+import { BillingScreen } from './features/billing/BillingScreen';
 
 export default function App() {
   return (
@@ -41,6 +42,8 @@ export default function App() {
       <Route path="/cases/:id" element={<CaseDetailScreen />} />
       <Route path="/indicators" element={<IndicatorListScreen />} />
       <Route path="/dashboard/impact" element={<ImpactDashboardScreen />} />
+      <Route path="/billing" element={<BillingScreen />} />
+      <Route path="/settings/billing" element={<BillingScreen />} />
       <Route path="/settings/profile" element={<UserProfileSettingsScreen />} />
       <Route path="/settings/organization" element={<OrganizationSettingsScreen />} />
       <Route path="/settings/privacy" element={<PrivacySettingsScreen />} />

@@ -20,6 +20,7 @@ import {
   ChevronDown,
   Key,
   Lock,
+  CreditCard,
 } from 'lucide-react';
 
 export function Navbar() {
@@ -245,6 +246,14 @@ export function Navbar() {
                   >
                     <Building2 className="mr-2.5 h-4 w-4 text-slate-400" />
                     <span>Paramètres de l'Organisme & Logo</span>
+                  </Link>
+                  <Link
+                    to="/settings/billing"
+                    onClick={() => setProfileDropdownOpen(false)}
+                    className="flex items-center px-4 py-2 text-slate-700 hover:bg-slate-50 hover:text-indigo-600 transition-colors"
+                  >
+                    <CreditCard className="mr-2.5 h-4 w-4 text-slate-400" />
+                    <span>Abonnement & Facturation SaaS</span>
                   </Link>
                   <Link
                     to="/settings/privacy"

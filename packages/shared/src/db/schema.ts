@@ -96,6 +96,78 @@ export const userSession = pgTable('user_session', {
 });
 
 // ---------------------------------------------------------------------------
+// Plan de Contrôle: Facturation & Abonnements SaaS (Control Plane)
+// ---------------------------------------------------------------------------
+export const subscriptionPlan = pgTable('subscription_plan', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  code: text('code').notNull().unique(), // 'community', 'starter', 'pro', 'enterprise'
+  name: text('name').notNull(),
+  description: text('description'),
+  priceMonthly: numeric('price_monthly', { precision: 19, scale: 4 }).notNull().default('0'),
+  priceAnnual: numeric('price_annual', { precision: 19, scale: 4 }).notNull().default('0'),
+  maxUsers: integer('max_users').notNull().default(5),
+  maxStorageGb: integer('max_storage_gb').notNull().default(5),
+  maxProjects: integer('max_projects').notNull().default(5),
+  features: jsonb('features').$type<string[]>(),
+  isActive: boolean('is_active').notNull().default(true),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+});
+
+export const tenantSubscription = pgTable('tenant_subscription', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  tenantId: uuid('tenant_id')
+    .notNull()
+    .unique()
+    .references(() => tenantRegistry.id, { onDelete: 'cascade' }),
+  planCode: text('plan_code').notNull().default('starter'),
+  billingCycle: text('billing_cycle', { enum: ['monthly', 'annual'] })
+    .notNull()
+    .default('monthly'),
+  status: text('status', { enum: ['active', 'trialing', 'past_due', 'canceled'] })
+    .notNull()
+    .default('active'),
+  seatCount: integer('seat_count').notNull().default(5),
+  currentPeriodStart: timestamp('current_period_start', { withTimezone: true })
+    .notNull()
+    .defaultNow(),
+  currentPeriodEnd: timestamp('current_period_end', { withTimezone: true }),
+  trialEndsAt: timestamp('trial_ends_at', { withTimezone: true }),
+  cancelAtPeriodEnd: boolean('cancel_at_period_end').notNull().default(false),
+  stripeCustomerId: text('stripe_customer_id'),
+  stripeSubscriptionId: text('stripe_subscription_id'),
+  paymentMethodLast4: text('payment_method_last4'),
+  paymentMethodBrand: text('payment_method_brand'),
+  billingEmail: text('billing_email'),
+  billingAddress: text('billing_address'),
+  neqNumber: text('neq_number'),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+});
+
+export const tenantInvoice = pgTable('tenant_invoice', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  tenantId: uuid('tenant_id')
+    .notNull()
+    .references(() => tenantRegistry.id, { onDelete: 'cascade' }),
+  invoiceNumber: text('invoice_number').notNull().unique(),
+  planName: text('plan_name').notNull(),
+  billingCycle: text('billing_cycle').notNull().default('monthly'),
+  subtotal: numeric('subtotal', { precision: 19, scale: 4 }).notNull(),
+  taxTps: numeric('tax_tps', { precision: 19, scale: 4 }).notNull().default('0'),
+  taxTvq: numeric('tax_tvq', { precision: 19, scale: 4 }).notNull().default('0'),
+  total: numeric('total', { precision: 19, scale: 4 }).notNull(),
+  currency: text('currency').notNull().default('CAD'),
+  status: text('status', { enum: ['paid', 'pending', 'failed', 'refunded'] })
+    .notNull()
+    .default('paid'),
+  paidAt: timestamp('paid_at', { withTimezone: true }),
+  periodStart: timestamp('period_start', { withTimezone: true }).notNull().defaultNow(),
+  periodEnd: timestamp('period_end', { withTimezone: true }).notNull().defaultNow(),
+  pdfUrl: text('pdf_url'),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+});
+
+// ---------------------------------------------------------------------------
 // Plan de Données (Data Plane - Protected by RLS)
 // ---------------------------------------------------------------------------
 
