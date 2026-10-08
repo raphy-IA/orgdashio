@@ -682,7 +682,7 @@ export class PeopleService {
           partyId,
           purposeId: input.purposeId,
           version: input.version,
-          status: input.status,
+          status: input.status as any,
           mode: input.mode,
           withdrawnAt: input.status === 'withdrawn' ? new Date() : null,
         })
@@ -696,7 +696,7 @@ export class PeopleService {
       const consents = await tx.select().from(consentRecord).where(eq(consentRecord.partyId, partyId));
       const activeConsent = consents.find((c: any) => c.status === 'given' && !c.withdrawnAt);
 
-      if (!isServiceDeliveryAllowed(activeConsent)) {
+      if (!isServiceDeliveryAllowed(activeConsent || null)) {
         throw new BadRequestException('Consentement obligatoire non accordé ou retiré (Loi 25)');
       }
 
@@ -708,7 +708,7 @@ export class PeopleService {
           serviceTypeId: input.serviceTypeId,
           projectId: input.projectId,
           providerPartyId,
-          deliveredAt: input.deliveredAt,
+          deliveredAt: input.deliveredAt ? new Date(input.deliveredAt) : new Date(),
           notes: input.notes,
         })
         .returning();

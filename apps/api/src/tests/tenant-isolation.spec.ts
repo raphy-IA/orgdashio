@@ -1,5 +1,6 @@
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
-import { createPgPool, createDbClient, withTenantContext, project } from '@orgdashio/shared';
+import { withTenantContext, project } from '@orgdashio/shared';
+import { createPgPool, createDbClient } from '../common/database/drizzle-client';
 import { AuthService } from '../modules/auth/auth.service';
 import { ProjectService } from '../modules/project/project.service';
 

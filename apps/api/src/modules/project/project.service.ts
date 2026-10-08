@@ -1021,7 +1021,7 @@ export class ProjectService {
           ...(input.probability !== undefined && { probability: input.probability }),
           ...(input.impact !== undefined && { impact: input.impact }),
           ...(input.ownerName !== undefined && { ownerName: input.ownerName }),
-          ...(input.status !== undefined && { status: input.status }),
+          ...(input.status !== undefined && { status: input.status as any }),
         })
         .where(and(eq(raidItem.id, itemId), eq(raidItem.tenantId, tenantId), eq(raidItem.projectId, projectId)))
         .returning();

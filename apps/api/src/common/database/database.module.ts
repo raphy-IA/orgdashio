@@ -1,5 +1,5 @@
 import { Module, Global } from '@nestjs/common';
-import { createPgPool, createDbClient } from '@orgdashio/shared';
+import { createPgPool, createDbClient } from './drizzle-client';
 
 export const DATABASE_POOL = 'DATABASE_POOL';
 export const DRIZZLE_DB = 'DRIZZLE_DB';

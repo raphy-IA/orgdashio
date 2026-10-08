@@ -1,4 +1,5 @@
-import { createPgPool, createDbClient, userAccount, userCredential } from '@orgdashio/shared';
+import { userAccount, userCredential } from '@orgdashio/shared';
+import { createPgPool, createDbClient } from '../../apps/api/src/common/database/drizzle-client';
 import { hash } from '@node-rs/argon2';
 import { eq } from 'drizzle-orm';
 
