@@ -359,6 +359,12 @@ export class AuthService {
             privacyOfficerName: tenant.privacyOfficerName,
             privacyOfficerEmail: tenant.privacyOfficerEmail,
             dataRetentionMonths: tenant.dataRetentionMonths,
+            charityRegistrationNumber: tenant.charityRegistrationNumber,
+            authorizedSignerName: tenant.authorizedSignerName,
+            authorizedSignerTitle: tenant.authorizedSignerTitle,
+            currency: tenant.currency || 'CAD',
+            fiscalYearEnd: tenant.fiscalYearEnd || '12-31',
+            timezone: tenant.timezone || 'America/Toronto',
           }
         : null,
     };
@@ -375,6 +381,12 @@ export class AuthService {
     if (input.description !== undefined) updateData.description = input.description;
     if (input.orgType !== undefined) updateData.orgType = input.orgType;
     if (input.neqNumber !== undefined) updateData.neqNumber = input.neqNumber;
+    if (input.charityRegistrationNumber !== undefined) updateData.charityRegistrationNumber = input.charityRegistrationNumber;
+    if (input.authorizedSignerName !== undefined) updateData.authorizedSignerName = input.authorizedSignerName;
+    if (input.authorizedSignerTitle !== undefined) updateData.authorizedSignerTitle = input.authorizedSignerTitle;
+    if (input.currency !== undefined) updateData.currency = input.currency;
+    if (input.fiscalYearEnd !== undefined) updateData.fiscalYearEnd = input.fiscalYearEnd;
+    if (input.timezone !== undefined) updateData.timezone = input.timezone;
     if (input.address !== undefined) updateData.address = input.address;
     if (input.phone !== undefined) updateData.phone = input.phone;
     if (input.email !== undefined) updateData.email = input.email;
