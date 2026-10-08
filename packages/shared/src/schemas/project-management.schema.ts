@@ -61,6 +61,9 @@ export const CreateBudgetLineSchema = z.object({
 
 export type CreateBudgetLineInput = z.infer<typeof CreateBudgetLineSchema>;
 
+export const UpdateBudgetLineSchema = CreateBudgetLineSchema.partial();
+export type UpdateBudgetLineInput = z.infer<typeof UpdateBudgetLineSchema>;
+
 export const CreateExpenseSchema = z.object({
   budgetLineId: z.string().uuid('ID ligne budgétaire invalide'),
   date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Format de date YYYY-MM-DD'),

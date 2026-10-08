@@ -400,6 +400,12 @@ export function ProjectDetailScreen() {
   const [blDescription, setBlDescription] = useState('');
   const [blAmount, setBlAmount] = useState('');
 
+  // Edit Budget Line state
+  const [editingBlId, setEditingBlId] = useState<string | null>(null);
+  const [editBlCategory, setEditBlCategory] = useState('personnel');
+  const [editBlDescription, setEditBlDescription] = useState('');
+  const [editBlAmount, setEditBlAmount] = useState('');
+
   // RAID form
   const [raidType, setRaidType] = useState<RaidItem['type']>('risk');
   const [raidTitle, setRaidTitle] = useState('');
@@ -546,13 +552,52 @@ export function ProjectDetailScreen() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ categoryCode: blCategory, description: blDescription, amount: parseFloat(blAmount) }),
       });
-      if (!res.ok) throw new Error('Erreur');
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error(err.message || 'Erreur lors de la création de la ligne');
+      }
       return res.json();
     },
     onSuccess: () => {
       invalidate();
       setBlDescription(''); setBlAmount(''); setShowBudgetLineForm(false);
     },
+    onError: (err: any) => alert(err.message),
+  });
+
+  const updateBudgetLine = useMutation({
+    mutationFn: async ({ lineId, categoryCode, description, amount }: { lineId: string; categoryCode: string; description: string; amount: number }) => {
+      const res = await fetch(`/api/v1/projects/${id}/budget-lines/${lineId}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ categoryCode, description, amount }),
+      });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error(err.message || 'Erreur lors de la modification de la ligne');
+      }
+      return res.json();
+    },
+    onSuccess: () => {
+      invalidate();
+      setEditingBlId(null);
+    },
+    onError: (err: any) => alert(err.message),
+  });
+
+  const deleteBudgetLine = useMutation({
+    mutationFn: async (lineId: string) => {
+      const res = await fetch(`/api/v1/projects/${id}/budget-lines/${lineId}`, {
+        method: 'DELETE',
+      });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error(err.message || 'Erreur lors de la suppression de la ligne');
+      }
+      return res.json();
+    },
+    onSuccess: () => invalidate(),
+    onError: (err: any) => alert(err.message),
   });
 
   const addRaidItem = useMutation({
@@ -2650,23 +2695,122 @@ export function ProjectDetailScreen() {
                       <th className="px-5 py-3 text-left">Catégorie</th>
                       <th className="px-5 py-3 text-left">Description</th>
                       <th className="px-5 py-3 text-right">Montant planifié</th>
+                      <th className="px-5 py-3 text-right">Actions</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-100">
-                    {projBudget.lines.map((line: any) => (
-                      <tr key={line.id} className="hover:bg-slate-50">
-                        <td className="px-5 py-3">
-                          <span className="rounded-full bg-slate-100 px-2 py-0.5 text-xs font-medium text-slate-600">
-                            {CATEGORY_LABELS[line.categoryCode] || line.categoryCode}
-                          </span>
-                        </td>
-                        <td className="px-5 py-3 text-slate-700">{line.description}</td>
-                        <td className="px-5 py-3 text-right font-semibold text-slate-900">{fmt(line.amount)}</td>
-                      </tr>
-                    ))}
+                    {projBudget.lines.map((line: any) => {
+                      const isEditing = editingBlId === line.id;
+                      if (isEditing) {
+                        return (
+                          <tr key={line.id} className="bg-indigo-50/50">
+                            <td className="px-5 py-2.5">
+                              <select
+                                value={editBlCategory}
+                                onChange={(e) => setEditBlCategory(e.target.value)}
+                                className="w-full rounded-lg border border-slate-300 bg-white px-2.5 py-1.5 text-xs font-medium focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500"
+                              >
+                                {Object.entries(CATEGORY_LABELS).map(([k, v]) => (
+                                  <option key={k} value={k}>{v}</option>
+                                ))}
+                              </select>
+                            </td>
+                            <td className="px-5 py-2.5">
+                              <Input
+                                value={editBlDescription}
+                                onChange={(e) => setEditBlDescription(e.target.value)}
+                                placeholder="Description"
+                                className="bg-white text-xs"
+                              />
+                            </td>
+                            <td className="px-5 py-2.5 text-right">
+                              <Input
+                                type="number"
+                                value={editBlAmount}
+                                onChange={(e) => setEditBlAmount(e.target.value)}
+                                placeholder="0.00"
+                                className="bg-white text-xs text-right font-semibold"
+                              />
+                            </td>
+                            <td className="px-5 py-2.5 text-right whitespace-nowrap">
+                              <div className="flex items-center justify-end gap-1.5">
+                                <Button
+                                  size="sm"
+                                  className="h-7 px-2.5 text-xs"
+                                  disabled={!editBlDescription.trim() || !editBlAmount || updateBudgetLine.isPending}
+                                  onClick={() => {
+                                    updateBudgetLine.mutate({
+                                      lineId: line.id,
+                                      categoryCode: editBlCategory,
+                                      description: editBlDescription.trim(),
+                                      amount: parseFloat(editBlAmount),
+                                    });
+                                  }}
+                                >
+                                  <Check className="h-3.5 w-3.5 mr-1" />
+                                  Enregistrer
+                                </Button>
+                                <Button
+                                  size="sm"
+                                  variant="ghost"
+                                  className="h-7 px-2 text-xs"
+                                  onClick={() => setEditingBlId(null)}
+                                >
+                                  Annuler
+                                </Button>
+                              </div>
+                            </td>
+                          </tr>
+                        );
+                      }
+
+                      return (
+                        <tr key={line.id} className="hover:bg-slate-50 group">
+                          <td className="px-5 py-3">
+                            <span className="rounded-full bg-slate-100 px-2 py-0.5 text-xs font-medium text-slate-600">
+                              {CATEGORY_LABELS[line.categoryCode] || line.categoryCode}
+                            </span>
+                          </td>
+                          <td className="px-5 py-3 text-slate-700 font-medium">{line.description}</td>
+                          <td className="px-5 py-3 text-right font-semibold text-slate-900">{fmt(line.amount)}</td>
+                          <td className="px-5 py-3 text-right">
+                            <div className="flex items-center justify-end gap-1 opacity-90 group-hover:opacity-100">
+                              <Button
+                                size="sm"
+                                variant="ghost"
+                                className="h-7 w-7 p-0 text-slate-400 hover:text-indigo-600 hover:bg-indigo-50"
+                                title="Modifier cette ligne budgétaire"
+                                onClick={() => {
+                                  setEditingBlId(line.id);
+                                  setEditBlCategory(line.categoryCode);
+                                  setEditBlDescription(line.description);
+                                  setEditBlAmount(line.amount);
+                                }}
+                              >
+                                <Pencil className="h-3.5 w-3.5" />
+                              </Button>
+                              <Button
+                                size="sm"
+                                variant="ghost"
+                                className="h-7 w-7 p-0 text-slate-400 hover:text-red-600 hover:bg-red-50"
+                                title="Supprimer cette ligne budgétaire"
+                                onClick={() => {
+                                  if (window.confirm(`Supprimer la ligne budgétaire "${line.description}" (${fmt(line.amount)}) ?`)) {
+                                    deleteBudgetLine.mutate(line.id);
+                                  }
+                                }}
+                              >
+                                <Trash2 className="h-3.5 w-3.5" />
+                              </Button>
+                            </div>
+                          </td>
+                        </tr>
+                      );
+                    })}
                     <tr className="border-t-2 border-slate-200 bg-slate-50">
                       <td colSpan={2} className="px-5 py-3 font-bold text-slate-700">Total</td>
                       <td className="px-5 py-3 text-right font-bold text-slate-900">{fmt(totalBudget)}</td>
+                      <td className="px-5 py-3"></td>
                     </tr>
                   </tbody>
                 </table>

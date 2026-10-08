@@ -26,6 +26,7 @@ import {
   UpdatePlanItemSchema,
   CreateDependencySchema,
   CreateBudgetLineSchema,
+  UpdateBudgetLineSchema,
   CreateExpenseSchema,
   CreateRaidItemSchema,
   UpdateRaidItemSchema,
@@ -128,6 +129,26 @@ export class ProjectController {
       ? body.map((b) => CreateBudgetLineSchema.parse(b))
       : [CreateBudgetLineSchema.parse(body)];
     return this.projectService.addBudgetLines(req.tenantId, id, parsed);
+  }
+
+  @Patch(':id/budget-lines/:lineId')
+  async updateBudgetLine(
+    @Req() req: any,
+    @Param('id') id: string,
+    @Param('lineId') lineId: string,
+    @Body() body: any,
+  ) {
+    const parsed = UpdateBudgetLineSchema.parse(body);
+    return this.projectService.updateBudgetLine(req.tenantId, id, lineId, parsed);
+  }
+
+  @Delete(':id/budget-lines/:lineId')
+  async deleteBudgetLine(
+    @Req() req: any,
+    @Param('id') id: string,
+    @Param('lineId') lineId: string,
+  ) {
+    return this.projectService.deleteBudgetLine(req.tenantId, id, lineId);
   }
 
   @Post(':id/expenses')

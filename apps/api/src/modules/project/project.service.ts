@@ -33,6 +33,7 @@ import {
   CreatePlanItemInput,
   CreateDependencyInput,
   CreateBudgetLineInput,
+  UpdateBudgetLineInput,
   CreateExpenseInput,
   CreateRaidItemInput,
   UpdatePlanItemInput,
@@ -798,6 +799,80 @@ export class ProjectService {
         .returning();
 
       return inserted;
+    });
+  }
+
+  async updateBudgetLine(tenantId: string, projectId: string, lineId: string, input: UpdateBudgetLineInput) {
+    return withTenantContext(this.db, tenantId, async (tx) => {
+      const [projBudget] = await tx.select().from(budget).where(eq(budget.projectId, projectId));
+      if (!projBudget) throw new NotFoundException('Budget non trouvé');
+
+      const [existingLine] = await tx
+        .select()
+        .from(budgetLine)
+        .where(
+          and(
+            eq(budgetLine.id, lineId),
+            eq(budgetLine.tenantId, tenantId),
+            eq(budgetLine.budgetId, projBudget.id)
+          )
+        );
+      if (!existingLine) throw new NotFoundException('Ligne budgétaire non trouvée');
+
+      const updateData: any = {};
+      if (input.categoryCode !== undefined) updateData.categoryCode = input.categoryCode;
+      if (input.description !== undefined) updateData.description = input.description;
+      if (input.amount !== undefined) updateData.amount = input.amount.toString();
+
+      const [updated] = await tx
+        .update(budgetLine)
+        .set(updateData)
+        .where(eq(budgetLine.id, lineId))
+        .returning();
+
+      return updated;
+    });
+  }
+
+  async deleteBudgetLine(tenantId: string, projectId: string, lineId: string) {
+    return withTenantContext(this.db, tenantId, async (tx) => {
+      const [projBudget] = await tx.select().from(budget).where(eq(budget.projectId, projectId));
+      if (!projBudget) throw new NotFoundException('Budget non trouvé');
+
+      const [existingLine] = await tx
+        .select()
+        .from(budgetLine)
+        .where(
+          and(
+            eq(budgetLine.id, lineId),
+            eq(budgetLine.tenantId, tenantId),
+            eq(budgetLine.budgetId, projBudget.id)
+          )
+        );
+      if (!existingLine) throw new NotFoundException('Ligne budgétaire non trouvée');
+
+      // Check if any expenses are attached to this budget line
+      const linkedExpenses = await tx
+        .select()
+        .from(expense)
+        .where(
+          and(
+            eq(expense.tenantId, tenantId),
+            eq(expense.budgetLineId, lineId)
+          )
+        );
+
+      if (linkedExpenses.length > 0) {
+        throw new BadRequestException(
+          `Impossible de supprimer cette ligne budgétaire : ${linkedExpenses.length} dépense(s) y sont rattachée(s). Veuillez d'abord supprimer ou réassigner ces dépenses.`
+        );
+      }
+
+      await tx
+        .delete(budgetLine)
+        .where(eq(budgetLine.id, lineId));
+
+      return { success: true, deletedId: lineId };
     });
   }
 
