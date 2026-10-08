@@ -3733,27 +3733,117 @@ export function ProjectDetailScreen() {
                         return res;
                       };
                       const descendants = collectChildren(selectedTask.id);
-                      const childTasks = descendants.filter((d: any) => d.type === 'task' || d.type === 'milestone');
+                      const childTasks = descendants.filter((d: any) => d.type === 'task' || d.type === 'milestone' || d.type === 'deliverable');
+                      const directChildren = planItems.filter((p: any) => p.parentId === selectedTask.id);
                       const totalCost = childTasks.reduce((s: number, t: any) => s + (parseFloat(t.estimatedCost) || 0), 0);
                       const completedCount = childTasks.filter((t: any) => t.progressPct === 100 || t.status === 'completed').length;
 
                       return (
-                        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 pt-1">
-                          <div className="bg-white rounded-lg p-3 border border-indigo-100 shadow-2xs">
-                            <span className="text-[10px] text-slate-400 block font-bold uppercase tracking-wider">Sous-tâches & Jalons</span>
-                            <span className="font-extrabold text-slate-800 text-base">{childTasks.length}</span>
+                        <div className="space-y-4 pt-1">
+                          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                            <div className="bg-white rounded-lg p-3 border border-indigo-100 shadow-2xs">
+                              <span className="text-[10px] text-slate-400 block font-bold uppercase tracking-wider">Sous-tâches & Jalons</span>
+                              <span className="font-extrabold text-slate-800 text-base">{childTasks.length}</span>
+                            </div>
+                            <div className="bg-white rounded-lg p-3 border border-indigo-100 shadow-2xs">
+                              <span className="text-[10px] text-slate-400 block font-bold uppercase tracking-wider">Tâches Terminées</span>
+                              <span className="font-extrabold text-emerald-700 text-base">{completedCount} / {childTasks.length}</span>
+                            </div>
+                            <div className="bg-white rounded-lg p-3 border border-indigo-100 shadow-2xs">
+                              <span className="text-[10px] text-slate-400 block font-bold uppercase tracking-wider">Budget Consolidé</span>
+                              <span className="font-extrabold text-indigo-700 text-base">{fmt(totalCost)}</span>
+                            </div>
+                            <div className="bg-white rounded-lg p-3 border border-indigo-100 shadow-2xs">
+                              <span className="text-[10px] text-slate-400 block font-bold uppercase tracking-wider">Avancement Global</span>
+                              <span className="font-extrabold text-indigo-900 text-base">{selectedTask.progressPct || 0}%</span>
+                            </div>
                           </div>
-                          <div className="bg-white rounded-lg p-3 border border-indigo-100 shadow-2xs">
-                            <span className="text-[10px] text-slate-400 block font-bold uppercase tracking-wider">Tâches Terminées</span>
-                            <span className="font-extrabold text-emerald-700 text-base">{completedCount} / {childTasks.length}</span>
-                          </div>
-                          <div className="bg-white rounded-lg p-3 border border-indigo-100 shadow-2xs">
-                            <span className="text-[10px] text-slate-400 block font-bold uppercase tracking-wider">Budget Consolidé</span>
-                            <span className="font-extrabold text-indigo-700 text-base">{fmt(totalCost)}</span>
-                          </div>
-                          <div className="bg-white rounded-lg p-3 border border-indigo-100 shadow-2xs">
-                            <span className="text-[10px] text-slate-400 block font-bold uppercase tracking-wider">Avancement Global</span>
-                            <span className="font-extrabold text-indigo-900 text-base">{selectedTask.progressPct || 0}%</span>
+
+                          {/* Liste détaillée des éléments et tâches rattachés */}
+                          <div className="rounded-xl border border-indigo-200 bg-white overflow-hidden shadow-2xs">
+                            <div className="bg-indigo-50/80 px-4 py-3 border-b border-indigo-100 flex items-center justify-between">
+                              <h4 className="text-xs font-bold text-indigo-950 flex items-center gap-2">
+                                <ListOrdered className="h-4 w-4 text-indigo-600" />
+                                <span>Éléments et tâches contenus dans ce conteneur ({descendants.length})</span>
+                              </h4>
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                onClick={() => {
+                                  setPiParentId(selectedTask.id);
+                                  setPiType(selectedTask.type === 'phase' ? 'activity' : 'task');
+                                  setShowPlanItemForm(true);
+                                }}
+                                className="text-xs font-bold text-indigo-700 border-indigo-200 bg-white hover:bg-indigo-50"
+                              >
+                                <Plus className="mr-1 h-3.5 w-3.5" />
+                                Ajouter sous ce conteneur
+                              </Button>
+                            </div>
+
+                            {descendants.length === 0 ? (
+                              <div className="p-6 text-center text-xs text-slate-400">
+                                Aucun élément ou tâche n'est encore rattaché à ce conteneur.
+                              </div>
+                            ) : (
+                              <div className="divide-y divide-slate-100 max-h-80 overflow-y-auto">
+                                {descendants
+                                  .sort((a, b) => (a.wbs || '').localeCompare(b.wbs || '', undefined, { numeric: true }))
+                                  .map((child: any) => {
+                                    const cTypeCfg = TYPE_CONFIG[child.type] || TYPE_CONFIG.task;
+                                    const cStatusCfg = STATUS_CONFIG[child.status] || STATUS_CONFIG.todo;
+                                    return (
+                                      <div
+                                        key={child.id}
+                                        onClick={() => setSelectedTask(child)}
+                                        className="p-3 hover:bg-indigo-50/40 transition flex items-center justify-between cursor-pointer group"
+                                      >
+                                        <div className="flex items-center gap-3">
+                                          <span className="font-mono text-xs font-bold text-slate-500 bg-slate-100 px-1.5 py-0.5 rounded">
+                                            {child.wbs}
+                                          </span>
+                                          <div>
+                                            <div className="flex items-center gap-2">
+                                              <span className="text-xs font-bold text-slate-800 group-hover:text-indigo-700">
+                                                {child.title}
+                                              </span>
+                                              <span className={`text-[10px] px-2 py-0.2 rounded-full font-medium ${cTypeCfg.badgeClass}`}>
+                                                {cTypeCfg.label}
+                                              </span>
+                                            </div>
+                                            <div className="flex items-center gap-3 text-[11px] text-slate-400 mt-0.5">
+                                              <span>{child.startDate && child.endDate ? `${child.startDate} → ${child.endDate}` : 'Dates au roll-up'}</span>
+                                              <span>•</span>
+                                              <span>{child.durationDays || 0} jours</span>
+                                              {child.estimatedCost > 0 && (
+                                                <>
+                                                  <span>•</span>
+                                                  <span className="font-semibold text-slate-600">{fmt(child.estimatedCost)}</span>
+                                                </>
+                                              )}
+                                            </div>
+                                          </div>
+                                        </div>
+
+                                        <div className="flex items-center gap-3">
+                                          <div className="w-24 text-right">
+                                            <span className="text-[11px] font-bold text-slate-700">{child.progressPct || 0}%</span>
+                                            <div className="h-1.5 w-full bg-slate-200 rounded-full overflow-hidden mt-0.5">
+                                              <div
+                                                className="h-full bg-indigo-600 rounded-full"
+                                                style={{ width: `${child.progressPct || 0}%` }}
+                                              />
+                                            </div>
+                                          </div>
+                                          <span className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-bold ${cStatusCfg.color}`}>
+                                            {cStatusCfg.label}
+                                          </span>
+                                        </div>
+                                      </div>
+                                    );
+                                  })}
+                              </div>
+                            )}
                           </div>
                         </div>
                       );
@@ -4081,8 +4171,6 @@ export function ProjectDetailScreen() {
                         </div>
                       );
                     })()}
-                  </>
-                )}
 
                 {/* 4. Évolution de l'avancement & Point d'étape */}
                 <div className="rounded-xl border border-indigo-200 bg-indigo-50/40 p-5 shadow-sm">
@@ -4349,11 +4437,13 @@ export function ProjectDetailScreen() {
                     </div>
                   )}
                 </div>
-              </div>
-            </div>
+              </>
+            )}
           </div>
-        );
-      })()}
+        </div>
+      </div>
+    );
+  })()}
     </div>
   );
 }
