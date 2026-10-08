@@ -25,6 +25,7 @@ import { UserProfileSettingsScreen } from './features/settings/UserProfileSettin
 import { BillingScreen } from './features/billing/BillingScreen';
 import { GrantListScreen } from './features/grants/GrantListScreen';
 import { GrantDetailScreen } from './features/grants/GrantDetailScreen';
+import { DonationListScreen } from './features/donations/DonationListScreen';
 
 export default function App() {
   return (
@@ -46,6 +47,7 @@ export default function App() {
       <Route path="/dashboard/impact" element={<ImpactDashboardScreen />} />
       <Route path="/grants" element={<GrantListScreen />} />
       <Route path="/grants/:id" element={<GrantDetailScreen />} />
+      <Route path="/donations" element={<DonationListScreen />} />
       <Route path="/billing" element={<BillingScreen />} />
       <Route path="/settings/billing" element={<BillingScreen />} />
       <Route path="/settings/profile" element={<UserProfileSettingsScreen />} />

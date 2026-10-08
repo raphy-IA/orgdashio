@@ -949,6 +949,162 @@ export const grantDeliverable = pgTable(
   })
 );
 
+// Module DON: Donors (DON-01)
+export const donor = pgTable(
+  'donor',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    tenantId: uuid('tenant_id').notNull(),
+    partyId: uuid('party_id'),
+    type: text('type', { enum: ['individual', 'organization', 'anonymous'] })
+      .notNull()
+      .default('individual'),
+    firstName: text('first_name'),
+    lastName: text('last_name'),
+    companyName: text('company_name'),
+    email: text('email'),
+    phone: text('phone'),
+    taxAddress: text('tax_address'),
+    taxCity: text('tax_city'),
+    taxStateProvince: text('tax_state_province').default('QC'),
+    taxPostalCode: text('tax_postal_code'),
+    taxCountry: text('tax_country').default('Canada'),
+    notes: text('notes'),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => ({
+    tenantIdIdUk: unique().on(table.tenantId, table.id),
+  })
+);
+
+// Module DON: Donation Campaigns (DON-02)
+export const donationCampaign = pgTable(
+  'donation_campaign',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    tenantId: uuid('tenant_id').notNull(),
+    code: text('code').notNull(),
+    name: text('name').notNull(),
+    description: text('description'),
+    targetAmount: numeric('target_amount', { precision: 19, scale: 4 }),
+    collectedAmount: numeric('collected_amount', { precision: 19, scale: 4 }).notNull().default('0'),
+    startDate: date('start_date'),
+    endDate: date('end_date'),
+    status: text('status', { enum: ['draft', 'active', 'completed', 'cancelled'] })
+      .notNull()
+      .default('active'),
+    projectId: uuid('project_id'),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => ({
+    projectFk: foreignKey({
+      columns: [table.tenantId, table.projectId],
+      foreignColumns: [project.tenantId, project.id],
+    }).onDelete('set null'),
+    tenantIdIdUk: unique().on(table.tenantId, table.id),
+    tenantIdCodeUk: unique().on(table.tenantId, table.code),
+  })
+);
+
+// Module DON: Donations (DON-03)
+export const donation = pgTable(
+  'donation',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    tenantId: uuid('tenant_id').notNull(),
+    donorId: uuid('donor_id').notNull(),
+    campaignId: uuid('campaign_id'),
+    projectId: uuid('project_id'),
+    donationNumber: text('donation_number').notNull(),
+    donationDate: timestamp('donation_date', { withTimezone: true }).notNull().defaultNow(),
+    grossAmount: numeric('gross_amount', { precision: 19, scale: 4 }).notNull(),
+    advantageAmount: numeric('advantage_amount', { precision: 19, scale: 4 }).notNull().default('0'),
+    eligibleAmount: numeric('eligible_amount', { precision: 19, scale: 4 }).notNull(),
+    currency: text('currency').notNull().default('CAD'),
+    paymentMethod: text('payment_method', {
+      enum: ['interac', 'credit_card', 'cheque', 'cash', 'bank_transfer', 'other'],
+    })
+      .notNull()
+      .default('interac'),
+    paymentReference: text('payment_reference'),
+    recurrence: text('recurrence', { enum: ['one_time', 'monthly', 'annual'] })
+      .notNull()
+      .default('one_time'),
+    status: text('status', { enum: ['received', 'pledged', 'refunded', 'failed'] })
+      .notNull()
+      .default('received'),
+    isTaxReceiptEligible: boolean('is_tax_receipt_eligible').notNull().default(true),
+    taxReceiptId: uuid('tax_receipt_id'),
+    notes: text('notes'),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => ({
+    donorFk: foreignKey({
+      columns: [table.tenantId, table.donorId],
+      foreignColumns: [donor.tenantId, donor.id],
+    }).onDelete('cascade'),
+    campaignFk: foreignKey({
+      columns: [table.tenantId, table.campaignId],
+      foreignColumns: [donationCampaign.tenantId, donationCampaign.id],
+    }).onDelete('set null'),
+    projectFk: foreignKey({
+      columns: [table.tenantId, table.projectId],
+      foreignColumns: [project.tenantId, project.id],
+    }).onDelete('set null'),
+    tenantIdIdUk: unique().on(table.tenantId, table.id),
+    tenantIdDonNumUk: unique().on(table.tenantId, table.donationNumber),
+  })
+);
+
+// Module DON: Official Tax Receipts CRA / ARC (DON-04)
+export const taxReceipt = pgTable(
+  'tax_receipt',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    tenantId: uuid('tenant_id').notNull(),
+    receiptNumber: text('receipt_number').notNull(),
+    donorId: uuid('donor_id').notNull(),
+    type: text('type', { enum: ['single_donation', 'annual_consolidated'] })
+      .notNull()
+      .default('single_donation'),
+    taxYear: integer('tax_year').notNull(),
+    issueDate: date('issue_date').notNull(),
+    locationIssued: text('location_issued').notNull().default('Montréal, QC'),
+    totalReceivedAmount: numeric('total_received_amount', { precision: 19, scale: 4 }).notNull(),
+    totalAdvantageAmount: numeric('total_advantage_amount', { precision: 19, scale: 4 }).notNull().default('0'),
+    totalEligibleAmount: numeric('total_eligible_amount', { precision: 19, scale: 4 }).notNull(),
+    charityRegistrationNumber: text('charity_registration_number').notNull(),
+    status: text('status', { enum: ['draft', 'issued', 'cancelled', 'replaced'] })
+      .notNull()
+      .default('issued'),
+    replacedByReceiptId: uuid('replaced_by_receipt_id'),
+    replacementReason: text('replacement_reason'),
+    authorizedSignatoryName: text('authorized_signatory_name').notNull(),
+    donorSnapshot: jsonb('donor_snapshot').$type<{
+      donorName: string;
+      taxAddress?: string;
+      taxCity?: string;
+      taxStateProvince?: string;
+      taxPostalCode?: string;
+      taxCountry?: string;
+    }>(),
+    pdfUrl: text('pdf_url'),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => ({
+    donorFk: foreignKey({
+      columns: [table.tenantId, table.donorId],
+      foreignColumns: [donor.tenantId, donor.id],
+    }).onDelete('cascade'),
+    tenantIdIdUk: unique().on(table.tenantId, table.id),
+    tenantIdReceiptNumUk: unique().on(table.tenantId, table.receiptNumber),
+  })
+);
+
 // Module PRJ: Result Nodes / Cadre Logique (PRJ-04)
 export const resultNode = pgTable(
   'result_node',

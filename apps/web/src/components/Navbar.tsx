@@ -22,6 +22,7 @@ import {
   Lock,
   CreditCard,
   Landmark,
+  HeartHandshake,
 } from 'lucide-react';
 
 export function Navbar() {
@@ -77,6 +78,7 @@ export function Navbar() {
     { path: '/dashboard', label: 'Tableau de bord', icon: LayoutDashboard },
     { path: '/projects', label: 'Projets', icon: FolderKanban },
     { path: '/grants', label: 'Subventions', icon: Landmark },
+    { path: '/donations', label: 'Dons & Reçus ARC', icon: HeartHandshake },
     { path: '/people', label: 'Personnes & Équipe', icon: Users },
     { path: '/training', label: 'Formations', icon: GraduationCap },
     { path: '/cases', label: 'Suivi de cas', icon: ShieldAlert },

@@ -11,3 +11,4 @@ export * from './schemas/cases.schema';
 export * from './schemas/indicators.schema';
 export * from './schemas/billing.schema';
 export * from './schemas/grants.schema';
+export * from './schemas/donations.schema';
