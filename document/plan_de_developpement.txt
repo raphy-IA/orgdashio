@@ -1,0 +1,58 @@
+Voici la feuille de route stratégique complète (R1B → R5) définie dans le cahier des charges et le document d'orientations :
+
+🎯 1. R1B — Fonctions Sensibles & Accompagnement Social (Prochaine étape immédiate)
+
+Ce volet cible les organismes de travail social, d'insertion et d'accompagnement individualisé.
+Module de Suivi de Cas (CAS / /cases) :
+Équipe de dossier : Assignation d'intervenants référents et restriction stricte de visibilité par dossier.
+Plans d'intervention individualisés : Objectifs SMART, étapes d'action, échéances et indicateurs de succès par bénéficiaire.
+Notes de suivi verrouillées & Addenda : Immuabilité des comptes-rendus après 24h (conformité juridique & Loi 25) avec historique des avenants (addenda).
+Références & Aiguillages : Suivi des orientations vers des partenaires externes (CLSC, organismes spécialisés, emploi).
+Accès d'urgence (« Bris de glace ») : Journal d'accès horodaté et obligatoire pour toute consultation hors équipe de dossier.
+Indicateurs d'Impact Avancés (IND) :
+Désagrégation multidimensionnelle des données (par genre, tranche d'âge, statut d'immigration, quartier).
+Bibliothèque de modèles d'indicateurs standards pour OBNL.
+Facturation SaaS & Plans d'Abonnement :
+Configuration des quotas de stockage, nombre d'utilisateurs et forfaits par organisme dans le Control Plane.
+
+🏛️ 2. R2 — Financements Avancés, Dons & Pointage
+
+Ce volet automatise la relation financière avec les bailleurs de fonds et les donateurs.
+Cycle de Vie Complet des Subventions :
+Pipeline des demandes de subventions (opportunités, soumissions, conventions d'aide financière, calendrier des redditions de comptes).
+Gestion des Dons & Reçus Fiscaux Officiels :
+Reçus officiels aux fins de l'impôt conformes aux règles de l'Agence du Revenu du Canada (ARC) (numérotation continue, duplicatas, signatures numérisées).
+Campagnes de collecte de fonds et donateurs récurrents.
+Feuilles de Temps & Suivi des Heures (Timesheets) :
+Pointage des heures travaillées par projet, activité et bailleur de fonds (salariés et valorisation du temps bénévole).
+Workflow d'approbation hebdomadaire par les gestionnaires.
+Hébergement en Base Dédiée :
+Isolation physique par schéma / base de données PostgreSQL distincte pour les grands comptes.
+
+👥 3. R3 — Vie Associative, Gouvernance & Portails Externes
+
+Ce volet gère les associations à membres et la démocratie interne.
+Gestion des Membres & Adhésions :
+Types d'adhésion, cotisations annuelles, renouvellements automatiques et cartes de membre numériques.
+Gouvernance, CA & Assemblées Générales :
+Convocations officielles, gestion des ordres du jour, votes, résolutions et registre des procès-verbaux du Conseil d'Administration.
+Portail Externe Bénéficiaire & Apprenant :
+Espace personnel sécurisé pour les participants (consultation de leurs formations, attestations de présence, rendez-vous d'accompagnement).
+
+📦 4. R4 — Logistique, Événements & Mode Hors-Ligne
+
+Ce volet soutient les opérations humanitaires et communautaires de terrain.
+Dons Matériels, Stocks & Distributions :
+Inventaire d'équipements, dons en nature, traçabilité et distribution de denrées alimentaires / vêtements.
+Événements & Billetterie OBNL :
+Organisation de colloques, galas-bénéfices, billetterie et ateliers publics.
+Mode Hors-Ligne (Offline-First) :
+Application de terrain synchronisée pour les intervenants sans connexion Internet.
+
+
+🌐 5. R5 — Fédérations, Multi-Pays & IA d'Impact
+Consolidation Fédérale & Multi-Filiales :
+Supervision d'un regroupement d'organismes, partage de référentiels et benchmarking inter-filiales.
+Multi-Devises & Multi-Juridictions Fiscales.
+IA de Synthèse & Reddition Automatisée :
+Génération assistée des rapports annuels d'activité et des bilans d'impact pour les bailleurs de fonds.

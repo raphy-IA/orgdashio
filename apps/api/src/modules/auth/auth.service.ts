@@ -29,7 +29,11 @@ import crypto from 'node:crypto';
 export class AuthService {
   constructor(@Inject(DRIZZLE_DB) private readonly db: DbClient) {}
 
-  async registerTenant(input: RegisterTenantInput) {
+  async registerTenant(
+    input: RegisterTenantInput,
+    ipAddress?: string,
+    userAgent?: string
+  ) {
     // Check if email already registered
     const [existingUser] = await this.db
       .select()
@@ -149,7 +153,25 @@ export class AuthService {
         hireDate: new Date().toISOString().split('T')[0],
       });
 
-      return { tenant, user };
+      // 8. Automatically create and return an active session for the newly enrolled admin
+      const sessionToken = crypto.randomBytes(32).toString('hex');
+      const tokenHash = crypto
+        .createHash('sha256')
+        .update(sessionToken)
+        .digest('hex');
+
+      const expiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000);
+
+      await tx.insert(userSession).values({
+        userId: user.id,
+        tenantId: tenant.id,
+        tokenHash,
+        expiresAt,
+        ipAddress,
+        userAgent,
+      });
+
+      return { tenant, user, sessionToken };
     });
   }
 

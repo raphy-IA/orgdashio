@@ -1,11 +1,13 @@
 import React, { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useNavigate, Link } from 'react-router-dom';
+import { useQueryClient } from '@tanstack/react-query';
 import { Button, Input } from '@orgdashio/ui';
 
 export function RegisterTenantScreen() {
   const { t } = useTranslation();
   const navigate = useNavigate();
+  const queryClient = useQueryClient();
   const [tenantName, setTenantName] = useState('');
   const [adminFirstName, setAdminFirstName] = useState('');
   const [adminLastName, setAdminLastName] = useState('');
@@ -39,6 +41,7 @@ export function RegisterTenantScreen() {
         throw new Error(data.message || 'Erreur lors de la création');
       }
 
+      await queryClient.invalidateQueries({ queryKey: ['authMe'] });
       navigate('/onboarding');
     } catch (err: any) {
       setError(err.message);

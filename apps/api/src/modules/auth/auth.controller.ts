@@ -46,9 +46,31 @@ export class AuthController {
   }
 
   @Post('register-tenant')
-  async registerTenant(@Body() body: any) {
+  async registerTenant(
+    @Body() body: any,
+    @Req() req: Request,
+    @Res({ passthrough: true }) res: Response
+  ) {
     const parsed = RegisterTenantSchema.parse(body);
-    return this.authService.registerTenant(parsed);
+    const result = await this.authService.registerTenant(
+      parsed,
+      req.ip,
+      req.headers['user-agent']
+    );
+
+    // Set HttpOnly session cookie for the newly registered tenant admin
+    res.cookie('orgdashio_session', result.sessionToken, {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === 'production',
+      sameSite: 'lax',
+      path: '/',
+      maxAge: 7 * 24 * 60 * 60 * 1000,
+    });
+
+    return {
+      tenant: result.tenant,
+      user: result.user,
+    };
   }
 
   @Post('login')
