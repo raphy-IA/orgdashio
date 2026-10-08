@@ -7,6 +7,7 @@ import {
   Layers,
   FolderKanban,
   ChevronRight,
+  ChevronDown,
   Trash2,
   BarChart3,
   TrendingUp,
@@ -19,6 +20,8 @@ import {
   Filter,
   ArrowUpRight,
   Briefcase,
+  Calendar,
+  Sparkles,
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { Navbar } from '../../components/Navbar';
@@ -34,10 +37,33 @@ export function ProjectListScreen() {
   const [showAttachModal, setShowAttachModal] = useState(false);
   const [activeProgramForAttach, setActiveProgramForAttach] = useState<any>(null);
 
-  // Form state - Autonomous Project Creation
+  // Form state - Project Creation (Enriched with quick & advanced options)
   const [code, setCode] = useState('');
   const [name, setName] = useState('');
+  const [programId, setProgramId] = useState('');
+  const [status, setStatus] = useState<'planned' | 'active'>('planned');
+  const [description, setDescription] = useState('');
+  const [startDate, setStartDate] = useState('');
+  const [endDate, setEndDate] = useState('');
+  const [initialBudget, setInitialBudget] = useState('');
+  const [donorName, setDonorName] = useState('');
+  const [showAdvanced, setShowAdvanced] = useState(false);
+  const [openAfterCreate, setOpenAfterCreate] = useState(true);
   const [projectError, setProjectError] = useState('');
+
+  const resetProjectForm = () => {
+    setCode('');
+    setName('');
+    setProgramId('');
+    setStatus('planned');
+    setDescription('');
+    setStartDate('');
+    setEndDate('');
+    setInitialBudget('');
+    setDonorName('');
+    setShowAdvanced(false);
+    setProjectError('');
+  };
 
   // Form state - Program Creation
   const [progCode, setProgCode] = useState('');
@@ -73,6 +99,26 @@ export function ProjectListScreen() {
     }
   };
 
+  // Helper: Safe JSON response parser
+  const parseApiResponse = async (res: Response, fallbackMsg: string) => {
+    if (!res.ok) {
+      try {
+        const data = await res.json();
+        throw new Error(data.message || data.error || `${fallbackMsg} (${res.status})`);
+      } catch (err: any) {
+        if (err.message && !err.message.includes('Unexpected end of JSON')) {
+          throw err;
+        }
+        throw new Error(`${fallbackMsg} (Code ${res.status}: ${res.statusText || 'Erreur'})`);
+      }
+    }
+    try {
+      return await res.json();
+    } catch {
+      return {};
+    }
+  };
+
   // Fetch Programs (with linked projects and computed metrics)
   const { data: programs = [], isLoading: isLoadingPrograms } = useQuery({
     queryKey: ['programs'],
@@ -101,11 +147,7 @@ export function ProjectListScreen() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(newProg),
       });
-      if (!res.ok) {
-        const data = await res.json();
-        throw new Error(data.message || 'Erreur création programme');
-      }
-      return res.json();
+      return parseApiResponse(res, 'Erreur lors de la création du programme');
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['programs'] });
@@ -117,25 +159,34 @@ export function ProjectListScreen() {
     onError: (err: any) => setProgramError(err.message),
   });
 
-  // Create Autonomous Project Mutation
+  // Create Project Mutation
   const createProjectMutation = useMutation({
-    mutationFn: async (newProject: { code: string; name: string }) => {
+    mutationFn: async (payload: {
+      code: string;
+      name: string;
+      programId?: string | null;
+      status?: string;
+      description?: string | null;
+      startDate?: string | null;
+      endDate?: string | null;
+      initialBudget?: number | null;
+      donorName?: string | null;
+    }) => {
       const res = await fetch('/api/v1/projects', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(newProject),
+        body: JSON.stringify(payload),
       });
-      if (!res.ok) {
-        const data = await res.json();
-        throw new Error(data.message || 'Erreur création projet');
-      }
-      return res.json();
+      return parseApiResponse(res, 'Erreur lors de la création du projet');
     },
-    onSuccess: () => {
+    onSuccess: (createdProject: any) => {
       queryClient.invalidateQueries({ queryKey: ['projects'] });
+      queryClient.invalidateQueries({ queryKey: ['programs'] });
       setShowProjectModal(false);
-      setCode('');
-      setName('');
+      resetProjectForm();
+      if (openAfterCreate && createdProject?.id) {
+        navigate(`/projects/${createdProject.id}`);
+      }
     },
     onError: (err: any) => setProjectError(err.message),
   });
@@ -148,11 +199,7 @@ export function ProjectListScreen() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ projectId }),
       });
-      if (!res.ok) {
-        const data = await res.json();
-        throw new Error(data.message || "Erreur d'ajout du projet au programme");
-      }
-      return res.json();
+      return parseApiResponse(res, "Erreur lors du rattachement du projet");
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['programs'] });
@@ -850,47 +897,220 @@ export function ProjectListScreen() {
         </div>
       )}
 
-      {/* Modal: Create Autonomous Project */}
+      {/* Modal: Create Project (Enhanced with progressive disclosure) */}
       {showProjectModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
-          <div className="w-full max-w-md rounded-xl bg-white p-6 shadow-xl space-y-4">
-            <h2 className="text-lg font-bold text-slate-900">Créer un Nouveau Projet Autonome</h2>
-            <p className="text-xs text-slate-500">
-              Le projet sera créé de façon autonome dans votre catalogue, avec ses propres WBS, livrables et budget.
-            </p>
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4 backdrop-blur-xs overflow-y-auto">
+          <div className="w-full max-w-xl rounded-2xl bg-white p-6 shadow-2xl space-y-5 my-8 border border-slate-100">
+            <div className="flex items-start justify-between border-b border-slate-100 pb-4">
+              <div className="flex items-center space-x-3">
+                <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-indigo-50 text-indigo-600">
+                  <FolderKanban className="h-5 w-5" />
+                </div>
+                <div>
+                  <h2 className="text-lg font-bold text-slate-900">Créer un Nouveau Projet</h2>
+                  <p className="text-xs text-slate-500">
+                    Définissez les informations de base. Vous pourrez affiner les détails par la suite.
+                  </p>
+                </div>
+              </div>
+            </div>
 
-            {projectError && <div className="rounded-md bg-red-50 p-3 text-sm text-red-700">{projectError}</div>}
+            {projectError && (
+              <div className="rounded-lg bg-red-50 p-3.5 text-sm text-red-700 flex items-start space-x-2 border border-red-100">
+                <AlertTriangle className="h-5 w-5 shrink-0 text-red-500 mt-0.5" />
+                <span>{projectError}</span>
+              </div>
+            )}
 
             <form
               onSubmit={(e) => {
                 e.preventDefault();
                 setProjectError('');
-                createProjectMutation.mutate({ code, name });
+                if (!code.trim()) {
+                  setProjectError('Le code projet est requis.');
+                  return;
+                }
+                if (!name.trim()) {
+                  setProjectError('Le nom du projet est requis.');
+                  return;
+                }
+                createProjectMutation.mutate({
+                  code: code.trim().toUpperCase(),
+                  name: name.trim(),
+                  programId: programId ? programId : null,
+                  status,
+                  description: description.trim() || null,
+                  startDate: startDate || null,
+                  endDate: endDate || null,
+                  initialBudget: initialBudget ? parseFloat(initialBudget) : null,
+                  donorName: donorName.trim() || null,
+                });
               }}
               className="space-y-4"
             >
-              <Input
-                label="Code Projet (Ex: PRJ-2026-01)"
-                value={code}
-                onChange={(e) => setCode(e.target.value)}
-                placeholder="PRJ-ALIMENTAIRE"
-                required
-              />
+              {/* Main Fields: Code & Status */}
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                <div className="sm:col-span-2">
+                  <Input
+                    label="Code Projet (Ex: PRJ-2026-01) *"
+                    value={code}
+                    onChange={(e) => setCode(e.target.value.toUpperCase())}
+                    placeholder="PRJ-ALIMENTAIRE"
+                    required
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-slate-700 mb-1">Statut initial</label>
+                  <select
+                    value={status}
+                    onChange={(e: any) => setStatus(e.target.value)}
+                    className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 focus:border-indigo-500 focus:outline-hidden focus:ring-1 focus:ring-indigo-500"
+                  >
+                    <option value="planned">Planifié</option>
+                    <option value="active">Actif (Démarré)</option>
+                  </select>
+                </div>
+              </div>
 
+              {/* Project Name */}
               <Input
-                label="Nom du Projet"
+                label="Nom du Projet *"
                 value={name}
                 onChange={(e) => setName(e.target.value)}
                 placeholder="Ex: Banque Alimentaire & Sécurité Nutritionnelle"
                 required
               />
 
-              <div className="flex justify-end space-x-3 pt-4 border-t">
-                <Button variant="outline" type="button" onClick={() => setShowProjectModal(false)}>
+              {/* Program selection */}
+              <div>
+                <label className="block text-sm font-medium text-slate-700 mb-1">
+                  Programme d'intervention (Optionnel)
+                </label>
+                <select
+                  value={programId}
+                  onChange={(e) => setProgramId(e.target.value)}
+                  className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 focus:border-indigo-500 focus:outline-hidden focus:ring-1 focus:ring-indigo-500"
+                >
+                  <option value="">Projet autonome (Aucun programme rattaché)</option>
+                  {programs.map((prog: any) => (
+                    <option key={prog.id} value={prog.id}>
+                      📁 {prog.code} — {prog.name}
+                    </option>
+                  ))}
+                </select>
+                <p className="mt-1 text-[11px] text-slate-500">
+                  Rattacher ce projet consolidera ses indicateurs et budgets dans le programme choisi.
+                </p>
+              </div>
+
+              {/* Collapsible: Advanced options */}
+              <div className="border border-slate-200 rounded-xl overflow-hidden">
+                <button
+                  type="button"
+                  onClick={() => setShowAdvanced(!showAdvanced)}
+                  className="w-full flex items-center justify-between p-3 bg-slate-50 hover:bg-slate-100 transition-colors text-xs font-semibold text-slate-700"
+                >
+                  <span className="flex items-center space-x-2">
+                    <Sparkles className="h-4 w-4 text-indigo-600" />
+                    <span>Options de cadrage initial (Dates, Budget & Objectifs)</span>
+                  </span>
+                  <ChevronDown
+                    className={`h-4 w-4 text-slate-500 transition-transform ${showAdvanced ? 'rotate-180' : ''}`}
+                  />
+                </button>
+
+                {showAdvanced && (
+                  <div className="p-4 bg-white space-y-4 border-t border-slate-200">
+                    {/* Dates */}
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                      <div>
+                        <label className="block text-xs font-medium text-slate-700 mb-1">Date de début prévue</label>
+                        <input
+                          type="date"
+                          value={startDate}
+                          onChange={(e) => setStartDate(e.target.value)}
+                          className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 focus:border-indigo-500 focus:outline-hidden"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-xs font-medium text-slate-700 mb-1">Date de fin prévue</label>
+                        <input
+                          type="date"
+                          value={endDate}
+                          min={startDate || undefined}
+                          onChange={(e) => setEndDate(e.target.value)}
+                          className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 focus:border-indigo-500 focus:outline-hidden"
+                        />
+                      </div>
+                    </div>
+
+                    {/* Initial Budget & Donor */}
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                      <div>
+                        <label className="block text-xs font-medium text-slate-700 mb-1">Budget cible initial ($ CAD)</label>
+                        <input
+                          type="number"
+                          min="0"
+                          step="100"
+                          value={initialBudget}
+                          onChange={(e) => setInitialBudget(e.target.value)}
+                          placeholder="Ex: 50000"
+                          className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 focus:border-indigo-500 focus:outline-hidden"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-xs font-medium text-slate-700 mb-1">Bailleur / Source de fonds</label>
+                        <input
+                          type="text"
+                          value={donorName}
+                          onChange={(e) => setDonorName(e.target.value)}
+                          placeholder="Ex: Fondation Grand Montréal"
+                          className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 focus:border-indigo-500 focus:outline-hidden"
+                        />
+                      </div>
+                    </div>
+
+                    {/* Description */}
+                    <div>
+                      <label className="block text-xs font-medium text-slate-700 mb-1">Description & Objectif sommaire</label>
+                      <textarea
+                        className="w-full rounded-lg border border-slate-300 p-2.5 text-sm bg-white h-20 focus:border-indigo-500 focus:outline-hidden"
+                        value={description}
+                        onChange={(e) => setDescription(e.target.value)}
+                        placeholder="Brève synthèse des objectifs, bénéficiaires cibles et livrables attendus..."
+                      />
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              {/* Post-creation preference */}
+              <div className="flex items-center space-x-2 pt-1">
+                <input
+                  type="checkbox"
+                  id="openAfterCreate"
+                  checked={openAfterCreate}
+                  onChange={(e) => setOpenAfterCreate(e.target.checked)}
+                  className="h-4 w-4 rounded border-slate-300 text-indigo-600 focus:ring-indigo-500"
+                />
+                <label htmlFor="openAfterCreate" className="text-xs text-slate-600 cursor-pointer">
+                  Ouvrir directement la fiche détaillée du projet après la création
+                </label>
+              </div>
+
+              <div className="flex justify-end space-x-3 pt-4 border-t border-slate-100">
+                <Button
+                  variant="outline"
+                  type="button"
+                  onClick={() => {
+                    setShowProjectModal(false);
+                    resetProjectForm();
+                  }}
+                >
                   Annuler
                 </Button>
-                <Button type="submit" disabled={createProjectMutation.isPending}>
-                  {createProjectMutation.isPending ? 'Création...' : 'Créer le projet'}
+                <Button type="submit" disabled={createProjectMutation.isPending} className="bg-indigo-600 hover:bg-indigo-700 text-white">
+                  {createProjectMutation.isPending ? 'Création en cours...' : 'Créer le projet'}
                 </Button>
               </div>
             </form>

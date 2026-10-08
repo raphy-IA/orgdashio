@@ -253,14 +253,27 @@ export class ProjectService {
 
   async create(tenantId: string, userId: string, input: CreateProjectInput) {
     return withTenantContext(this.db, tenantId, async (tx) => {
+      // Check if project code already exists for this tenant
+      const [existing] = await tx
+        .select()
+        .from(project)
+        .where(and(eq(project.tenantId, tenantId), eq(project.code, input.code)));
+
+      if (existing) {
+        throw new BadRequestException(`Un projet avec le code "${input.code}" existe déjà dans votre organisme.`);
+      }
+
       const [res] = await tx
         .insert(project)
         .values({
           tenantId,
           programId: input.programId || null,
-          code: input.code,
-          name: input.name,
-          status: input.status,
+          code: input.code.trim().toUpperCase(),
+          name: input.name.trim(),
+          description: input.description?.trim() || null,
+          startDate: input.startDate || null,
+          endDate: input.endDate || null,
+          status: input.status || 'planned',
           createdBy: userId,
         })
         .returning();
@@ -272,6 +285,28 @@ export class ProjectService {
         currency: 'CAD',
         status: 'draft',
       });
+
+      // Link to program if programId provided
+      if (input.programId) {
+        await tx.insert(programProject).values({
+          tenantId,
+          programId: input.programId,
+          projectId: res.id,
+        });
+      }
+
+      // Add initial funding source if specified
+      if (input.initialBudget && Number(input.initialBudget) > 0) {
+        await tx.insert(fundingSource).values({
+          tenantId,
+          projectId: res.id,
+          donorName: input.donorName?.trim() || 'Fonds Propres / Budget Initial',
+          fundingType: 'unrestricted',
+          amount: input.initialBudget.toString(),
+          currency: 'CAD',
+          notes: 'Budget initial alloué à la création du projet',
+        });
+      }
 
       return res;
     });

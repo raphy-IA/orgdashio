@@ -807,6 +807,9 @@ export const project = pgTable(
     programId: uuid('program_id'),
     code: text('code').notNull(),
     name: text('name').notNull(),
+    description: text('description'),
+    startDate: date('start_date'),
+    endDate: date('end_date'),
     status: text('status', {
       enum: ['planned', 'active', 'suspended', 'closed', 'cancelled'],
     })
