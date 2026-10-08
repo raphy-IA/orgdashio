@@ -24,24 +24,34 @@ async function resetAndSyncDatabase() {
     `);
     console.log('✅ Schéma public réinitialisé à neuf.');
 
-    // 2. Apply Full Migration DDL
-    let ddlFile = path.resolve(process.cwd(), 'packages/shared/drizzle/0000_fine_firedrake.sql');
-    if (!fs.existsSync(ddlFile)) {
-      ddlFile = path.resolve(__dirname, '../../packages/shared/drizzle/0000_fine_firedrake.sql');
+    // 2. Apply Full Migration DDLs
+    let drizzleDir = path.resolve(process.cwd(), 'packages/shared/drizzle');
+    if (!fs.existsSync(drizzleDir)) {
+      drizzleDir = path.resolve(__dirname, '../../packages/shared/drizzle');
     }
-    if (!fs.existsSync(ddlFile)) {
-      throw new Error(`Fichier de migration DDL introuvable : ${ddlFile}`);
+    if (!fs.existsSync(drizzleDir)) {
+      throw new Error(`Dossier de migration DDL introuvable : ${drizzleDir}`);
     }
-    console.log('2️⃣ Création des 52 tables et contraintes (DDL)...');
-    const ddlSql = fs.readFileSync(ddlFile, 'utf-8');
-    const statements = ddlSql.split('--> statement-breakpoint');
-    for (const stmt of statements) {
-      const trimmed = stmt.trim();
-      if (trimmed) {
-        await client.query(trimmed);
+
+    const migrationFiles = fs
+      .readdirSync(drizzleDir)
+      .filter((f) => f.endsWith('.sql'))
+      .sort();
+
+    console.log(`2️⃣ Application des migrations DDL (${migrationFiles.length} fichier(s))...`);
+    for (const file of migrationFiles) {
+      const fullPath = path.join(drizzleDir, file);
+      console.log(`   ➜ Exécution de ${file}...`);
+      const ddlSql = fs.readFileSync(fullPath, 'utf-8');
+      const statements = ddlSql.split('--> statement-breakpoint');
+      for (const stmt of statements) {
+        const trimmed = stmt.trim();
+        if (trimmed) {
+          await client.query(trimmed);
+        }
       }
     }
-    console.log('✅ 52 tables, clés étrangères et contraintes créées avec succès.');
+    console.log('✅ Tables, clés étrangères et contraintes créées avec succès.');
 
     // 3. Inject Seed Data
     let seedFile = path.resolve(process.cwd(), 'infra/seeds/test-database-seed.sql');
