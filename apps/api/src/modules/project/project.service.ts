@@ -43,6 +43,9 @@ import {
   CreatePlanItemUpdateInput,
   CreatePlanItemDeliverableInput,
   VerifyDeliverableInput,
+  calculateCPM,
+  CPMTaskInput,
+  CPMDependencyInput,
 } from '@orgdashio/shared';
 import { eq, and, inArray, or } from 'drizzle-orm';
 import { detectDependencyCycle } from './utils/dependency-graph.util';
@@ -478,22 +481,7 @@ export class ProjectService {
         }
         parent = foundParent;
 
-        // Validation des dates selon l'intervalle parent
-        if (input.startDate && parent.startDate && input.startDate < parent.startDate) {
-          throw new BadRequestException(
-            `La date de début (${input.startDate}) ne peut pas être antérieure à celle de l'élément parent (${parent.startDate})`
-          );
-        }
-        if (input.endDate && parent.endDate && input.endDate > parent.endDate) {
-          throw new BadRequestException(
-            `La date de fin (${input.endDate}) ne peut pas dépasser celle de l'élément parent (${parent.endDate})`
-          );
-        }
-        if (input.startDate && parent.endDate && input.startDate > parent.endDate) {
-          throw new BadRequestException(
-            `La date de début (${input.startDate}) dépasse la date de fin du parent (${parent.endDate})`
-          );
-        }
+        // Pour les conteneurs (phase / activité), les dates sont dynamiquement dérivées des enfants via le rollup.
       }
 
       if (input.startDate && input.endDate && input.startDate > input.endDate) {
@@ -1246,7 +1234,86 @@ export class ProjectService {
   }
 
   /**
-   * Recalcule la progression et les statuts WBS de bas en haut (Bottom-Up Rollup)
+   * Synchronise l'ordonnancement PERT/CPM sur l'ensemble des éléments de planification
+   */
+  async syncPertSchedule(tenantId: string, projectId: string) {
+    return withTenantContext(this.db, tenantId, async (tx) => {
+      const [proj] = await tx
+        .select()
+        .from(project)
+        .where(and(eq(project.id, projectId), eq(project.tenantId, tenantId)));
+      if (!proj) throw new NotFoundException('Projet introuvable');
+
+      const items = await tx
+        .select()
+        .from(planItem)
+        .where(and(eq(planItem.tenantId, tenantId), eq(planItem.projectId, projectId)));
+      const deps = await tx
+        .select()
+        .from(planDependency)
+        .where(eq(planDependency.tenantId, tenantId));
+
+      const cpmTasks: CPMTaskInput[] = items.map((i: any) => ({
+        id: i.id,
+        wbs: i.wbs,
+        title: i.title,
+        type: i.type,
+        durationDays: i.durationDays,
+        startDate: i.startDate,
+        endDate: i.endDate,
+        progressPct: i.progressPct,
+        status: i.status,
+        parentId: i.parentId,
+        estimatedCost: i.estimatedCost,
+        optimisticDays: i.optimisticDays,
+        mostLikelyDays: i.mostLikelyDays,
+        pessimisticDays: i.pessimisticDays,
+      }));
+
+      const cpmDeps: CPMDependencyInput[] = deps.map((d: any) => ({
+        id: d.id,
+        predecessorId: d.predecessorId,
+        successorId: d.successorId,
+        type: d.type || 'FS',
+        lagDays: d.lagDays || 0,
+      }));
+
+      const cpmResult = calculateCPM(cpmTasks, cpmDeps, proj.startDate || undefined);
+
+      // 1. Mettre à jour chaque tâche opérationnelle et jalon avec ses dates calculées au plus tôt (Early Start / Finish)
+      for (const node of cpmResult.nodeList) {
+        await tx
+          .update(planItem)
+          .set({
+            startDate: node.earlyStartDate,
+            endDate: node.earlyFinishDate,
+            durationDays: node.duration,
+          })
+          .where(
+            and(
+              eq(planItem.id, node.id),
+              eq(planItem.tenantId, tenantId),
+              eq(planItem.projectId, projectId)
+            )
+          );
+      }
+
+      // 2. Rollup bottom-up complet des conteneurs (Phases, Activités) et des jalons
+      await this.recalculateWbsAndProjectRollup(tx, tenantId, projectId);
+
+      return {
+        success: true,
+        projectDurationDays: cpmResult.projectDurationDays,
+        projectEarlyStartDate: cpmResult.projectEarlyStartDate,
+        projectEarlyFinishDate: cpmResult.projectEarlyFinishDate,
+        criticalPath: cpmResult.criticalPath,
+        updatedCount: cpmResult.nodeList.length,
+      };
+    });
+  }
+
+  /**
+   * Recalcule la progression, les dates, les coûts et les statuts WBS de bas en haut (Bottom-Up Rollup)
    * et ajuste l'avancement global ainsi que le statut du projet.
    */
   private async recalculateWbsAndProjectRollup(tx: any, tenantId: string, projectId: string) {
@@ -1300,21 +1367,47 @@ export class ProjectService {
           computedStatus = 'in_progress';
         }
 
+        // Consolidation des dates (Min Start / Max End) et des coûts
+        const validStarts = children.map((c) => c.startDate).filter((d): d is string => !!d);
+        const validEnds = children.map((c) => c.endDate).filter((d): d is string => !!d);
+
+        let minStart = validStarts.length > 0 ? [...validStarts].sort()[0] : item.startDate;
+        let maxEnd = validEnds.length > 0 ? [...validEnds].sort().reverse()[0] : item.endDate;
+        if (minStart && maxEnd && minStart > maxEnd) {
+          maxEnd = minStart;
+        }
+
+        let computedDuration = item.durationDays || 1;
+        if (minStart && maxEnd) {
+          const s = new Date(minStart + 'T00:00:00Z').getTime();
+          const e = new Date(maxEnd + 'T00:00:00Z').getTime();
+          computedDuration = Math.max(1, Math.round((e - s) / (1000 * 60 * 60 * 24)));
+        }
+
+        const totalEstimatedCost = children.reduce(
+          (acc, c) => acc + (parseFloat(c.estimatedCost) || 0),
+          0
+        );
+
         const curr = itemMap.get(item.id)!;
-        const prevPct = curr.progressPct;
-        const prevStatus = curr.status;
         curr.progressPct = computedPct;
         curr.status = computedStatus;
+        curr.startDate = minStart;
+        curr.endDate = maxEnd;
+        curr.durationDays = computedDuration;
+        curr.estimatedCost = totalEstimatedCost.toString();
 
-        if (prevPct !== computedPct || prevStatus !== computedStatus) {
-          await tx
-            .update(planItem)
-            .set({
-              progressPct: computedPct,
-              status: computedStatus,
-            })
-            .where(and(eq(planItem.id, item.id), eq(planItem.tenantId, tenantId), eq(planItem.projectId, projectId)));
-        }
+        await tx
+          .update(planItem)
+          .set({
+            progressPct: computedPct,
+            status: computedStatus,
+            startDate: minStart,
+            endDate: maxEnd,
+            durationDays: computedDuration,
+            estimatedCost: totalEstimatedCost.toString(),
+          })
+          .where(and(eq(planItem.id, item.id), eq(planItem.tenantId, tenantId), eq(planItem.projectId, projectId)));
       }
     }
 

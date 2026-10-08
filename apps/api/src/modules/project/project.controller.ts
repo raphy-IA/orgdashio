@@ -132,6 +132,11 @@ export class ProjectController {
     return this.projectService.deleteDependency(req.tenantId, id, dependencyId);
   }
 
+  @Post(':id/sync-pert-schedule')
+  async syncPertSchedule(@Req() req: any, @Param('id') id: string) {
+    return this.projectService.syncPertSchedule(req.tenantId, id);
+  }
+
   @Post(':id/budget-lines')
   async addBudgetLines(@Req() req: any, @Param('id') id: string, @Body() body: any) {
     const parsed = Array.isArray(body)

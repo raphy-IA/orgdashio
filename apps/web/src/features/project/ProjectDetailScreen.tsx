@@ -44,6 +44,7 @@ import {
   Sliders,
   Split,
   Link2,
+  RefreshCw,
 } from 'lucide-react';
 import { Navbar } from '../../components/Navbar';
 import { PertNetworkDiagram } from './components/PertNetworkDiagram';
@@ -403,6 +404,7 @@ export function ProjectDetailScreen() {
   const [piTitle, setPiTitle] = useState('');
   const [piStart, setPiStart] = useState('');
   const [piEnd, setPiEnd] = useState('');
+  const [piDuration, setPiDuration] = useState('5');
   const [piParentId, setPiParentId] = useState('');
   const [piEstimatedCost, setPiEstimatedCost] = useState('');
   const [piOptimistic, setPiOptimistic] = useState('');
@@ -542,13 +544,34 @@ export function ProjectDetailScreen() {
 
   const addPlanItem = useMutation({
     mutationFn: async () => {
-      const startTs = piStart ? new Date(piStart).getTime() : 0;
-      const endTs = piEnd ? new Date(piEnd).getTime() : 0;
-      let calculatedDuration = 1;
-      if (startTs && endTs && endTs >= startTs) {
-        calculatedDuration = Math.max(1, Math.round((endTs - startTs) / (1000 * 60 * 60 * 24)));
+      let calculatedDuration = parseInt(piDuration) || 1;
+      let calculatedStart: string | undefined = piStart || undefined;
+      let calculatedEnd: string | undefined = piEnd || undefined;
+
+      if (piType === 'milestone') {
+        calculatedDuration = 0;
+        calculatedStart = piStart || piEnd || undefined;
+        calculatedEnd = calculatedStart;
+      } else if (piType === 'phase' || piType === 'activity') {
+        calculatedDuration = 1;
+        calculatedStart = undefined;
+        calculatedEnd = undefined;
+      } else {
+        // Tâche ou livrable opérationnel
+        if (piOptimistic && piMostLikely && piPessimistic) {
+          const o = parseInt(piOptimistic);
+          const m = parseInt(piMostLikely);
+          const p = parseInt(piPessimistic);
+          const te = Math.round(((o + 4 * m + p) / 6) * 10) / 10;
+          calculatedDuration = Math.max(1, Math.round(te));
+        }
+
+        if (calculatedStart && !calculatedEnd) {
+          const d = new Date(calculatedStart + 'T00:00:00Z');
+          d.setUTCDate(d.getUTCDate() + calculatedDuration);
+          calculatedEnd = d.toISOString().split('T')[0];
+        }
       }
-      if (piType === 'milestone') calculatedDuration = 0;
 
       const res = await fetch(`/api/v1/projects/${id}/plan-items`, {
         method: 'POST',
@@ -557,8 +580,8 @@ export function ProjectDetailScreen() {
           type: piType,
           wbs: piWbs || undefined,
           title: piTitle,
-          startDate: piStart || undefined,
-          endDate: piEnd || undefined,
+          startDate: calculatedStart,
+          endDate: calculatedEnd,
           parentId: piParentId || undefined,
           durationDays: calculatedDuration,
           estimatedCost: piEstimatedCost ? parseFloat(piEstimatedCost) : 0,
@@ -575,9 +598,30 @@ export function ProjectDetailScreen() {
     },
     onSuccess: () => {
       invalidate();
-      setPiTitle(''); setPiWbs(''); setPiStart(''); setPiEnd(''); setPiParentId('');
+      setPiTitle(''); setPiWbs(''); setPiStart(''); setPiEnd(''); setPiParentId(''); setPiDuration('5');
       setPiEstimatedCost(''); setPiOptimistic(''); setPiMostLikely(''); setPiPessimistic('');
       setShowPlanItemForm(false);
+    },
+    onError: (err: any) => {
+      alert(err.message);
+    },
+  });
+
+  const syncPertScheduleMutation = useMutation({
+    mutationFn: async () => {
+      const res = await fetch(`/api/v1/projects/${id}/sync-pert-schedule`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+      });
+      if (!res.ok) {
+        const errorData = await res.json().catch(() => ({}));
+        throw new Error(errorData.message || "Erreur lors de la synchronisation du calendrier PERT/CPM");
+      }
+      return res.json();
+    },
+    onSuccess: (res: any) => {
+      invalidate();
+      alert(`✅ Calendrier synchronisé avec succès !\n• ${res.updatedCount} tâches et jalons réalignés au plus tôt\n• Durée totale calculée : ${res.projectDurationDays} jours\n• Période : du ${res.projectEarlyStartDate} au ${res.projectEarlyFinishDate}`);
     },
     onError: (err: any) => {
       alert(err.message);
@@ -1793,138 +1837,189 @@ export function ProjectDetailScreen() {
                       />
                     </div>
 
-                    {/* Dates conditionnelles : Jalon = date unique / Autres = période début-fin */}
-                    {piType === 'milestone' ? (
-                      <div className="sm:col-span-3">
-                        <label className="mb-1.5 block text-xs font-bold uppercase tracking-wider text-slate-700">
-                          Date cible du Jalon *
-                          {selectedParent?.startDate && selectedParent?.endDate && (
-                            <span className="ml-1 text-[10px] text-indigo-600 font-normal">
-                              (intervalle parent : {selectedParent.startDate} au {selectedParent.endDate})
-                            </span>
-                          )}
-                        </label>
-                        <Input
-                          type="date"
-                          value={piEnd || piStart}
-                          min={selectedParent?.startDate || undefined}
-                          max={selectedParent?.endDate || undefined}
-                          onChange={(e) => {
-                            setPiStart(e.target.value);
-                            setPiEnd(e.target.value);
-                          }}
-                        />
+                    {/* Champs conditionnels selon le type : Phase/Activité = Conteneur de synthèse / Jalon = Date cible / Tâche = Durée & PERT */}
+                    {piType === 'phase' || piType === 'activity' ? (
+                      <div className="sm:col-span-3 rounded-lg border border-indigo-200 bg-indigo-50/80 p-3.5 text-xs text-indigo-900 flex items-start gap-2.5">
+                        <Layers className="h-4 w-4 text-indigo-600 shrink-0 mt-0.5" />
+                        <div>
+                          <span className="font-bold block text-indigo-950">
+                            🏛️ Conteneur WBS de synthèse ({piType === 'phase' ? 'Phase Macro' : 'Activité / Lot de travail'})
+                          </span>
+                          <span className="text-indigo-800/90 text-[11px] mt-0.5 block">
+                            Les dates de début et fin, la durée globale, le budget consolidé et l'avancement % seront calculés et agrégés automatiquement à partir des tâches enfants que vous y ajouterez.
+                          </span>
+                        </div>
+                      </div>
+                    ) : piType === 'milestone' ? (
+                      <div className="sm:col-span-3 grid grid-cols-1 sm:grid-cols-2 gap-4">
+                        <div>
+                          <label className="mb-1.5 block text-xs font-bold uppercase tracking-wider text-slate-700">
+                            Date cible du Jalon *
+                            {selectedParent?.startDate && selectedParent?.endDate && (
+                              <span className="ml-1 text-[10px] text-indigo-600 font-normal">
+                                (période parent : {selectedParent.startDate} au {selectedParent.endDate})
+                              </span>
+                            )}
+                          </label>
+                          <Input
+                            type="date"
+                            value={piEnd || piStart}
+                            min={selectedParent?.startDate || undefined}
+                            max={selectedParent?.endDate || undefined}
+                            onChange={(e) => {
+                              setPiStart(e.target.value);
+                              setPiEnd(e.target.value);
+                            }}
+                          />
+                        </div>
+                        <div className="flex items-center text-xs text-slate-500 bg-white p-3 rounded-lg border border-slate-200">
+                          <span>🚩 <strong>Jalon clé :</strong> Événement marquant ou point de contrôle (Durée = 0 jour).</span>
+                        </div>
                       </div>
                     ) : (
                       <>
                         <div>
                           <label className="mb-1.5 block text-xs font-bold uppercase tracking-wider text-slate-700">
-                            Date de début
-                            {selectedParent?.startDate && (
-                              <span className="ml-1 text-[10px] text-indigo-600 font-normal">(min: {selectedParent.startDate})</span>
-                            )}
+                            Durée estimée (jours ouvrés) *
+                          </label>
+                          <Input
+                            type="number"
+                            min={1}
+                            value={piDuration}
+                            onChange={(e) => {
+                              const val = e.target.value;
+                              setPiDuration(val);
+                              if (piStart && parseInt(val) > 0) {
+                                const d = new Date(piStart + 'T00:00:00Z');
+                                d.setUTCDate(d.getUTCDate() + parseInt(val));
+                                setPiEnd(d.toISOString().split('T')[0]);
+                              }
+                            }}
+                            placeholder="5"
+                            className="bg-white text-xs font-bold font-mono"
+                          />
+                        </div>
+
+                        <div>
+                          <label className="mb-1.5 block text-xs font-bold uppercase tracking-wider text-slate-700">
+                            Date de début souhaitée (optionnelle)
                           </label>
                           <Input
                             type="date"
                             value={piStart}
                             min={selectedParent?.startDate || undefined}
-                            max={selectedParent?.endDate || piEnd || undefined}
-                            onChange={(e) => setPiStart(e.target.value)}
+                            max={selectedParent?.endDate || undefined}
+                            onChange={(e) => {
+                              const s = e.target.value;
+                              setPiStart(s);
+                              if (s && parseInt(piDuration) > 0) {
+                                const d = new Date(s + 'T00:00:00Z');
+                                d.setUTCDate(d.getUTCDate() + parseInt(piDuration));
+                                setPiEnd(d.toISOString().split('T')[0]);
+                              }
+                            }}
                           />
                         </div>
+
                         <div>
                           <label className="mb-1.5 block text-xs font-bold uppercase tracking-wider text-slate-700">
-                            Date de fin
-                            {selectedParent?.endDate && (
-                              <span className="ml-1 text-[10px] text-indigo-600 font-normal">(max: {selectedParent.endDate})</span>
-                            )}
+                            Coût estimé planifié (CAD)
                           </label>
                           <Input
-                            type="date"
-                            value={piEnd}
-                            min={piStart || selectedParent?.startDate || undefined}
-                            max={selectedParent?.endDate || undefined}
-                            onChange={(e) => setPiEnd(e.target.value)}
+                            type="number"
+                            value={piEstimatedCost}
+                            onChange={(e) => setPiEstimatedCost(e.target.value)}
+                            placeholder="0.00"
+                            className="bg-white text-xs"
                           />
                         </div>
-                      </>
-                    )}
 
-                    {/* Coût estimé & PERT Section */}
-                    <div>
-                      <label className="mb-1.5 block text-xs font-bold uppercase tracking-wider text-slate-700">
-                        Coût estimé planifié (CAD)
-                      </label>
-                      <Input
-                        type="number"
-                        value={piEstimatedCost}
-                        onChange={(e) => setPiEstimatedCost(e.target.value)}
-                        placeholder="0.00"
-                        className="bg-white text-xs"
-                      />
-                    </div>
-
-                    <div className="sm:col-span-2 flex items-end">
-                      <button
-                        type="button"
-                        onClick={() => setShowPertInputs(!showPertInputs)}
-                        className={`text-xs font-bold px-3 py-2 rounded-lg border transition flex items-center gap-1.5 ${
-                          showPertInputs
-                            ? 'bg-indigo-600 text-white border-indigo-700'
-                            : 'bg-white text-indigo-700 border-indigo-200 hover:bg-indigo-50'
-                        }`}
-                      >
-                        <Sparkles className="h-3.5 w-3.5" />
-                        {showPertInputs ? 'Masquer estimation PERT 3-points' : '🎯 Estimation avancée PERT à 3 points (O, M, P)'}
-                      </button>
-                    </div>
-
-                    {showPertInputs && (
-                      <div className="sm:col-span-3 rounded-lg bg-white border border-indigo-100 p-3 space-y-2">
-                        <span className="text-[11px] font-bold text-indigo-900 block">
-                          Estimation PERT probabiliste : Durée moyenne attendue Te = (O + 4M + P) / 6
-                        </span>
-                        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                          <div>
-                            <label className="mb-1 block text-[10px] font-bold text-slate-600">Durée Optimiste (O) [jours]</label>
-                            <Input
-                              type="number"
-                              min={1}
-                              value={piOptimistic}
-                              onChange={(e) => setPiOptimistic(e.target.value)}
-                              placeholder="Ex: 2"
-                              className="text-xs"
-                            />
-                          </div>
-                          <div>
-                            <label className="mb-1 block text-[10px] font-bold text-slate-600">Durée la plus Probable (M) [jours]</label>
-                            <Input
-                              type="number"
-                              min={1}
-                              value={piMostLikely}
-                              onChange={(e) => setPiMostLikely(e.target.value)}
-                              placeholder="Ex: 5"
-                              className="text-xs"
-                            />
-                          </div>
-                          <div>
-                            <label className="mb-1 block text-[10px] font-bold text-slate-600">Durée Pessimiste (P) [jours]</label>
-                            <Input
-                              type="number"
-                              min={1}
-                              value={piPessimistic}
-                              onChange={(e) => setPiPessimistic(e.target.value)}
-                              placeholder="Ex: 12"
-                              className="text-xs"
-                            />
-                          </div>
+                        <div className="sm:col-span-3 flex items-center justify-between">
+                          <button
+                            type="button"
+                            onClick={() => setShowPertInputs(!showPertInputs)}
+                            className={`text-xs font-bold px-3 py-1.5 rounded-lg border transition flex items-center gap-1.5 ${
+                              showPertInputs
+                                ? 'bg-indigo-600 text-white border-indigo-700'
+                                : 'bg-white text-indigo-700 border-indigo-200 hover:bg-indigo-50'
+                            }`}
+                          >
+                            <Sparkles className="h-3.5 w-3.5" />
+                            {showPertInputs ? 'Masquer estimation PERT 3-points' : '🎯 Estimation avancée PERT à 3 points (O, M, P)'}
+                          </button>
+                          {piStart && piEnd && (
+                            <span className="text-[11px] text-slate-500 font-medium">
+                              Période calculée : <strong className="text-slate-800">{piStart} → {piEnd}</strong>
+                            </span>
+                          )}
                         </div>
-                        {piOptimistic && piMostLikely && piPessimistic && (
-                          <div className="text-[11px] text-indigo-700 font-mono bg-indigo-50 p-2 rounded">
-                            Durée calculée : <strong>{Math.round(((parseInt(piOptimistic) + 4 * parseInt(piMostLikely) + parseInt(piPessimistic)) / 6) * 10) / 10} jours</strong> (Écart-type σ: ±{Math.round(((parseInt(piPessimistic) - parseInt(piOptimistic)) / 6) * 10) / 10} j)
+
+                        {showPertInputs && (
+                          <div className="sm:col-span-3 rounded-lg bg-white border border-indigo-100 p-3 space-y-2">
+                            <span className="text-[11px] font-bold text-indigo-900 block">
+                              Estimation PERT probabiliste : Durée moyenne attendue Te = (O + 4M + P) / 6
+                            </span>
+                            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                              <div>
+                                <label className="mb-1 block text-[10px] font-bold text-slate-600">Durée Optimiste (O) [jours]</label>
+                                <Input
+                                  type="number"
+                                  min={1}
+                                  value={piOptimistic}
+                                  onChange={(e) => {
+                                    setPiOptimistic(e.target.value);
+                                    if (e.target.value && piMostLikely && piPessimistic) {
+                                      const te = Math.round(((parseInt(e.target.value) + 4 * parseInt(piMostLikely) + parseInt(piPessimistic)) / 6) * 10) / 10;
+                                      setPiDuration(String(Math.max(1, Math.round(te))));
+                                    }
+                                  }}
+                                  placeholder="Ex: 2"
+                                  className="text-xs"
+                                />
+                              </div>
+                              <div>
+                                <label className="mb-1 block text-[10px] font-bold text-slate-600">Durée la plus Probable (M) [jours]</label>
+                                <Input
+                                  type="number"
+                                  min={1}
+                                  value={piMostLikely}
+                                  onChange={(e) => {
+                                    setPiMostLikely(e.target.value);
+                                    if (piOptimistic && e.target.value && piPessimistic) {
+                                      const te = Math.round(((parseInt(piOptimistic) + 4 * parseInt(e.target.value) + parseInt(piPessimistic)) / 6) * 10) / 10;
+                                      setPiDuration(String(Math.max(1, Math.round(te))));
+                                    }
+                                  }}
+                                  placeholder="Ex: 5"
+                                  className="text-xs"
+                                />
+                              </div>
+                              <div>
+                                <label className="mb-1 block text-[10px] font-bold text-slate-600">Durée Pessimiste (P) [jours]</label>
+                                <Input
+                                  type="number"
+                                  min={1}
+                                  value={piPessimistic}
+                                  onChange={(e) => {
+                                    setPiPessimistic(e.target.value);
+                                    if (piOptimistic && piMostLikely && e.target.value) {
+                                      const te = Math.round(((parseInt(piOptimistic) + 4 * parseInt(piMostLikely) + parseInt(e.target.value)) / 6) * 10) / 10;
+                                      setPiDuration(String(Math.max(1, Math.round(te))));
+                                    }
+                                  }}
+                                  placeholder="Ex: 12"
+                                  className="text-xs"
+                                />
+                              </div>
+                            </div>
+                            {piOptimistic && piMostLikely && piPessimistic && (
+                              <div className="text-[11px] text-indigo-700 font-mono bg-indigo-50 p-2 rounded">
+                                Durée retenue Te : <strong>{Math.round(((parseInt(piOptimistic) + 4 * parseInt(piMostLikely) + parseInt(piPessimistic)) / 6) * 10) / 10} jours</strong> (Écart-type σ: ±{Math.round(((parseInt(piPessimistic) - parseInt(piOptimistic)) / 6) * 10) / 10} j)
+                              </div>
+                            )}
                           </div>
                         )}
-                      </div>
+                      </>
                     )}
                   </div>
 
@@ -1984,44 +2079,59 @@ export function ProjectDetailScreen() {
               );
             })()}
 
-            {/* Sub-view switcher toolbar */}
-            <div className="flex items-center gap-1.5 p-1 bg-slate-200/80 rounded-xl w-fit border border-slate-300 shadow-2xs">
-              <button
-                onClick={() => setPlanSubView('table')}
-                className={`flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg text-xs font-bold transition ${
-                  planSubView === 'table' ? 'bg-white text-indigo-700 shadow-xs' : 'text-slate-600 hover:text-slate-900'
-                }`}
+            {/* Sub-view switcher toolbar & PERT Synchronizer */}
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <div className="flex items-center gap-1.5 p-1 bg-slate-200/80 rounded-xl w-fit border border-slate-300 shadow-2xs">
+                <button
+                  onClick={() => setPlanSubView('table')}
+                  className={`flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg text-xs font-bold transition ${
+                    planSubView === 'table' ? 'bg-white text-indigo-700 shadow-xs' : 'text-slate-600 hover:text-slate-900'
+                  }`}
+                >
+                  <ListTodo className="h-3.5 w-3.5" />
+                  Arborescence WBS
+                </button>
+                <button
+                  onClick={() => setPlanSubView('gantt')}
+                  className={`flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg text-xs font-bold transition ${
+                    planSubView === 'gantt' ? 'bg-white text-indigo-700 shadow-xs' : 'text-slate-600 hover:text-slate-900'
+                  }`}
+                >
+                  <Calendar className="h-3.5 w-3.5" />
+                  Diagramme de Gantt
+                </button>
+                <button
+                  onClick={() => setPlanSubView('pert')}
+                  className={`flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg text-xs font-bold transition ${
+                    planSubView === 'pert' ? 'bg-white text-red-600 shadow-xs' : 'text-slate-600 hover:text-slate-900'
+                  }`}
+                >
+                  <Flame className="h-3.5 w-3.5" />
+                  Réseau PERT & Chemin Critique
+                </button>
+                <button
+                  onClick={() => setPlanSubView('evm')}
+                  className={`flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg text-xs font-bold transition ${
+                    planSubView === 'evm' ? 'bg-white text-emerald-700 shadow-xs' : 'text-slate-600 hover:text-slate-900'
+                  }`}
+                >
+                  <TrendingUp className="h-3.5 w-3.5" />
+                  Valeur Acquise & Coûts (EVM)
+                </button>
+              </div>
+
+              {/* PERT Auto-Scheduling Synchronization button */}
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={() => syncPertScheduleMutation.mutate()}
+                disabled={syncPertScheduleMutation.isPending || planItems.length === 0}
+                className="text-xs font-bold border-indigo-300 text-indigo-700 bg-indigo-50/70 hover:bg-indigo-100 flex items-center gap-1.5 shadow-2xs"
+                title="Recalcule automatiquement les dates de début et de fin de toutes les tâches et conteneurs selon la logique du réseau PERT/CPM"
               >
-                <ListTodo className="h-3.5 w-3.5" />
-                Arborescence WBS
-              </button>
-              <button
-                onClick={() => setPlanSubView('gantt')}
-                className={`flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg text-xs font-bold transition ${
-                  planSubView === 'gantt' ? 'bg-white text-indigo-700 shadow-xs' : 'text-slate-600 hover:text-slate-900'
-                }`}
-              >
-                <Calendar className="h-3.5 w-3.5" />
-                Diagramme de Gantt
-              </button>
-              <button
-                onClick={() => setPlanSubView('pert')}
-                className={`flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg text-xs font-bold transition ${
-                  planSubView === 'pert' ? 'bg-white text-red-600 shadow-xs' : 'text-slate-600 hover:text-slate-900'
-                }`}
-              >
-                <Flame className="h-3.5 w-3.5" />
-                Réseau PERT & Chemin Critique
-              </button>
-              <button
-                onClick={() => setPlanSubView('evm')}
-                className={`flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg text-xs font-bold transition ${
-                  planSubView === 'evm' ? 'bg-white text-emerald-700 shadow-xs' : 'text-slate-600 hover:text-slate-900'
-                }`}
-              >
-                <TrendingUp className="h-3.5 w-3.5" />
-                Valeur Acquise & Coûts (EVM)
-              </button>
+                <RefreshCw className={`h-3.5 w-3.5 ${syncPertScheduleMutation.isPending ? 'animate-spin' : ''}`} />
+                <span>{syncPertScheduleMutation.isPending ? 'Synchronisation...' : '🔄 Synchroniser le calendrier (PERT/CPM)'}</span>
+              </Button>
             </div>
 
             {/* Sub-view Content Conditional Rendering */}
@@ -2112,12 +2222,19 @@ export function ProjectDetailScreen() {
                                   {item.endDate || item.startDate || '—'}
                                 </span>
                               ) : item.startDate && item.endDate ? (
-                                <span className="flex items-center gap-1">
-                                  <Calendar className="h-3 w-3 text-slate-400" />
-                                  {item.startDate} → {item.endDate}
-                                </span>
+                                <div className="flex flex-col gap-0.5">
+                                  <span className="flex items-center gap-1 font-medium">
+                                    <Calendar className="h-3 w-3 text-slate-400" />
+                                    {item.startDate} → {item.endDate}
+                                  </span>
+                                  <span className="text-[10px] text-slate-400 font-mono">
+                                    Durée : {item.durationDays || 1} j {item.type === 'phase' || item.type === 'activity' ? '(synthèse)' : ''}
+                                  </span>
+                                </div>
                               ) : (
-                                item.startDate || '—'
+                                <span className="text-slate-400 italic">
+                                  {item.type === 'phase' || item.type === 'activity' ? 'Calculé au roll-up' : item.startDate || 'Non planifié'}
+                                </span>
                               )}
                             </td>
                             <td className="px-4 py-3">
