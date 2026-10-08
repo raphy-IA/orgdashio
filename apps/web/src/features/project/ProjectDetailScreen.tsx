@@ -477,6 +477,11 @@ export function ProjectDetailScreen() {
   const [logBlocker, setLogBlocker] = useState('');
 
   // Task Estimation & Parameters (inside drawer)
+  const [taskTitle, setTaskTitle] = useState('');
+  const [taskWbs, setTaskWbs] = useState('');
+  const [taskType, setTaskType] = useState<PlanItem['type']>('task');
+  const [taskStart, setTaskStart] = useState('');
+  const [taskEnd, setTaskEnd] = useState('');
   const [taskDuration, setTaskDuration] = useState('1');
   const [taskCost, setTaskCost] = useState('0');
   const [taskOptimistic, setTaskOptimistic] = useState('');
@@ -486,6 +491,11 @@ export function ProjectDetailScreen() {
 
   useEffect(() => {
     if (selectedTask) {
+      setTaskTitle(selectedTask.title || '');
+      setTaskWbs(selectedTask.wbs || '');
+      setTaskType(selectedTask.type || 'task');
+      setTaskStart(selectedTask.startDate || '');
+      setTaskEnd(selectedTask.endDate || '');
       setLogProgress(selectedTask.progressPct || 0);
       setLogIsBlocked(selectedTask.status === 'blocked');
       setTaskDuration(selectedTask.durationDays !== undefined && selectedTask.durationDays !== null ? String(selectedTask.durationDays) : '1');
@@ -689,10 +699,26 @@ export function ProjectDetailScreen() {
       }
       if (isNaN(dur) || dur < 0) dur = 1;
 
+      let calculatedStart: string | undefined = taskStart || undefined;
+      let calculatedEnd: string | undefined = taskEnd || undefined;
+      if (taskType === 'milestone') {
+        calculatedEnd = calculatedStart;
+        dur = 0;
+      } else if (calculatedStart && dur > 0 && !calculatedEnd) {
+        const d = new Date(calculatedStart + 'T00:00:00Z');
+        d.setUTCDate(d.getUTCDate() + dur);
+        calculatedEnd = d.toISOString().split('T')[0];
+      }
+
       const res = await fetch(`/api/v1/projects/${id}/plan-items/${selectedTask.id}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
+          title: taskTitle.trim() || undefined,
+          wbs: taskWbs.trim() || undefined,
+          type: taskType,
+          startDate: calculatedStart,
+          endDate: calculatedEnd,
           durationDays: dur,
           estimatedCost: taskCost ? parseFloat(taskCost) : 0,
           optimisticDays: opt,
@@ -2449,13 +2475,13 @@ export function ProjectDetailScreen() {
               </Button>
             </div>
 
-            {/* Sub-tab 1: WBS Table */}
+            {/* Sub-tab 1: WBS Table (Baseline Planning) */}
             {planningSubTab === 'wbs' && (
               <div className="space-y-4">
                 <div className="flex items-center justify-between">
                   <div>
                     <h2 className="text-base font-bold text-slate-800">Structure de Découpage du Travail (WBS)</h2>
-                    <p className="text-sm text-slate-500">Phases, activités, tâches, jalons et livrables</p>
+                    <p className="text-sm text-slate-500">Planification des phases, activités, tâches opérationnelles, jalons et coûts prévisionnels (PV)</p>
                   </div>
                   <Button size="sm" onClick={() => setShowPlanItemForm(!showPlanItemForm)}>
                     <Plus className="mr-2 h-4 w-4" />
@@ -2464,550 +2490,499 @@ export function ProjectDetailScreen() {
                 </div>
 
                 {showPlanItemForm && (() => {
-              const rootPhases = planItems.filter((p: any) => p.type === 'phase');
-              const allActivities = planItems.filter((p: any) => p.type === 'activity');
-              const selectedParent = planItems.find((p: any) => p.id === piParentId);
-              
-              // Calcul automatique et rigoureux du WBS selon la hiérarchie standard WBS / OTP
-              const getSuggestedWbs = () => {
-                if (piWbs) return piWbs;
-                if (piType === 'phase') {
-                  return `${rootPhases.length + 1}`;
-                }
-                if (selectedParent) {
-                  const siblings = planItems.filter((p: any) => p.parentId === piParentId);
-                  return `${selectedParent.wbs}.${siblings.length + 1}`;
-                }
-                const rootItems = planItems.filter((p: any) => !p.parentId);
-                return `${rootItems.length + 1}`;
-              };
+                  const rootPhases = planItems.filter((p: any) => p.type === 'phase');
+                  const allActivities = planItems.filter((p: any) => p.type === 'activity');
+                  const selectedParent = planItems.find((p: any) => p.id === piParentId);
+                  
+                  const getSuggestedWbs = () => {
+                    if (piWbs) return piWbs;
+                    if (piType === 'phase') {
+                      return `${rootPhases.length + 1}`;
+                    }
+                    if (selectedParent) {
+                      const siblings = planItems.filter((p: any) => p.parentId === piParentId);
+                      return `${selectedParent.wbs}.${siblings.length + 1}`;
+                    }
+                    const rootItems = planItems.filter((p: any) => !p.parentId);
+                    return `${rootItems.length + 1}`;
+                  };
 
-              const suggestedWbs = getSuggestedWbs();
+                  const suggestedWbs = getSuggestedWbs();
 
-              return (
-                <div className="rounded-xl border border-indigo-200 bg-indigo-50 p-5 shadow-sm space-y-4">
-                  <div className="flex items-center justify-between border-b border-indigo-200/60 pb-3">
-                    <h3 className="text-sm font-bold text-indigo-900 flex items-center gap-2">
-                      <Sparkles className="h-4 w-4 text-indigo-600" />
-                      <span>Ajouter un élément au plan WBS</span>
-                    </h3>
-                    <span className="text-xs text-indigo-600 bg-indigo-100 px-2 py-0.5 rounded font-mono font-bold">
-                      Code suggéré : {suggestedWbs}
-                    </span>
-                  </div>
+                  return (
+                    <div className="rounded-xl border border-indigo-200 bg-indigo-50 p-5 shadow-sm space-y-4">
+                      <div className="flex items-center justify-between border-b border-indigo-200/60 pb-3">
+                        <h3 className="text-sm font-bold text-indigo-900 flex items-center gap-2">
+                          <Sparkles className="h-4 w-4 text-indigo-600" />
+                          <span>Ajouter un élément au plan WBS</span>
+                        </h3>
+                        <span className="text-xs text-indigo-600 bg-indigo-100 px-2 py-0.5 rounded font-mono font-bold">
+                          Code suggéré : {suggestedWbs}
+                        </span>
+                      </div>
 
-                  <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
-                    <div>
-                      <label className="mb-1.5 block text-xs font-bold uppercase tracking-wider text-slate-700">
-                        1. Type d'élément *
-                      </label>
-                      <select
-                        value={piType}
-                        onChange={(e) => {
-                          const newType = e.target.value as PlanItem['type'];
-                          setPiType(newType);
-                          setPiWbs('');
-                          
-                          // Ajuster le parent selon le type
-                          if (newType === 'phase') {
-                            setPiParentId('');
-                          } else if (newType === 'activity' && rootPhases.length > 0) {
-                            if (!piParentId || !rootPhases.some((p: any) => p.id === piParentId)) {
-                              setPiParentId(rootPhases[0].id);
-                            }
-                          } else if (newType === 'task' && allActivities.length > 0) {
-                            if (!piParentId || !allActivities.some((a: any) => a.id === piParentId)) {
-                              setPiParentId(allActivities[0].id);
-                            }
-                          }
-
-                          if (newType === 'milestone') {
-                            const dateToUse = piEnd || piStart;
-                            setPiStart(dateToUse);
-                            setPiEnd(dateToUse);
-                          }
-                        }}
-                        className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-xs font-semibold shadow-xs"
-                      >
-                        <option value="phase">🏛️ Phase (Niveau 1 — Macro)</option>
-                        <option value="activity">📦 Activité / Lot (Niveau 2)</option>
-                        <option value="task">📋 Tâche opérationnelle (Niveau 3)</option>
-                        <option value="milestone">🚩 Jalon clé (Date cible)</option>
-                        <option value="deliverable">📄 Livrable formel</option>
-                      </select>
-                    </div>
-
-                    <div>
-                      <label className="mb-1.5 block text-xs font-bold uppercase tracking-wider text-slate-700">
-                        2. Élément parent (Rattachement)
-                      </label>
-                      {piType === 'phase' ? (
-                        <div className="w-full rounded-lg border border-slate-200 bg-slate-100 px-3 py-2 text-xs text-slate-500 font-medium">
-                          Niveau 1 (Racine du projet)
-                        </div>
-                      ) : (
-                        <select
-                          value={piParentId}
-                          onChange={(e) => {
-                            const newParentId = e.target.value;
-                            setPiParentId(newParentId);
-                            setPiWbs('');
-                            const parent = planItems.find((p: any) => p.id === newParentId);
-                            if (parent) {
-                              if (piType === 'milestone') {
-                                const milestoneDate = parent.endDate || parent.startDate || '';
-                                setPiStart(milestoneDate);
-                                setPiEnd(milestoneDate);
-                              } else {
-                                if (parent.startDate && (!piStart || piStart < parent.startDate)) {
-                                  setPiStart(parent.startDate);
+                      <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+                        <div>
+                          <label className="mb-1.5 block text-xs font-bold uppercase tracking-wider text-slate-700">
+                            1. Type d'élément *
+                          </label>
+                          <select
+                            value={piType}
+                            onChange={(e) => {
+                              const newType = e.target.value as PlanItem['type'];
+                              setPiType(newType);
+                              setPiWbs('');
+                              
+                              if (newType === 'phase') {
+                                setPiParentId('');
+                              } else if (newType === 'activity' && rootPhases.length > 0) {
+                                if (!piParentId || !rootPhases.some((p: any) => p.id === piParentId)) {
+                                  setPiParentId(rootPhases[0].id);
                                 }
-                                if (parent.endDate && (!piEnd || piEnd > parent.endDate)) {
-                                  setPiEnd(parent.endDate);
+                              } else if (newType === 'task' && allActivities.length > 0) {
+                                if (!piParentId || !allActivities.some((a: any) => a.id === piParentId)) {
+                                  setPiParentId(allActivities[0].id);
                                 }
                               }
-                            }
-                          }}
-                          className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-xs font-semibold shadow-xs"
-                        >
-                          {piType === 'activity' ? (
-                            rootPhases.length > 0 ? (
-                              rootPhases.map((p: any) => (
-                                <option key={p.id} value={p.id}>
-                                  Phase {p.wbs} — {p.title}
-                                </option>
-                              ))
-                            ) : (
-                              <option value="">— Aucune Phase existante (Racine) —</option>
-                            )
-                          ) : piType === 'task' ? (
-                            allActivities.length > 0 ? (
-                              allActivities.map((a: any) => (
-                                <option key={a.id} value={a.id}>
-                                  Activité {a.wbs} — {a.title}
-                                </option>
-                              ))
-                            ) : rootPhases.length > 0 ? (
-                              rootPhases.map((p: any) => (
-                                <option key={p.id} value={p.id}>
-                                  Phase {p.wbs} — {p.title}
-                                </option>
-                              ))
-                            ) : (
-                              <option value="">— Aucun parent disponible (Racine) —</option>
-                            )
-                          ) : (
-                            <>
-                              <option value="">— Aucun parent (Racine) —</option>
-                              {planItems.filter((p: any) => p.type === 'phase' || p.type === 'activity').map((p: any) => (
-                                <option key={p.id} value={p.id}>
-                                  {p.type === 'phase' ? 'Phase' : 'Activité'} {p.wbs} — {p.title}
-                                </option>
-                              ))}
-                            </>
-                          )}
-                        </select>
-                      )}
-                    </div>
 
-                    <div>
-                      <label className="mb-1.5 block text-xs font-bold uppercase tracking-wider text-slate-700">
-                        3. Code WBS (Nomenclature)
-                      </label>
-                      <Input
-                        value={piWbs || suggestedWbs}
-                        onChange={(e) => setPiWbs(e.target.value)}
-                        placeholder={suggestedWbs}
-                        className="font-mono font-bold text-xs"
-                      />
-                    </div>
-
-                    <div className="sm:col-span-3">
-                      <label className="mb-1.5 block text-xs font-bold uppercase tracking-wider text-slate-700">
-                        Titre descriptif *
-                      </label>
-                      <Input
-                        value={piTitle}
-                        onChange={(e) => setPiTitle(e.target.value)}
-                        placeholder={
-                          piType === 'phase'
-                            ? 'Ex: Phase 1 — Cadrage & Mobilisation communautaire'
-                            : piType === 'activity'
-                            ? 'Ex: Activité 1.1 — Diagnostic des besoins et cartographie'
-                            : piType === 'task'
-                            ? 'Ex: Tâche 1.1.1 — Conduire 15 entretiens individuels'
-                            : piType === 'milestone'
-                            ? 'Ex: Validation du rapport d\'étape par le comité de pilotage'
-                            : 'Ex: Document de synthèse et grille d\'analyse livrés'
-                        }
-                        className="text-xs font-medium"
-                      />
-                    </div>
-
-                    {/* Champs conditionnels selon le type : Phase/Activité = Conteneur de synthèse / Jalon = Date cible / Tâche = Durée & PERT */}
-                    {piType === 'phase' || piType === 'activity' ? (
-                      <div className="sm:col-span-3 rounded-lg border border-indigo-200 bg-indigo-50/80 p-3.5 text-xs text-indigo-900 flex items-start gap-2.5">
-                        <Layers className="h-4 w-4 text-indigo-600 shrink-0 mt-0.5" />
-                        <div>
-                          <span className="font-bold block text-indigo-950">
-                            🏛️ Conteneur WBS de synthèse ({piType === 'phase' ? 'Phase Macro' : 'Activité / Lot de travail'})
-                          </span>
-                          <span className="text-indigo-800/90 text-[11px] mt-0.5 block">
-                            Les dates de début et fin, la durée globale, le budget consolidé et l'avancement % seront calculés et agrégés automatiquement à partir des tâches enfants que vous y ajouterez.
-                          </span>
-                        </div>
-                      </div>
-                    ) : piType === 'milestone' ? (
-                      <div className="sm:col-span-3 grid grid-cols-1 sm:grid-cols-2 gap-4">
-                        <div>
-                          <label className="mb-1.5 block text-xs font-bold uppercase tracking-wider text-slate-700">
-                            Date cible du Jalon *
-                            {selectedParent?.startDate && selectedParent?.endDate && (
-                              <span className="ml-1 text-[10px] text-indigo-600 font-normal">
-                                (période parent : {selectedParent.startDate} au {selectedParent.endDate})
-                              </span>
-                            )}
-                          </label>
-                          <Input
-                            type="date"
-                            value={piEnd || piStart}
-                            min={selectedParent?.startDate || undefined}
-                            max={selectedParent?.endDate || undefined}
-                            onChange={(e) => {
-                              setPiStart(e.target.value);
-                              setPiEnd(e.target.value);
-                            }}
-                          />
-                        </div>
-                        <div className="flex items-center text-xs text-slate-500 bg-white p-3 rounded-lg border border-slate-200">
-                          <span>🚩 <strong>Jalon clé :</strong> Événement marquant ou point de contrôle (Durée = 0 jour).</span>
-                        </div>
-                      </div>
-                    ) : (
-                      <>
-                        <div>
-                          <label className="mb-1.5 block text-xs font-bold uppercase tracking-wider text-slate-700">
-                            Durée estimée (jours ouvrés) *
-                          </label>
-                          <Input
-                            type="number"
-                            min={1}
-                            value={piDuration}
-                            onChange={(e) => {
-                              const val = e.target.value;
-                              setPiDuration(val);
-                              if (piStart && parseInt(val) > 0) {
-                                const d = new Date(piStart + 'T00:00:00Z');
-                                d.setUTCDate(d.getUTCDate() + parseInt(val));
-                                setPiEnd(d.toISOString().split('T')[0]);
+                              if (newType === 'milestone') {
+                                const dateToUse = piEnd || piStart;
+                                setPiStart(dateToUse);
+                                setPiEnd(dateToUse);
                               }
                             }}
-                            placeholder="5"
-                            className="bg-white text-xs font-bold font-mono"
-                          />
-                        </div>
-
-                        <div>
-                          <label className="mb-1.5 block text-xs font-bold uppercase tracking-wider text-slate-700">
-                            Date de début souhaitée (optionnelle)
-                          </label>
-                          <Input
-                            type="date"
-                            value={piStart}
-                            min={selectedParent?.startDate || undefined}
-                            max={selectedParent?.endDate || undefined}
-                            onChange={(e) => {
-                              const s = e.target.value;
-                              setPiStart(s);
-                              if (s && parseInt(piDuration) > 0) {
-                                const d = new Date(s + 'T00:00:00Z');
-                                d.setUTCDate(d.getUTCDate() + parseInt(piDuration));
-                                setPiEnd(d.toISOString().split('T')[0]);
-                              }
-                            }}
-                          />
-                        </div>
-
-                        <div>
-                          <label className="mb-1.5 block text-xs font-bold uppercase tracking-wider text-slate-700">
-                            Coût estimé planifié (CAD)
-                          </label>
-                          <Input
-                            type="number"
-                            value={piEstimatedCost}
-                            onChange={(e) => setPiEstimatedCost(e.target.value)}
-                            placeholder="0.00"
-                            className="bg-white text-xs"
-                          />
-                        </div>
-
-                        <div className="sm:col-span-3 flex items-center justify-between">
-                          <button
-                            type="button"
-                            onClick={() => setShowPertInputs(!showPertInputs)}
-                            className={`text-xs font-bold px-3 py-1.5 rounded-lg border transition flex items-center gap-1.5 ${
-                              showPertInputs
-                                ? 'bg-indigo-600 text-white border-indigo-700'
-                                : 'bg-white text-indigo-700 border-indigo-200 hover:bg-indigo-50'
-                            }`}
+                            className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-xs font-semibold shadow-xs"
                           >
-                            <Sparkles className="h-3.5 w-3.5" />
-                            {showPertInputs ? 'Masquer estimation PERT 3-points' : '🎯 Estimation avancée PERT à 3 points (O, M, P)'}
-                          </button>
-                          {piStart && piEnd && (
-                            <span className="text-[11px] text-slate-500 font-medium">
-                              Période calculée : <strong className="text-slate-800">{piStart} → {piEnd}</strong>
-                            </span>
+                            <option value="phase">🏛️ Phase (Niveau 1 — Macro)</option>
+                            <option value="activity">📦 Activité / Lot (Niveau 2)</option>
+                            <option value="task">📋 Tâche opérationnelle (Niveau 3)</option>
+                            <option value="milestone">🚩 Jalon clé (Date cible)</option>
+                            <option value="deliverable">📄 Livrable formel</option>
+                          </select>
+                        </div>
+
+                        <div>
+                          <label className="mb-1.5 block text-xs font-bold uppercase tracking-wider text-slate-700">
+                            2. Élément parent (Rattachement)
+                          </label>
+                          {piType === 'phase' ? (
+                            <div className="w-full rounded-lg border border-slate-200 bg-slate-100 px-3 py-2 text-xs text-slate-500 font-medium">
+                              Niveau 1 (Racine du projet)
+                            </div>
+                          ) : (
+                            <select
+                              value={piParentId}
+                              onChange={(e) => {
+                                const newParentId = e.target.value;
+                                setPiParentId(newParentId);
+                                setPiWbs('');
+                                const parent = planItems.find((p: any) => p.id === newParentId);
+                                if (parent) {
+                                  if (piType === 'milestone') {
+                                    setPiStart(parent.endDate || parent.startDate || '');
+                                    setPiEnd(parent.endDate || parent.startDate || '');
+                                  } else {
+                                    if (parent.startDate && !piStart) setPiStart(parent.startDate);
+                                  }
+                                }
+                              }}
+                              className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-xs font-medium shadow-xs"
+                            >
+                              <option value="">— Aucun parent (Racine) —</option>
+                              {planItems
+                                .filter((p: any) => p.type === 'phase' || p.type === 'activity')
+                                .map((p: any) => (
+                                  <option key={p.id} value={p.id}>
+                                    {p.wbs} — {p.title} ({p.type === 'phase' ? 'Phase' : 'Activité'})
+                                  </option>
+                                ))}
+                            </select>
                           )}
                         </div>
 
-                        {showPertInputs && (
-                          <div className="sm:col-span-3 rounded-lg bg-white border border-indigo-100 p-3 space-y-2">
-                            <span className="text-[11px] font-bold text-indigo-900 block">
-                              Estimation PERT probabiliste : Durée moyenne attendue Te = (O + 4M + P) / 6
-                            </span>
-                            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                              <div>
-                                <label className="mb-1 block text-[10px] font-bold text-slate-600">Durée Optimiste (O) [jours]</label>
-                                <Input
-                                  type="number"
-                                  min={1}
-                                  value={piOptimistic}
-                                  onChange={(e) => {
-                                    setPiOptimistic(e.target.value);
-                                    if (e.target.value && piMostLikely && piPessimistic) {
-                                      const te = Math.round(((parseInt(e.target.value) + 4 * parseInt(piMostLikely) + parseInt(piPessimistic)) / 6) * 10) / 10;
-                                      setPiDuration(String(Math.max(1, Math.round(te))));
-                                    }
-                                  }}
-                                  placeholder="Ex: 2"
-                                  className="text-xs"
-                                />
-                              </div>
-                              <div>
-                                <label className="mb-1 block text-[10px] font-bold text-slate-600">Durée la plus Probable (M) [jours]</label>
-                                <Input
-                                  type="number"
-                                  min={1}
-                                  value={piMostLikely}
-                                  onChange={(e) => {
-                                    setPiMostLikely(e.target.value);
-                                    if (piOptimistic && e.target.value && piPessimistic) {
-                                      const te = Math.round(((parseInt(piOptimistic) + 4 * parseInt(e.target.value) + parseInt(piPessimistic)) / 6) * 10) / 10;
-                                      setPiDuration(String(Math.max(1, Math.round(te))));
-                                    }
-                                  }}
-                                  placeholder="Ex: 5"
-                                  className="text-xs"
-                                />
-                              </div>
-                              <div>
-                                <label className="mb-1 block text-[10px] font-bold text-slate-600">Durée Pessimiste (P) [jours]</label>
-                                <Input
-                                  type="number"
-                                  min={1}
-                                  value={piPessimistic}
-                                  onChange={(e) => {
-                                    setPiPessimistic(e.target.value);
-                                    if (piOptimistic && piMostLikely && e.target.value) {
-                                      const te = Math.round(((parseInt(piOptimistic) + 4 * parseInt(piMostLikely) + parseInt(e.target.value)) / 6) * 10) / 10;
-                                      setPiDuration(String(Math.max(1, Math.round(te))));
-                                    }
-                                  }}
-                                  placeholder="Ex: 12"
-                                  className="text-xs"
-                                />
-                              </div>
+                        <div>
+                          <label className="mb-1.5 block text-xs font-bold uppercase tracking-wider text-slate-700">
+                            3. Code WBS
+                          </label>
+                          <Input
+                            value={piWbs}
+                            onChange={(e) => setPiWbs(e.target.value)}
+                            placeholder={suggestedWbs}
+                            className="bg-white font-mono font-bold text-xs"
+                          />
+                        </div>
+
+                        <div className="sm:col-span-3">
+                          <label className="mb-1.5 block text-xs font-bold uppercase tracking-wider text-slate-700">
+                            4. Titre de l'élément *
+                          </label>
+                          <Input
+                            value={piTitle}
+                            onChange={(e) => setPiTitle(e.target.value)}
+                            placeholder="Ex: Analyse préliminaire des besoins..."
+                            className="bg-white text-xs font-medium"
+                          />
+                        </div>
+
+                        {piType === 'milestone' ? (
+                          <div className="sm:col-span-3 grid grid-cols-1 sm:grid-cols-2 gap-3 bg-amber-50/70 p-3 rounded-lg border border-amber-200">
+                            <div>
+                              <label className="mb-1 block text-xs font-bold text-amber-900">
+                                Date cible du jalon *
+                              </label>
+                              <Input
+                                type="date"
+                                value={piEnd || piStart}
+                                onChange={(e) => {
+                                  setPiStart(e.target.value);
+                                  setPiEnd(e.target.value);
+                                }}
+                                className="bg-white text-xs"
+                              />
                             </div>
-                            {piOptimistic && piMostLikely && piPessimistic && (
-                              <div className="text-[11px] text-indigo-700 font-mono bg-indigo-50 p-2 rounded">
-                                Durée retenue Te : <strong>{Math.round(((parseInt(piOptimistic) + 4 * parseInt(piMostLikely) + parseInt(piPessimistic)) / 6) * 10) / 10} jours</strong> (Écart-type σ: ±{Math.round(((parseInt(piPessimistic) - parseInt(piOptimistic)) / 6) * 10) / 10} j)
-                              </div>
-                            )}
+                            <div className="text-xs text-amber-800 flex items-center">
+                              ℹ️ Un jalon est un point de contrôle clé (durée = 0 jour).
+                            </div>
                           </div>
-                        )}
-                      </>
-                    )}
-                  </div>
-
-                  {/* Guide Pédagogique d'Ordre et Hiérarchie */}
-                  {piType === 'activity' && rootPhases.length === 0 && (
-                    <div className="p-3 bg-amber-50 border border-amber-200 text-amber-900 rounded-lg text-xs flex items-center justify-between">
-                      <span>
-                        ⚠️ <strong>Bonne pratique :</strong> Aucune Phase n'est encore définie. Il est fortement recommandé de créer d'abord une <strong>Phase</strong> (ex: Phase 1 — Cadrage) afin de structurer vos activités sous une numérotation WBS rigoureuse (ex: 1.1, 1.2).
-                      </span>
-                      <Button
-                        type="button"
-                        size="sm"
-                        variant="outline"
-                        onClick={() => {
-                          setPiType('phase');
-                          setPiParentId('');
-                          setPiTitle('Phase 1 — ');
-                          setPiWbs('1');
-                        }}
-                        className="text-xs ml-3 whitespace-nowrap bg-white text-amber-800 border-amber-300"
-                      >
-                        Créer une Phase d'abord
-                      </Button>
-                    </div>
-                  )}
-
-                  {piType === 'task' && allActivities.length === 0 && (
-                    <div className="p-3 bg-blue-50 border border-blue-200 text-blue-900 rounded-lg text-xs">
-                      💡 <strong>Conseil hiérarchique :</strong> Dans la gestion de projet OBNL (norme PMI/WBS), les tâches opérationnelles (ex: 1.1.1) découlent d'une <strong>Activité</strong> (ex: 1.1).
-                    </div>
-                  )}
-
-                  <div className="flex gap-2 pt-2 border-t border-indigo-200/60">
-                    <Button
-                      size="sm"
-                      onClick={() => {
-                        if (!piWbs && suggestedWbs) {
-                          setPiWbs(suggestedWbs);
-                        }
-                        if (piType === 'milestone') {
-                          const milestoneDate = piEnd || piStart;
-                          setPiStart(milestoneDate);
-                          setPiEnd(milestoneDate);
-                        }
-                        addPlanItem.mutate();
-                      }}
-                      disabled={!piTitle.trim() || addPlanItem.isPending}
-                      className="bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs"
-                    >
-                      {addPlanItem.isPending ? 'Enregistrement...' : 'Enregistrer dans le WBS'}
-                    </Button>
-                    <Button size="sm" variant="ghost" onClick={() => setShowPlanItemForm(false)} className="text-xs">
-                      Annuler
-                    </Button>
-                  </div>
-                </div>
-              );
-            })()}
-
-                {planItems.length === 0 ? (
-              <div className="rounded-xl border border-dashed border-slate-200 bg-white p-10 text-center">
-                <ListTodo className="mx-auto mb-3 h-10 w-10 text-slate-300" />
-                <p className="text-sm font-medium text-slate-500">Aucun élément de plan défini</p>
-                <p className="mt-1 text-xs text-slate-400">Structurez le projet en phases (1, 2), activités (1.1, 1.2), tâches (1.1.1) et jalons.</p>
-              </div>
-            ) : (
-              <div className="overflow-hidden rounded-xl border bg-white shadow-sm">
-                <table className="w-full text-sm">
-                  <thead className="border-b bg-slate-50">
-                    <tr className="text-left text-xs font-semibold uppercase tracking-wide text-slate-500">
-                      <th className="px-4 py-3">WBS</th>
-                      <th className="px-4 py-3">Type</th>
-                      <th className="px-4 py-3">Titre de l'élément</th>
-                      <th className="px-4 py-3">Période / Date</th>
-                      <th className="px-4 py-3 text-right">Coût estimé (PV)</th>
-                      <th className="w-44 px-4 py-3">Avancement</th>
-                      <th className="px-4 py-3">Statut</th>
-                      <th className="px-4 py-3 text-right">Actions</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-slate-100">
-                    {[...planItems]
-                      .sort((a: any, b: any) => a.wbs.localeCompare(b.wbs, undefined, { numeric: true }))
-                      .map((item: any) => {
-                        const depth = Math.max(0, (item.wbs || '').split('.').length - 1);
-                        const statusCfg = STATUS_CONFIG[item.status] || STATUS_CONFIG.todo;
-                        const typeCfg = TYPE_CONFIG[item.type] || TYPE_CONFIG.task;
-                        const isMilestone = item.type === 'milestone';
-
-                        return (
-                          <tr key={item.id} className="group hover:bg-slate-50 transition-colors">
-                            <td className="px-4 py-3 font-mono text-xs font-bold text-slate-600">{item.wbs}</td>
-                            <td className="px-4 py-3">
-                              <span className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-0.5 text-xs font-medium ${typeCfg.badgeClass}`}>
-                                {typeCfg.icon}
-                                {typeCfg.label}
-                              </span>
-                            </td>
-                            <td className="px-4 py-3">
-                              <div
-                                className={`flex items-center gap-1.5 ${isMilestone ? 'text-amber-900 font-bold' : item.type === 'phase' ? 'text-indigo-950 font-bold' : 'text-slate-800 font-medium'}`}
-                                style={{ paddingLeft: `${depth * 20}px` }}
-                              >
-                                {depth > 0 && <span className="text-slate-300 font-mono">↳</span>}
-                                <span>{item.title}</span>
-                              </div>
-                            </td>
-                            <td className="px-4 py-3 text-xs text-slate-600">
-                              {isMilestone ? (
-                                <span className="inline-flex items-center gap-1 rounded bg-amber-50 px-2 py-0.5 font-medium text-amber-800 border border-amber-200">
-                                  <Flag className="h-3 w-3 text-amber-600" />
-                                  {item.endDate || item.startDate || '—'}
-                                </span>
-                              ) : item.startDate && item.endDate ? (
-                                <div className="flex flex-col gap-0.5">
-                                  <span className="flex items-center gap-1 font-medium">
-                                    <Calendar className="h-3 w-3 text-slate-400" />
-                                    {item.startDate} → {item.endDate}
-                                  </span>
-                                  <span className="text-[10px] text-slate-400 font-mono">
-                                    Durée : {item.durationDays || 1} j {item.type === 'phase' || item.type === 'activity' ? '(synthèse)' : ''}
-                                  </span>
-                                </div>
-                              ) : (
-                                <span className="text-slate-400 italic">
-                                  {item.type === 'phase' || item.type === 'activity' ? 'Calculé au roll-up' : item.startDate || 'Non planifié'}
-                                </span>
-                              )}
-                            </td>
-                            <td className="px-4 py-3 text-right text-xs">
-                              {item.type === 'phase' || item.type === 'activity' ? (
-                                <div className="flex flex-col items-end">
-                                  <span className="font-bold text-indigo-900 font-mono">
-                                    {fmt(item.estimatedCost || 0)}
-                                  </span>
-                                  <span className="text-[10px] text-slate-400">synthèse</span>
-                                </div>
-                              ) : (
-                                <span className="font-semibold text-slate-800 font-mono">
-                                  {fmt(item.estimatedCost || 0)}
-                                </span>
-                              )}
-                            </td>
-                            <td className="px-4 py-3">
-                              <InlineProgress item={item} projectId={id!} onSaved={invalidate} />
-                            </td>
-                            <td className="px-4 py-3">
-                              <span className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-medium ${statusCfg.color}`}>
-                                {statusCfg.icon}
-                                {statusCfg.label}
-                              </span>
-                            </td>
-                            <td className="px-4 py-3 text-right">
-                              <button
-                                type="button"
-                                onClick={() => {
-                                  const children = planItems.filter((p: any) => p.parentId === item.id);
-                                  const confirmMsg = children.length > 0
-                                    ? `Supprimer "${item.wbs} — ${item.title}" supprimera également ses ${children.length} sous-élément(s) rattaché(s). Confirmer ?`
-                                    : `Êtes-vous sûr de vouloir supprimer l'élément "${item.wbs} — ${item.title}" ?`;
-                                  if (window.confirm(confirmMsg)) {
-                                    deletePlanItem.mutate(item.id);
+                        ) : piType === 'phase' || piType === 'activity' ? (
+                          <div className="sm:col-span-3 bg-purple-50/70 p-3 rounded-lg border border-purple-200 text-xs text-purple-900 leading-relaxed">
+                            🏛️ <strong>Conteneur WBS :</strong> Les dates et la durée de cette {piType === 'phase' ? 'phase' : 'activité'} seront calculées automatiquement par roll-up à partir de ses sous-tâches.
+                          </div>
+                        ) : (
+                          <>
+                            <div>
+                              <label className="mb-1.5 block text-xs font-bold uppercase tracking-wider text-slate-700">
+                                Durée estimée (jours ouvrés) *
+                              </label>
+                              <Input
+                                type="number"
+                                min={1}
+                                value={piDuration}
+                                onChange={(e) => {
+                                  const val = e.target.value;
+                                  setPiDuration(val);
+                                  if (piStart && parseInt(val) > 0) {
+                                    const d = new Date(piStart + 'T00:00:00Z');
+                                    d.setUTCDate(d.getUTCDate() + parseInt(val));
+                                    setPiEnd(d.toISOString().split('T')[0]);
                                   }
                                 }}
-                                className="p-1.5 text-slate-400 hover:text-rose-600 rounded hover:bg-rose-50 transition-colors"
-                                title="Supprimer cet élément"
-                              >
-                                <Trash2 className="h-4 w-4" />
-                              </button>
-                            </td>
-                          </tr>
-                        );
-                      })}
-                  </tbody>
-                </table>
-              </div>
-            )}
-              </div>
-            )}
+                                placeholder="5"
+                                className="bg-white text-xs font-bold font-mono"
+                              />
+                            </div>
 
-            {/* Sub-tab 2: Gantt */}
+                            <div>
+                              <label className="mb-1.5 block text-xs font-bold uppercase tracking-wider text-slate-700">
+                                Date de début souhaitée (optionnelle)
+                              </label>
+                              <Input
+                                type="date"
+                                value={piStart}
+                                min={selectedParent?.startDate || undefined}
+                                max={selectedParent?.endDate || undefined}
+                                onChange={(e) => {
+                                  const s = e.target.value;
+                                  setPiStart(s);
+                                  if (s && parseInt(piDuration) > 0) {
+                                    const d = new Date(s + 'T00:00:00Z');
+                                    d.setUTCDate(d.getUTCDate() + parseInt(piDuration));
+                                    setPiEnd(d.toISOString().split('T')[0]);
+                                  }
+                                }}
+                              />
+                            </div>
+
+                            <div>
+                              <label className="mb-1.5 block text-xs font-bold uppercase tracking-wider text-slate-700">
+                                Coût estimé planifié (CAD)
+                              </label>
+                              <Input
+                                type="number"
+                                value={piEstimatedCost}
+                                onChange={(e) => setPiEstimatedCost(e.target.value)}
+                                placeholder="0.00"
+                                className="bg-white text-xs"
+                              />
+                            </div>
+
+                            <div className="sm:col-span-3 flex items-center justify-between">
+                              <button
+                                type="button"
+                                onClick={() => setShowPertInputs(!showPertInputs)}
+                                className={`text-xs font-bold px-3 py-1.5 rounded-lg border transition flex items-center gap-1.5 ${
+                                  showPertInputs
+                                    ? 'bg-indigo-600 text-white border-indigo-700'
+                                    : 'bg-white text-indigo-700 border-indigo-200 hover:bg-indigo-50'
+                                }`}
+                              >
+                                <Sparkles className="h-3.5 w-3.5" />
+                                {showPertInputs ? 'Masquer estimation PERT 3-points' : '🎯 Estimation avancée PERT à 3 points (O, M, P)'}
+                              </button>
+                              {piStart && piEnd && (
+                                <span className="text-[11px] text-slate-500 font-medium">
+                                  Période calculée : <strong className="text-slate-800">{piStart} → {piEnd}</strong>
+                                </span>
+                              )}
+                            </div>
+
+                            {showPertInputs && (
+                              <div className="sm:col-span-3 rounded-lg bg-white border border-indigo-100 p-3 space-y-2">
+                                <span className="text-[11px] font-bold text-indigo-900 block">
+                                  Estimation PERT probabiliste : Durée moyenne attendue Te = (O + 4M + P) / 6
+                                </span>
+                                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                                  <div>
+                                    <label className="mb-1 block text-[10px] font-bold text-slate-600">Durée Optimiste (O) [jours]</label>
+                                    <Input
+                                      type="number"
+                                      min={1}
+                                      value={piOptimistic}
+                                      onChange={(e) => {
+                                        setPiOptimistic(e.target.value);
+                                        if (e.target.value && piMostLikely && piPessimistic) {
+                                          const te = Math.round(((parseInt(e.target.value) + 4 * parseInt(piMostLikely) + parseInt(piPessimistic)) / 6) * 10) / 10;
+                                          setPiDuration(String(Math.max(1, Math.round(te))));
+                                        }
+                                      }}
+                                      placeholder="Ex: 2"
+                                      className="text-xs"
+                                    />
+                                  </div>
+                                  <div>
+                                    <label className="mb-1 block text-[10px] font-bold text-slate-600">Durée la plus Probable (M) [jours]</label>
+                                    <Input
+                                      type="number"
+                                      min={1}
+                                      value={piMostLikely}
+                                      onChange={(e) => {
+                                        setPiMostLikely(e.target.value);
+                                        if (piOptimistic && e.target.value && piPessimistic) {
+                                          const te = Math.round(((parseInt(piOptimistic) + 4 * parseInt(e.target.value) + parseInt(piPessimistic)) / 6) * 10) / 10;
+                                          setPiDuration(String(Math.max(1, Math.round(te))));
+                                        }
+                                      }}
+                                      placeholder="Ex: 5"
+                                      className="text-xs"
+                                    />
+                                  </div>
+                                  <div>
+                                    <label className="mb-1 block text-[10px] font-bold text-slate-600">Durée Pessimiste (P) [jours]</label>
+                                    <Input
+                                      type="number"
+                                      min={1}
+                                      value={piPessimistic}
+                                      onChange={(e) => {
+                                        setPiPessimistic(e.target.value);
+                                        if (piOptimistic && piMostLikely && e.target.value) {
+                                          const te = Math.round(((parseInt(piOptimistic) + 4 * parseInt(piMostLikely) + parseInt(e.target.value)) / 6) * 10) / 10;
+                                          setPiDuration(String(Math.max(1, Math.round(te))));
+                                        }
+                                      }}
+                                      placeholder="Ex: 12"
+                                      className="text-xs"
+                                    />
+                                  </div>
+                                </div>
+                                {piOptimistic && piMostLikely && piPessimistic && (
+                                  <div className="text-[11px] text-indigo-700 font-mono bg-indigo-50 p-2 rounded">
+                                    Durée retenue Te : <strong>{Math.round(((parseInt(piOptimistic) + 4 * parseInt(piMostLikely) + parseInt(piPessimistic)) / 6) * 10) / 10} jours</strong> (Écart-type σ: ±{Math.round(((parseInt(piPessimistic) - parseInt(piOptimistic)) / 6) * 10) / 10} j)
+                                  </div>
+                                )}
+                              </div>
+                            )}
+                          </>
+                        )}
+                      </div>
+
+                      <div className="flex gap-2 pt-2 border-t border-indigo-200/60">
+                        <Button
+                          size="sm"
+                          onClick={() => {
+                            if (!piWbs && suggestedWbs) {
+                              setPiWbs(suggestedWbs);
+                            }
+                            if (piType === 'milestone') {
+                              const milestoneDate = piEnd || piStart;
+                              setPiStart(milestoneDate);
+                              setPiEnd(milestoneDate);
+                            }
+                            addPlanItem.mutate();
+                          }}
+                          disabled={!piTitle.trim() || addPlanItem.isPending}
+                          className="bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs"
+                        >
+                          {addPlanItem.isPending ? 'Enregistrement...' : 'Enregistrer dans le WBS'}
+                        </Button>
+                        <Button size="sm" variant="ghost" onClick={() => setShowPlanItemForm(false)} className="text-xs">
+                          Annuler
+                        </Button>
+                      </div>
+                    </div>
+                  );
+                })()}
+
+                {planItems.length === 0 ? (
+                  <div className="rounded-xl border border-dashed border-slate-200 bg-white p-10 text-center">
+                    <ListTodo className="mx-auto mb-3 h-10 w-10 text-slate-300" />
+                    <p className="text-sm font-medium text-slate-500">Aucun élément de plan défini</p>
+                    <p className="mt-1 text-xs text-slate-400">Structurez le projet en phases (1, 2), activités (1.1, 1.2), tâches (1.1.1) et jalons.</p>
+                  </div>
+                ) : (
+                  <div className="overflow-hidden rounded-xl border bg-white shadow-sm">
+                    <table className="w-full text-sm">
+                      <thead className="border-b bg-slate-50">
+                        <tr className="text-left text-xs font-semibold uppercase tracking-wide text-slate-500">
+                          <th className="px-4 py-3">WBS</th>
+                          <th className="px-4 py-3">Type</th>
+                          <th className="px-4 py-3">Titre de l'élément</th>
+                          <th className="px-4 py-3">Période / Dates</th>
+                          <th className="px-4 py-3 text-center">Durée</th>
+                          <th className="px-4 py-3">Prédécesseurs (PERT)</th>
+                          <th className="px-4 py-3 text-right">Coût estimé (PV)</th>
+                          <th className="px-4 py-3">Responsable (RACI)</th>
+                          <th className="px-4 py-3 text-right">Actions</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-slate-100">
+                        {[...planItems]
+                          .sort((a: any, b: any) => a.wbs.localeCompare(b.wbs, undefined, { numeric: true }))
+                          .map((item: any) => {
+                            const depth = Math.max(0, (item.wbs || '').split('.').length - 1);
+                            const typeCfg = TYPE_CONFIG[item.type] || TYPE_CONFIG.task;
+                            const isMilestone = item.type === 'milestone';
+                            const isContainer = item.type === 'phase' || item.type === 'activity';
+                            const assignee = members.find((m: any) => m.id === item.assigneePartyId);
+                            const itemPreds = (dependencies || []).filter((d: any) => d.successorId === item.id);
+
+                            return (
+                              <tr key={item.id} className="group hover:bg-slate-50 transition-colors">
+                                <td className="px-4 py-3 font-mono text-xs font-bold text-slate-600">{item.wbs}</td>
+                                <td className="px-4 py-3">
+                                  <span className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-0.5 text-xs font-medium ${typeCfg.badgeClass}`}>
+                                    {typeCfg.icon}
+                                    {typeCfg.label}
+                                  </span>
+                                </td>
+                                <td className="px-4 py-3">
+                                  <div
+                                    className={`flex items-center gap-1.5 ${isMilestone ? 'text-amber-900 font-bold' : item.type === 'phase' ? 'text-purple-950 font-bold text-sm' : item.type === 'activity' ? 'text-indigo-950 font-semibold' : 'text-slate-800 font-medium'}`}
+                                    style={{ paddingLeft: `${depth * 18}px` }}
+                                  >
+                                    {depth > 0 && <span className="text-slate-300 font-mono">↳</span>}
+                                    <span>{item.title}</span>
+                                  </div>
+                                </td>
+                                <td className="px-4 py-3 text-xs text-slate-600">
+                                  {isMilestone ? (
+                                    <span className="inline-flex items-center gap-1 rounded bg-amber-50 px-2 py-0.5 font-medium text-amber-800 border border-amber-200">
+                                      <Flag className="h-3 w-3 text-amber-600" />
+                                      {item.endDate || item.startDate || '—'}
+                                    </span>
+                                  ) : item.startDate && item.endDate ? (
+                                    <span className="flex items-center gap-1 font-medium">
+                                      <Calendar className="h-3 w-3 text-slate-400" />
+                                      {item.startDate} → {item.endDate}
+                                    </span>
+                                  ) : (
+                                    <span className="text-slate-400 italic">
+                                      {isContainer ? 'Calculé au roll-up' : item.startDate || 'Non planifié'}
+                                    </span>
+                                  )}
+                                </td>
+                                <td className="px-4 py-3 text-center text-xs font-mono font-medium">
+                                  {isMilestone ? (
+                                    <span className="text-amber-700 bg-amber-50 px-2 py-0.5 rounded font-bold">0 j</span>
+                                  ) : (
+                                    <span className={isContainer ? 'text-purple-700 font-bold' : 'text-slate-700'}>
+                                      {item.durationDays || 0} j {isContainer ? '(roll-up)' : ''}
+                                    </span>
+                                  )}
+                                </td>
+                                <td className="px-4 py-3 text-xs">
+                                  {itemPreds.length === 0 ? (
+                                    <span className="text-slate-300">—</span>
+                                  ) : (
+                                    <div className="flex flex-wrap gap-1">
+                                      {itemPreds.map((pred: any) => {
+                                        const predTask = planItems.find((p: any) => p.id === pred.predecessorId);
+                                        return (
+                                          <span
+                                            key={pred.id}
+                                            className="inline-flex items-center gap-1 bg-violet-50 text-violet-800 border border-violet-200 rounded px-1.5 py-0.5 font-mono text-[11px] font-bold"
+                                            title={`Prédécesseur : ${predTask?.title || 'Tâche'}`}
+                                          >
+                                            <Link2 className="h-2.5 w-2.5 text-violet-600" />
+                                            {predTask?.wbs || '?'}:{pred.type}{pred.lagDays ? `+${pred.lagDays}j` : ''}
+                                          </span>
+                                        );
+                                      })}
+                                    </div>
+                                  )}
+                                </td>
+                                <td className="px-4 py-3 text-right text-xs">
+                                  {isContainer ? (
+                                    <div className="flex flex-col items-end">
+                                      <span className="font-bold text-indigo-900 font-mono">
+                                        {fmt(item.estimatedCost || 0)}
+                                      </span>
+                                      <span className="text-[10px] text-slate-400 font-normal">roll-up</span>
+                                    </div>
+                                  ) : (
+                                    <span className="font-semibold text-slate-800 font-mono">
+                                      {fmt(item.estimatedCost || 0)}
+                                    </span>
+                                  )}
+                                </td>
+                                <td className="px-4 py-3 text-xs text-slate-600">
+                                  {assignee ? (
+                                    <span className="inline-flex items-center gap-1 font-medium text-slate-800">
+                                      <Users className="h-3 w-3 text-slate-400" />
+                                      {assignee.name}
+                                    </span>
+                                  ) : (
+                                    <span className="text-slate-400 italic">Non assigné</span>
+                                  )}
+                                </td>
+                                <td className="px-4 py-3 text-right whitespace-nowrap">
+                                  <div className="flex items-center justify-end gap-1">
+                                    <Button
+                                      size="sm"
+                                      variant="ghost"
+                                      onClick={() => setSelectedTask(item)}
+                                      className="h-7 px-2 text-xs text-indigo-600 hover:text-indigo-800 hover:bg-indigo-50"
+                                      title="Modifier et paramétrer cet élément"
+                                    >
+                                      <Pencil className="h-3.5 w-3.5 mr-1" />
+                                      Modifier
+                                    </Button>
+                                    <button
+                                      type="button"
+                                      onClick={() => {
+                                        const children = planItems.filter((p: any) => p.parentId === item.id);
+                                        const confirmMsg = children.length > 0
+                                          ? `Supprimer "${item.wbs} — ${item.title}" supprimera également ses ${children.length} sous-élément(s) rattaché(s). Confirmer ?`
+                                          : `Êtes-vous sûr de vouloir supprimer l'élément "${item.wbs} — ${item.title}" ?`;
+                                        if (window.confirm(confirmMsg)) {
+                                          deletePlanItem.mutate(item.id);
+                                        }
+                                      }}
+                                      className="p-1.5 text-slate-400 hover:text-rose-600 rounded hover:bg-rose-50 transition-colors"
+                                      title="Supprimer cet élément"
+                                    >
+                                      <Trash2 className="h-4 w-4" />
+                                    </button>
+                                  </div>
+                                </td>
+                              </tr>
+                            );
+                          })}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
+              </div>
+            )}{/* Sub-tab 2: Gantt */}
             {planningSubTab === 'gantt' && (
               <GanttChartInteractive
                 tasks={planItems}
@@ -4135,9 +4110,11 @@ export function ProjectDetailScreen() {
       </main>
 
       {/* ═══════════════════════════════════════════════════════════════ */}
-      {/* DRAWER / MODAL: DÉTAIL DE TÂCHE, LOGS & LIVRABLES              */}
+      {/* ═══════════════════════════════════════════════════════════════ */}
+      {/* DRAWER / MODAL: CONTEXTUEL (PLANIFICATION vs EXÉCUTION)        */}
       {/* ═══════════════════════════════════════════════════════════════ */}
       {selectedTask && (() => {
+        const isPlanningMode = activeTab === 'planning';
         const typeCfg = TYPE_CONFIG[selectedTask.type] || TYPE_CONFIG.task;
         const taskUpdates = updates.filter((u: any) => u.planItemId === selectedTask.id);
         const taskDeliverables = deliverables.filter((d: any) => d.planItemId === selectedTask.id);
@@ -4156,17 +4133,16 @@ export function ProjectDetailScreen() {
                       {typeCfg.label}
                     </span>
                     <span className={`inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-xs font-semibold ${
-                      STATUS_CONFIG[selectedTask.status]?.color || 'bg-slate-100 text-slate-600'
+                      isPlanningMode ? 'bg-indigo-100 text-indigo-800' : (STATUS_CONFIG[selectedTask.status]?.color || 'bg-slate-100 text-slate-600')
                     }`}>
-                      {STATUS_CONFIG[selectedTask.status]?.icon}
-                      {STATUS_CONFIG[selectedTask.status]?.label}
+                      {isPlanningMode ? '📐 Mode Planification' : (STATUS_CONFIG[selectedTask.status]?.label || selectedTask.status)}
                     </span>
                   </div>
                   <h2 className="mt-2 text-xl font-bold text-slate-900">{selectedTask.title}</h2>
                   {selectedTask.startDate && selectedTask.endDate && (
                     <p className="mt-1 flex items-center gap-1 text-xs text-slate-500">
                       <Calendar className="h-3.5 w-3.5 text-slate-400" />
-                      Période : {selectedTask.startDate} au {selectedTask.endDate}
+                      Période cible : {selectedTask.startDate} au {selectedTask.endDate} ({selectedTask.durationDays || 0} jours)
                     </p>
                   )}
                 </div>
@@ -4177,218 +4153,94 @@ export function ProjectDetailScreen() {
 
               {/* Drawer Body */}
               <div className="flex-1 space-y-6 overflow-y-auto p-6">
-                {/* 1. Affectation / Responsable & Statut Dérivé */}
-                <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-                  <div className="rounded-xl border bg-slate-50 p-4">
-                    <span className="text-xs font-bold uppercase tracking-wider text-slate-500">Responsable affecté</span>
-                    <p className="mt-1 font-semibold text-slate-800">
-                      {taskAssignee ? `${taskAssignee.name} (${taskAssignee.role})` : 'Non affecté'}
-                    </p>
-                    <div className="mt-2">
-                      <select
-                        value={selectedTask.assigneePartyId || ''}
-                        onChange={async (e) => {
-                          const newAssigneeId = e.target.value || null;
-                          await fetch(`/api/v1/projects/${id}/plan-items/${selectedTask.id}`, {
-                            method: 'PATCH',
-                            headers: { 'Content-Type': 'application/json' },
-                            body: JSON.stringify({ assigneePartyId: newAssigneeId }),
-                          });
-                          invalidate();
-                          setSelectedTask({ ...selectedTask, assigneePartyId: newAssigneeId });
-                        }}
-                        className="w-full rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-xs font-medium text-slate-700 shadow-sm"
-                      >
-                        <option value="">— Modifier l'affectation —</option>
-                        {members.map((m: any) => (
-                          <option key={m.id} value={m.id}>
-                            {m.name} ({m.raciRole} — {m.role})
-                          </option>
-                        ))}
-                      </select>
-                    </div>
-                  </div>
-
-                  <div className="rounded-xl border bg-slate-50 p-4">
-                    <span className="text-xs font-bold uppercase tracking-wider text-slate-500">Statut actuel du système</span>
-                    <div className="mt-1 flex items-center gap-2">
-                      <span className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-bold ${
-                        STATUS_CONFIG[selectedTask.status]?.color || 'bg-slate-100 text-slate-600'
-                      }`}>
-                        {STATUS_CONFIG[selectedTask.status]?.icon}
-                        {STATUS_CONFIG[selectedTask.status]?.label}
-                      </span>
-                      <span className="text-xs text-slate-400">
-                        (Avancement : {selectedTask.progressPct || 0}%)
-                      </span>
-                    </div>
-                    <p className="mt-2 text-[11px] text-slate-500">
-                      * Le statut est calculé automatiquement dès que l'avancement évolue.
-                    </p>
-                  </div>
-                </div>
-
-                {/* 2 & 3: Selon le type d'élément (Conteneur de synthèse vs Tâche/Jalon opérationnel) */}
-                {selectedTask.type === 'phase' || selectedTask.type === 'activity' ? (
-                  /* ── Conteneur WBS (Phase ou Activité de regroupement) ── */
-                  <div className="rounded-xl border border-indigo-200 bg-indigo-50/50 p-5 space-y-4 shadow-sm">
-                    <div className="flex items-center gap-2.5">
-                      <span className="flex h-9 w-9 items-center justify-center rounded-lg bg-indigo-600 text-white font-bold">
-                        <Layers className="h-5 w-5" />
-                      </span>
-                      <div>
-                        <h3 className="font-bold text-indigo-950 text-sm">
-                          Conteneur WBS de synthèse ({selectedTask.type === 'phase' ? 'Phase' : 'Activité'})
+                {/* ══════════════════════════════════════════════════════════════ */}
+                {/* MODE 1 : PLANIFICATION & BASELINE (Strictement planification) */}
+                {/* ══════════════════════════════════════════════════════════════ */}
+                {isPlanningMode ? (
+                  <div className="space-y-5">
+                    {/* A. Édition des Informations & Rattachement WBS */}
+                    <div className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm space-y-4">
+                      <div className="border-b pb-3">
+                        <h3 className="font-bold text-slate-900 text-sm flex items-center gap-2">
+                          <Pencil className="h-4 w-4 text-indigo-600" />
+                          <span>Paramètres WBS & Identification</span>
                         </h3>
                         <p className="text-xs text-slate-500">
-                          Élément de regroupement hiérarchique dans la structure WBS
+                          Définissez le titre, le code hiérarchique WBS et le type de l'élément de plan.
                         </p>
+                      </div>
+
+                      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                        <div>
+                          <label className="mb-1 block text-xs font-semibold text-slate-700">Code WBS *</label>
+                          <Input
+                            value={taskWbs}
+                            onChange={(e) => setTaskWbs(e.target.value)}
+                            placeholder="Ex: 1.1"
+                            className="bg-white font-mono font-bold text-xs"
+                          />
+                        </div>
+                        <div>
+                          <label className="mb-1 block text-xs font-semibold text-slate-700">Type d'élément *</label>
+                          <select
+                            value={taskType}
+                            onChange={(e) => setTaskType(e.target.value as PlanItem['type'])}
+                            className="w-full rounded-lg border border-slate-200 bg-white px-2.5 py-2 text-xs font-medium text-slate-700"
+                          >
+                            <option value="phase">🏛️ Phase</option>
+                            <option value="activity">📦 Activité / Lot</option>
+                            <option value="task">📋 Tâche</option>
+                            <option value="milestone">🚩 Jalon</option>
+                            <option value="deliverable">📄 Livrable</option>
+                          </select>
+                        </div>
+                        <div>
+                          <label className="mb-1 block text-xs font-semibold text-slate-700">Responsable Assigné</label>
+                          <select
+                            value={selectedTask.assigneePartyId || ''}
+                            onChange={async (e) => {
+                              const newAssigneeId = e.target.value || null;
+                              await fetch(`/api/v1/projects/${id}/plan-items/${selectedTask.id}`, {
+                                method: 'PATCH',
+                                headers: { 'Content-Type': 'application/json' },
+                                body: JSON.stringify({ assigneePartyId: newAssigneeId }),
+                              });
+                              invalidate();
+                              setSelectedTask({ ...selectedTask, assigneePartyId: newAssigneeId });
+                            }}
+                            className="w-full rounded-lg border border-slate-200 bg-white px-2.5 py-2 text-xs font-medium text-slate-700"
+                          >
+                            <option value="">— Non assigné —</option>
+                            {members.map((m: any) => (
+                              <option key={m.id} value={m.id}>
+                                {m.name} ({m.raciRole})
+                              </option>
+                            ))}
+                          </select>
+                        </div>
+
+                        <div className="sm:col-span-3">
+                          <label className="mb-1 block text-xs font-semibold text-slate-700">Titre de l'élément *</label>
+                          <Input
+                            value={taskTitle}
+                            onChange={(e) => setTaskTitle(e.target.value)}
+                            placeholder="Titre de l'élément..."
+                            className="bg-white text-xs font-medium"
+                          />
+                        </div>
                       </div>
                     </div>
 
-                    <div className="rounded-lg border border-indigo-100 bg-white p-3 text-xs text-slate-600 leading-relaxed">
-                      💡 <strong>Règle de gestion de projet (WBS / PERT) :</strong> Les phases et activités sont des conteneurs logiques. Leurs dates, leur durée, leurs coûts et leur avancement sont automatiquement <strong>consolidés (rollup)</strong> à partir des tâches opérationnelles et des jalons qu'ils englobent. Les dépendances de réseau (PERT / PDM) s'appliquent directement sur les sous-tâches.
-                    </div>
-
-                    {(() => {
-                      // Collect all recursive child tasks & milestones
-                      const collectChildren = (parentId: string): any[] => {
-                        const direct = planItems.filter((p: any) => p.parentId === parentId);
-                        let res = [...direct];
-                        direct.forEach((d: any) => {
-                          res = res.concat(collectChildren(d.id));
-                        });
-                        return res;
-                      };
-                      const descendants = collectChildren(selectedTask.id);
-                      const childTasks = descendants.filter((d: any) => d.type === 'task' || d.type === 'milestone' || d.type === 'deliverable');
-                      const directChildren = planItems.filter((p: any) => p.parentId === selectedTask.id);
-                      const totalCost = childTasks.reduce((s: number, t: any) => s + (parseFloat(t.estimatedCost) || 0), 0);
-                      const completedCount = childTasks.filter((t: any) => t.progressPct === 100 || t.status === 'completed').length;
-
-                      return (
-                        <div className="space-y-4 pt-1">
-                          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-                            <div className="bg-white rounded-lg p-3 border border-indigo-100 shadow-2xs">
-                              <span className="text-[10px] text-slate-400 block font-bold uppercase tracking-wider">Sous-tâches & Jalons</span>
-                              <span className="font-extrabold text-slate-800 text-base">{childTasks.length}</span>
-                            </div>
-                            <div className="bg-white rounded-lg p-3 border border-indigo-100 shadow-2xs">
-                              <span className="text-[10px] text-slate-400 block font-bold uppercase tracking-wider">Tâches Terminées</span>
-                              <span className="font-extrabold text-emerald-700 text-base">{completedCount} / {childTasks.length}</span>
-                            </div>
-                            <div className="bg-white rounded-lg p-3 border border-indigo-100 shadow-2xs">
-                              <span className="text-[10px] text-slate-400 block font-bold uppercase tracking-wider">Budget Consolidé</span>
-                              <span className="font-extrabold text-indigo-700 text-base">{fmt(totalCost)}</span>
-                            </div>
-                            <div className="bg-white rounded-lg p-3 border border-indigo-100 shadow-2xs">
-                              <span className="text-[10px] text-slate-400 block font-bold uppercase tracking-wider">Avancement Global</span>
-                              <span className="font-extrabold text-indigo-900 text-base">{selectedTask.progressPct || 0}%</span>
-                            </div>
-                          </div>
-
-                          {/* Liste détaillée des éléments et tâches rattachés */}
-                          <div className="rounded-xl border border-indigo-200 bg-white overflow-hidden shadow-2xs">
-                            <div className="bg-indigo-50/80 px-4 py-3 border-b border-indigo-100 flex items-center justify-between">
-                              <h4 className="text-xs font-bold text-indigo-950 flex items-center gap-2">
-                                <ListOrdered className="h-4 w-4 text-indigo-600" />
-                                <span>Éléments et tâches contenus dans ce conteneur ({descendants.length})</span>
-                              </h4>
-                              <Button
-                                size="sm"
-                                variant="outline"
-                                onClick={() => {
-                                  setPiParentId(selectedTask.id);
-                                  setPiType(selectedTask.type === 'phase' ? 'activity' : 'task');
-                                  setShowPlanItemForm(true);
-                                }}
-                                className="text-xs font-bold text-indigo-700 border-indigo-200 bg-white hover:bg-indigo-50"
-                              >
-                                <Plus className="mr-1 h-3.5 w-3.5" />
-                                Ajouter sous ce conteneur
-                              </Button>
-                            </div>
-
-                            {descendants.length === 0 ? (
-                              <div className="p-6 text-center text-xs text-slate-400">
-                                Aucun élément ou tâche n'est encore rattaché à ce conteneur.
-                              </div>
-                            ) : (
-                              <div className="divide-y divide-slate-100 max-h-80 overflow-y-auto">
-                                {descendants
-                                  .sort((a, b) => (a.wbs || '').localeCompare(b.wbs || '', undefined, { numeric: true }))
-                                  .map((child: any) => {
-                                    const cTypeCfg = TYPE_CONFIG[child.type] || TYPE_CONFIG.task;
-                                    const cStatusCfg = STATUS_CONFIG[child.status] || STATUS_CONFIG.todo;
-                                    return (
-                                      <div
-                                        key={child.id}
-                                        onClick={() => setSelectedTask(child)}
-                                        className="p-3 hover:bg-indigo-50/40 transition flex items-center justify-between cursor-pointer group"
-                                      >
-                                        <div className="flex items-center gap-3">
-                                          <span className="font-mono text-xs font-bold text-slate-500 bg-slate-100 px-1.5 py-0.5 rounded">
-                                            {child.wbs}
-                                          </span>
-                                          <div>
-                                            <div className="flex items-center gap-2">
-                                              <span className="text-xs font-bold text-slate-800 group-hover:text-indigo-700">
-                                                {child.title}
-                                              </span>
-                                              <span className={`text-[10px] px-2 py-0.2 rounded-full font-medium ${cTypeCfg.badgeClass}`}>
-                                                {cTypeCfg.label}
-                                              </span>
-                                            </div>
-                                            <div className="flex items-center gap-3 text-[11px] text-slate-400 mt-0.5">
-                                              <span>{child.startDate && child.endDate ? `${child.startDate} → ${child.endDate}` : 'Dates au roll-up'}</span>
-                                              <span>•</span>
-                                              <span>{child.durationDays || 0} jours</span>
-                                              {child.estimatedCost > 0 && (
-                                                <>
-                                                  <span>•</span>
-                                                  <span className="font-semibold text-slate-600">{fmt(child.estimatedCost)}</span>
-                                                </>
-                                              )}
-                                            </div>
-                                          </div>
-                                        </div>
-
-                                        <div className="flex items-center gap-3">
-                                          <div className="w-24 text-right">
-                                            <span className="text-[11px] font-bold text-slate-700">{child.progressPct || 0}%</span>
-                                            <div className="h-1.5 w-full bg-slate-200 rounded-full overflow-hidden mt-0.5">
-                                              <div
-                                                className="h-full bg-indigo-600 rounded-full"
-                                                style={{ width: `${child.progressPct || 0}%` }}
-                                              />
-                                            </div>
-                                          </div>
-                                          <span className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-bold ${cStatusCfg.color}`}>
-                                            {cStatusCfg.label}
-                                          </span>
-                                        </div>
-                                      </div>
-                                    );
-                                  })}
-                              </div>
-                            )}
-                          </div>
-                        </div>
-                      );
-                    })()}
-                  </div>
-                ) : (
-                  <>
-                    {/* 2. Délais, Coût Prévisionnel & Estimation PERT 3-Points */}
-                    <div className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
+                    {/* B. Délais, Dates Cibles & Coût Estimé (PV) */}
+                    <div className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm space-y-4">
                       <div className="flex items-center justify-between border-b pb-3">
                         <div>
-                          <h3 className="flex items-center gap-2 font-bold text-slate-900">
+                          <h3 className="flex items-center gap-2 font-bold text-slate-900 text-sm">
                             <TrendingUp className="h-4 w-4 text-indigo-600" />
-                            Planification Délais, Coût & Évaluation PERT
+                            Planification des Délais, Dates & Coût (PV)
                           </h3>
                           <p className="text-xs text-slate-500">
-                            Paramétrez la durée de référence, le coût budgété (PV) et l'estimation 3-points (O, M, P).
+                            Durée nominale, dates au calendrier et budget prévisionnel alloué.
                           </p>
                         </div>
                         <Button
@@ -4397,24 +4249,58 @@ export function ProjectDetailScreen() {
                           className="text-xs"
                           onClick={() => setShowTaskPertEdit(!showTaskPertEdit)}
                         >
-                          {showTaskPertEdit ? 'Masquer PERT 3-Points' : 'Afficher PERT 3-Points'}
+                          {showTaskPertEdit ? 'Masquer PERT 3-Points' : '🎯 Estimation PERT 3-Points'}
                         </Button>
                       </div>
 
-                      <div className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-2">
+                      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                         <div>
-                          <label className="mb-1 block text-xs font-semibold text-slate-700">Durée nominale (jours)</label>
+                          <label className="mb-1 block text-xs font-semibold text-slate-700">Date de début cible</label>
+                          <Input
+                            type="date"
+                            value={taskStart}
+                            onChange={(e) => {
+                              setTaskStart(e.target.value);
+                              if (e.target.value && parseInt(taskDuration) > 0) {
+                                const d = new Date(e.target.value + 'T00:00:00Z');
+                                d.setUTCDate(d.getUTCDate() + parseInt(taskDuration));
+                                setTaskEnd(d.toISOString().split('T')[0]);
+                              }
+                            }}
+                            className="bg-white text-xs"
+                          />
+                        </div>
+                        <div>
+                          <label className="mb-1 block text-xs font-semibold text-slate-700">Date de fin cible</label>
+                          <Input
+                            type="date"
+                            value={taskEnd}
+                            onChange={(e) => setTaskEnd(e.target.value)}
+                            className="bg-white text-xs"
+                          />
+                        </div>
+                        <div>
+                          <label className="mb-1 block text-xs font-semibold text-slate-700">Durée (jours ouvrés)</label>
                           <Input
                             type="number"
                             min="0"
                             value={taskDuration}
-                            onChange={(e) => setTaskDuration(e.target.value)}
-                            placeholder="Ex: 5"
-                            disabled={selectedTask.type === 'milestone'}
+                            onChange={(e) => {
+                              setTaskDuration(e.target.value);
+                              if (taskStart && parseInt(e.target.value) > 0) {
+                                const d = new Date(taskStart + 'T00:00:00Z');
+                                d.setUTCDate(d.getUTCDate() + parseInt(e.target.value));
+                                setTaskEnd(d.toISOString().split('T')[0]);
+                              }
+                            }}
+                            placeholder="5"
+                            className="bg-white font-mono font-bold text-xs"
+                            disabled={taskType === 'milestone'}
                           />
                         </div>
-                        <div>
-                          <label className="mb-1 block text-xs font-semibold text-slate-700">Coût Prévisionnel / Budget alloué ($ CAD)</label>
+
+                        <div className="sm:col-span-3">
+                          <label className="mb-1 block text-xs font-semibold text-slate-700">Coût Estimé Planifié (CAD) - PV</label>
                           <Input
                             type="number"
                             min="0"
@@ -4422,14 +4308,15 @@ export function ProjectDetailScreen() {
                             value={taskCost}
                             onChange={(e) => setTaskCost(e.target.value)}
                             placeholder="0.00"
+                            className="bg-white text-xs font-bold"
                           />
                         </div>
                       </div>
 
                       {showTaskPertEdit && (
-                        <div className="mt-4 rounded-xl border border-indigo-100 bg-indigo-50/50 p-4">
-                          <div className="mb-2 flex items-center justify-between">
-                            <span className="text-xs font-bold text-indigo-900">Estimation PERT à 3 Points</span>
+                        <div className="rounded-xl border border-indigo-100 bg-indigo-50/50 p-4 space-y-2">
+                          <div className="flex items-center justify-between">
+                            <span className="text-xs font-bold text-indigo-900">Estimation PERT probabiliste (3 Points)</span>
                             <span className="font-mono text-[11px] text-indigo-600">Te = (O + 4M + P) / 6</span>
                           </div>
                           <div className="grid grid-cols-3 gap-2">
@@ -4468,35 +4355,31 @@ export function ProjectDetailScreen() {
                             </div>
                           </div>
                           {taskOptimistic && taskMostLikely && taskPessimistic && (
-                            <div className="mt-3 flex items-center justify-between rounded-lg bg-white p-2.5 text-xs">
-                              <span className="text-slate-600">
-                                Durée calculée Te : <strong className="text-indigo-700">{((parseFloat(taskOptimistic) + 4 * parseFloat(taskMostLikely) + parseFloat(taskPessimistic)) / 6).toFixed(1)} j</strong>
-                              </span>
-                              <span className="text-slate-500">
-                                Écart-type σ : <strong>{((parseFloat(taskPessimistic) - parseFloat(taskOptimistic)) / 6).toFixed(2)} j</strong>
-                              </span>
+                            <div className="mt-2 flex items-center justify-between rounded-lg bg-white p-2.5 text-xs font-mono text-indigo-800">
+                              <span>Durée calculée Te : <strong>{((parseFloat(taskOptimistic) + 4 * parseFloat(taskMostLikely) + parseFloat(taskPessimistic)) / 6).toFixed(1)} j</strong></span>
+                              <span>Écart-type σ : ±{((parseFloat(taskPessimistic) - parseFloat(taskOptimistic)) / 6).toFixed(2)} j</span>
                             </div>
                           )}
                         </div>
                       )}
 
-                      <div className="mt-4 flex justify-end">
+                      <div className="flex justify-end pt-2">
                         <Button
                           size="sm"
                           onClick={() => updateTaskParamsMutation.mutate()}
-                          disabled={updateTaskParamsMutation.isPending}
+                          disabled={updateTaskParamsMutation.isPending || !taskTitle.trim()}
+                          className="bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs"
                         >
                           <Check className="mr-1.5 h-3.5 w-3.5" />
-                          Enregistrer les paramètres
+                          Enregistrer les modifications de planification
                         </Button>
                       </div>
                     </div>
 
-                    {/* 3. Dépendances & Liaisons Réseau PDM */}
+                    {/* C. Liaisons Réseau PDM & Dépendances */}
                     {(() => {
                       const incomingDeps = (dependencies || []).filter((d: any) => d.successorId === selectedTask.id);
                       const outgoingDeps = (dependencies || []).filter((d: any) => d.predecessorId === selectedTask.id);
-                      // Filtre strict : Seules les tâches opérationnelles et les jalons peuvent être liés en réseau PDM
                       const availablePredecessors = planItems.filter(
                         (p: any) =>
                           p.id !== selectedTask.id &&
@@ -4511,15 +4394,15 @@ export function ProjectDetailScreen() {
                       };
 
                       return (
-                        <div className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
+                        <div className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm space-y-4">
                           <div className="flex items-center justify-between border-b pb-3">
                             <div>
-                              <h3 className="flex items-center gap-2 font-bold text-slate-900">
+                              <h3 className="flex items-center gap-2 font-bold text-slate-900 text-sm">
                                 <GitBranch className="h-4 w-4 text-violet-600" />
-                                Liaisons & Dépendances Réseau (PDM)
+                                Contraintes de Précédence & Réseau PERT (PDM)
                               </h3>
                               <p className="text-xs text-slate-500">
-                                Contraintes de précédence entre tâches définissant le chemin critique et le diagramme PERT.
+                                Prédécesseurs et successeurs régissant l'ordonnancement et le chemin critique.
                               </p>
                             </div>
                             <Button
@@ -4533,10 +4416,9 @@ export function ProjectDetailScreen() {
                             </Button>
                           </div>
 
-                          {/* Formulaire d'ajout de liaison */}
                           {showAddDepForm && (
-                            <div className="mt-4 rounded-xl border border-violet-200 bg-violet-50/60 p-4">
-                              <h4 className="mb-3 text-xs font-bold text-violet-900">Nouvelle contrainte de précédence (Antécédent)</h4>
+                            <div className="rounded-xl border border-violet-200 bg-violet-50/60 p-4 space-y-3">
+                              <h4 className="text-xs font-bold text-violet-900">Nouvelle contrainte de précédence (Antécédent)</h4>
                               <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
                                 <div className="sm:col-span-1">
                                   <label className="mb-1 block text-xs font-semibold text-slate-700">Tâche Antécédente *</label>
@@ -4548,7 +4430,7 @@ export function ProjectDetailScreen() {
                                     <option value="">— Sélectionner une tâche —</option>
                                     {availablePredecessors.map((p: any) => (
                                       <option key={p.id} value={p.id}>
-                                        {p.wbs ? `[${p.wbs}] ` : ''}{p.title} ({p.type === 'milestone' ? 'Jalon' : 'Tâche'})
+                                        {p.wbs} — {p.title}
                                       </option>
                                     ))}
                                   </select>
@@ -4562,12 +4444,12 @@ export function ProjectDetailScreen() {
                                   >
                                     <option value="FS">Fin à Début (FS - Standard)</option>
                                     <option value="SS">Début à Début (SS - Parallèle)</option>
-                                    <option value="FF">Fin à Fin (FF - Co-terminaison)</option>
-                                    <option value="SF">Début à Fin (SF - Inversion)</option>
+                                    <option value="FF">Fin à Fin (FF - Synchronisé)</option>
+                                    <option value="SF">Début à Fin (SF - Inverse)</option>
                                   </select>
                                 </div>
                                 <div>
-                                  <label className="mb-1 block text-xs font-semibold text-slate-700">Décalage (Lag jours)</label>
+                                  <label className="mb-1 block text-xs font-semibold text-slate-700">Décalage / Lag (jours)</label>
                                   <Input
                                     type="number"
                                     value={depLag}
@@ -4577,66 +4459,46 @@ export function ProjectDetailScreen() {
                                   />
                                 </div>
                               </div>
-                              <div className="mt-3 flex gap-2">
+                              <div className="flex gap-2">
                                 <Button
                                   size="sm"
                                   onClick={() => addDependencyMutation.mutate()}
                                   disabled={!depPredId || addDependencyMutation.isPending}
+                                  className="text-xs"
                                 >
-                                  <Link2 className="mr-1 h-3.5 w-3.5" />
-                                  Créer la liaison
+                                  Lier
                                 </Button>
-                                <Button size="sm" variant="ghost" onClick={() => setShowAddDepForm(false)}>
+                                <Button size="sm" variant="ghost" onClick={() => setShowAddDepForm(false)} className="text-xs">
                                   Annuler
                                 </Button>
                               </div>
                             </div>
                           )}
 
-                          {/* Liste des Antécédents (Incoming) */}
-                          <div className="mt-4 space-y-3">
+                          {/* List of Incoming and Outgoing */}
+                          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                             <div>
-                              <span className="text-xs font-bold uppercase tracking-wider text-slate-600">
-                                Antécédents directs (Tâches dont celle-ci dépend) :
-                              </span>
+                              <span className="text-xs font-bold text-slate-700 block mb-2">Prédécesseurs (Requis avant) :</span>
                               {incomingDeps.length === 0 ? (
-                                <p className="mt-1 text-xs text-slate-400 italic">Aucun antécédent (tâche initiale de chaîne ou indépendante).</p>
+                                <p className="text-xs text-slate-400 italic">Aucun prédécesseur direct.</p>
                               ) : (
-                                <div className="mt-2 space-y-2">
+                                <div className="space-y-2">
                                   {incomingDeps.map((dep: any) => {
                                     const pred = planItems.find((p: any) => p.id === dep.predecessorId);
                                     return (
-                                      <div
-                                        key={dep.id}
-                                        className="flex items-center justify-between rounded-lg border border-slate-200 bg-slate-50 p-3"
-                                      >
-                                        <div className="flex items-center gap-2">
-                                          <span className="font-mono text-xs font-bold text-slate-500">
-                                            {pred?.wbs || '—'}
-                                          </span>
-                                          <span className="text-xs font-semibold text-slate-800">
-                                            {pred?.title || 'Tâche inconnue'}
-                                          </span>
-                                          <span className="rounded-full bg-violet-100 px-2 py-0.5 text-[10px] font-bold text-violet-700">
-                                            {DEP_TYPE_LABELS[dep.type] || dep.type}
-                                          </span>
-                                          {dep.lagDays !== 0 && (
-                                            <span className="rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-semibold text-amber-800">
-                                              Lag: {dep.lagDays > 0 ? `+${dep.lagDays}` : dep.lagDays}j
-                                            </span>
-                                          )}
+                                      <div key={dep.id} className="flex items-center justify-between rounded-lg border border-slate-200 bg-slate-50 p-2.5 text-xs">
+                                        <div className="flex items-center gap-1.5">
+                                          <span className="font-mono font-bold text-indigo-700 bg-indigo-50 px-1.5 py-0.5 rounded">{pred?.wbs || '—'}</span>
+                                          <span className="font-medium text-slate-800 truncate max-w-[150px]">{pred?.title || 'Inconnu'}</span>
+                                          <span className="bg-slate-200 text-slate-700 rounded px-1 text-[10px]">{dep.type}</span>
                                         </div>
                                         <Button
                                           size="sm"
                                           variant="ghost"
-                                          className="h-7 w-7 p-0 text-slate-400 hover:bg-red-50 hover:text-red-600"
-                                          onClick={() => {
-                                            if (window.confirm('Supprimer cette liaison de dépendance ?')) {
-                                              deleteDependencyMutation.mutate(dep.id);
-                                            }
-                                          }}
+                                          className="h-6 w-6 p-0 text-slate-400 hover:text-red-600"
+                                          onClick={() => deleteDependencyMutation.mutate(dep.id)}
                                         >
-                                          <Trash2 className="h-3.5 w-3.5" />
+                                          <Trash2 className="h-3 w-3" />
                                         </Button>
                                       </div>
                                     );
@@ -4645,49 +4507,28 @@ export function ProjectDetailScreen() {
                               )}
                             </div>
 
-                            {/* Liste des Successeurs (Outgoing) */}
-                            <div className="pt-2 border-t">
-                              <span className="text-xs font-bold uppercase tracking-wider text-slate-600">
-                                Successeurs directs (Tâches dépendantes de celle-ci) :
-                              </span>
+                            <div>
+                              <span className="text-xs font-bold text-slate-700 block mb-2">Successeurs (Dépendent de celle-ci) :</span>
                               {outgoingDeps.length === 0 ? (
-                                <p className="mt-1 text-xs text-slate-400 italic">Aucun successeur immédiat.</p>
+                                <p className="text-xs text-slate-400 italic">Aucun successeur immédiat.</p>
                               ) : (
-                                <div className="mt-2 space-y-2">
+                                <div className="space-y-2">
                                   {outgoingDeps.map((dep: any) => {
                                     const succ = planItems.find((p: any) => p.id === dep.successorId);
                                     return (
-                                      <div
-                                        key={dep.id}
-                                        className="flex items-center justify-between rounded-lg border border-slate-200 bg-slate-50 p-3"
-                                      >
-                                        <div className="flex items-center gap-2">
-                                          <span className="font-mono text-xs font-bold text-slate-500">
-                                            {succ?.wbs || '—'}
-                                          </span>
-                                          <span className="text-xs font-semibold text-slate-800">
-                                            {succ?.title || 'Tâche inconnue'}
-                                          </span>
-                                          <span className="rounded-full bg-indigo-100 px-2 py-0.5 text-[10px] font-bold text-indigo-700">
-                                            {DEP_TYPE_LABELS[dep.type] || dep.type}
-                                          </span>
-                                          {dep.lagDays !== 0 && (
-                                            <span className="rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-semibold text-amber-800">
-                                              Lag: {dep.lagDays > 0 ? `+${dep.lagDays}` : dep.lagDays}j
-                                            </span>
-                                          )}
+                                      <div key={dep.id} className="flex items-center justify-between rounded-lg border border-slate-200 bg-slate-50 p-2.5 text-xs">
+                                        <div className="flex items-center gap-1.5">
+                                          <span className="font-mono font-bold text-violet-700 bg-violet-50 px-1.5 py-0.5 rounded">{succ?.wbs || '—'}</span>
+                                          <span className="font-medium text-slate-800 truncate max-w-[150px]">{succ?.title || 'Inconnu'}</span>
+                                          <span className="bg-slate-200 text-slate-700 rounded px-1 text-[10px]">{dep.type}</span>
                                         </div>
                                         <Button
                                           size="sm"
                                           variant="ghost"
-                                          className="h-7 w-7 p-0 text-slate-400 hover:bg-red-50 hover:text-red-600"
-                                          onClick={() => {
-                                            if (window.confirm('Supprimer cette liaison de dépendance ?')) {
-                                              deleteDependencyMutation.mutate(dep.id);
-                                            }
-                                          }}
+                                          className="h-6 w-6 p-0 text-slate-400 hover:text-red-600"
+                                          onClick={() => deleteDependencyMutation.mutate(dep.id)}
                                         >
-                                          <Trash2 className="h-3.5 w-3.5" />
+                                          <Trash2 className="h-3 w-3" />
                                         </Button>
                                       </div>
                                     );
@@ -4699,279 +4540,251 @@ export function ProjectDetailScreen() {
                         </div>
                       );
                     })()}
-
-                {/* 4. Évolution de l'avancement & Point d'étape */}
-                <div className="rounded-xl border border-indigo-200 bg-indigo-50/40 p-5 shadow-sm">
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <h3 className="flex items-center gap-2 font-bold text-indigo-950">
-                        <Sparkles className="h-4 w-4 text-indigo-600" />
-                        Faire évoluer l'avancement
-                      </h3>
-                      <p className="text-xs text-slate-500">
-                        Ajustez la barre de progression pour recalculer le statut et consigner le journal de bord.
-                      </p>
-                    </div>
-                    <span className="rounded-lg bg-indigo-600 px-3 py-1 text-sm font-bold text-white shadow-sm">
-                      {logProgress}%
-                    </span>
                   </div>
-
-                  <div className="mt-4 space-y-4">
-                    {/* Slider */}
-                    <div>
-                      <div className="mb-1 flex justify-between text-xs font-semibold text-slate-700">
-                        <span>0% (À faire)</span>
-                        <span>50% (En cours)</span>
-                        <span>100% (Terminé)</span>
+                ) : (
+                  /* ══════════════════════════════════════════════════════════════ */
+                  /* MODE 2 : EXÉCUTION & OPÉRATIONS (Suivi, logs, blocages, livrables) */
+                  /* ══════════════════════════════════════════════════════════════ */
+                  <div className="space-y-5">
+                    {/* Synthèse du cadrage planifié (Lecture seule) */}
+                    <div className="rounded-xl border border-slate-200 bg-slate-50 p-4 grid grid-cols-2 sm:grid-cols-4 gap-3 text-xs">
+                      <div>
+                        <span className="text-slate-400 block font-bold uppercase tracking-wider text-[10px]">Code WBS</span>
+                        <span className="font-mono font-bold text-slate-800">{selectedTask.wbs}</span>
                       </div>
-                      <input
-                        type="range"
-                        min={0}
-                        max={100}
-                        step={5}
-                        value={logProgress}
-                        onChange={(e) => setLogProgress(Number(e.target.value))}
-                        className="h-2.5 w-full cursor-pointer appearance-none rounded-lg bg-indigo-200 accent-indigo-600"
-                      />
+                      <div>
+                        <span className="text-slate-400 block font-bold uppercase tracking-wider text-[10px]">Période Planifiée</span>
+                        <span className="font-medium text-slate-800">{selectedTask.startDate && selectedTask.endDate ? `${selectedTask.startDate} → ${selectedTask.endDate}` : 'Non planifié'}</span>
+                      </div>
+                      <div>
+                        <span className="text-slate-400 block font-bold uppercase tracking-wider text-[10px]">Budget Alloué (PV)</span>
+                        <span className="font-bold text-indigo-700 font-mono">{fmt(selectedTask.estimatedCost || 0)}</span>
+                      </div>
+                      <div>
+                        <span className="text-slate-400 block font-bold uppercase tracking-wider text-[10px]">Responsable RACI</span>
+                        <span className="font-medium text-slate-800">{taskAssignee ? taskAssignee.name : 'Non assigné'}</span>
+                      </div>
                     </div>
 
-                    {/* Statut projeté automatique */}
-                    <div className="flex items-center justify-between rounded-lg bg-white p-3 border border-indigo-100 text-xs">
-                      <span className="text-slate-600 font-medium">Statut automatique résultant :</span>
-                      <span className={`inline-flex items-center gap-1 font-bold ${
-                        logIsBlocked
-                          ? 'text-red-700'
-                          : logProgress >= 100
-                            ? 'text-emerald-700'
-                            : logProgress > 0
-                              ? 'text-indigo-700'
-                              : 'text-slate-600'
-                      }`}>
-                        {logIsBlocked
-                          ? '🔴 Bloqué'
-                          : logProgress >= 100
-                            ? '✅ Terminé (100%)'
-                            : logProgress > 0
-                              ? '⏳ En cours'
-                              : '⚪ À faire (0%)'}
-                      </span>
-                    </div>
+                    {/* Évolution de l'avancement & Point d'étape */}
+                    <div className="rounded-xl border border-indigo-200 bg-indigo-50/40 p-5 shadow-sm space-y-4">
+                      <div className="flex items-center justify-between">
+                        <div>
+                          <h3 className="flex items-center gap-2 font-bold text-indigo-950 text-sm">
+                            <Sparkles className="h-4 w-4 text-indigo-600" />
+                            Faire évoluer l'avancement réel & Statut
+                          </h3>
+                          <p className="text-xs text-slate-500">
+                            Ajustez l'avancement (%) pour consigner un point d'étape opérationnel et mettre à jour le statut.
+                          </p>
+                        </div>
+                        <span className="rounded-lg bg-indigo-600 px-3 py-1 text-sm font-bold text-white shadow-sm">
+                          {logProgress}%
+                        </span>
+                      </div>
 
-                    {/* Option Signalement de blocage ou attente */}
-                    <div className="rounded-lg border bg-white p-3">
-                      <label className="flex items-center gap-2 text-xs font-bold text-slate-700 cursor-pointer">
+                      {/* Slider */}
+                      <div>
+                        <div className="mb-1 flex justify-between text-xs font-semibold text-slate-700">
+                          <span>0% (À faire)</span>
+                          <span>50% (En cours)</span>
+                          <span>100% (Terminé)</span>
+                        </div>
                         <input
-                          type="checkbox"
-                          checked={logIsBlocked}
-                          onChange={(e) => setLogIsBlocked(e.target.checked)}
-                          className="h-4 w-4 rounded border-slate-300 text-red-600 focus:ring-red-500"
+                          type="range"
+                          min={0}
+                          max={100}
+                          step={5}
+                          value={logProgress}
+                          onChange={(e) => setLogProgress(Number(e.target.value))}
+                          className="h-2.5 w-full cursor-pointer appearance-none rounded-lg bg-indigo-200 accent-indigo-600"
                         />
-                        Signaler un blocage ou une attente extérieure
-                      </label>
-                      {logIsBlocked && (
-                        <div className="mt-2">
-                          <Input
-                            value={logBlocker}
-                            onChange={(e) => setLogBlocker(e.target.value)}
-                            placeholder="Raison du blocage (ex: attente de validation du bailleur, pièce manquante...)"
-                            className="border-red-300 bg-red-50/50 text-xs"
+                      </div>
+
+                      {/* Statut projeté automatique */}
+                      <div className="flex items-center justify-between rounded-lg bg-white p-3 border border-indigo-100 text-xs">
+                        <span className="text-slate-600 font-medium">Statut résultant :</span>
+                        <span className={`inline-flex items-center gap-1 font-bold ${
+                          logIsBlocked
+                            ? 'text-red-700'
+                            : logProgress >= 100
+                              ? 'text-emerald-700'
+                              : logProgress > 0
+                                ? 'text-indigo-700'
+                                : 'text-slate-600'
+                        }`}>
+                          {logIsBlocked
+                            ? '🔴 Bloqué'
+                            : logProgress >= 100
+                              ? '✅ Terminé (100%)'
+                              : logProgress > 0
+                                ? '⏳ En cours'
+                                : '⚪ À faire (0%)'}
+                        </span>
+                      </div>
+
+                      {/* Option Signalement de blocage ou attente */}
+                      <div className="rounded-lg border bg-white p-3">
+                        <label className="flex items-center gap-2 text-xs font-bold text-slate-700 cursor-pointer">
+                          <input
+                            type="checkbox"
+                            checked={logIsBlocked}
+                            onChange={(e) => setLogIsBlocked(e.target.checked)}
+                            className="h-4 w-4 rounded border-slate-300 text-red-600 focus:ring-red-500"
                           />
+                          Signaler un blocage ou une attente extérieure
+                        </label>
+                        {logIsBlocked && (
+                          <div className="mt-2">
+                            <Input
+                              value={logBlocker}
+                              onChange={(e) => setLogBlocker(e.target.value)}
+                              placeholder="Raison du blocage (ex: attente de validation, pièce manquante...)"
+                              className="border-red-300 bg-red-50/50 text-xs"
+                            />
+                          </div>
+                        )}
+                      </div>
+
+                      {/* Commentaire de compte-rendu */}
+                      <div>
+                        <label className="mb-1 block text-xs font-semibold text-slate-700">
+                          Commentaire / Note d'évolution *
+                        </label>
+                        <textarea
+                          value={logComment}
+                          onChange={(e) => setLogComment(e.target.value)}
+                          rows={2}
+                          className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500"
+                          placeholder="Ex: 50% réalisé, travaux en cours par l'équipe..."
+                        />
+                      </div>
+
+                      <Button
+                        size="sm"
+                        onClick={() => addUpdateLogMutation.mutate()}
+                        disabled={!logComment.trim() || addUpdateLogMutation.isPending}
+                        className="bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs"
+                      >
+                        <Send className="mr-1.5 h-3.5 w-3.5" />
+                        Mettre à jour l'avancement
+                      </Button>
+                    </div>
+
+                    {/* Livrables & Preuves d'achèvement */}
+                    <div className="rounded-xl border bg-white p-5 shadow-sm space-y-4">
+                      <div className="flex items-center justify-between border-b pb-3">
+                        <div>
+                          <h3 className="flex items-center gap-2 font-bold text-slate-900 text-sm">
+                            <PackageCheck className="h-5 w-5 text-emerald-600" />
+                            Livrables & Preuves d'Achèvement
+                          </h3>
+                          <p className="text-xs text-slate-500">
+                            Comptes-rendus, documents finaux et validation formelle.
+                          </p>
+                        </div>
+                        <Button size="sm" onClick={() => setShowDeliverableModal(!showDeliverableModal)} className="text-xs">
+                          <Plus className="mr-1 h-4 w-4" />
+                          Déposer un livrable
+                        </Button>
+                      </div>
+
+                      {showDeliverableModal && (
+                        <div className="rounded-lg border border-emerald-200 bg-emerald-50 p-4 space-y-3">
+                          <h4 className="text-xs font-bold text-emerald-900">Nouveau livrable de fin de tâche</h4>
+                          <Input
+                            value={delivTitle}
+                            onChange={(e) => setDelivTitle(e.target.value)}
+                            placeholder="Intitulé du livrable (ex: Rapport d'évaluation final)"
+                            className="text-xs bg-white"
+                          />
+                          <textarea
+                            value={delivDesc}
+                            onChange={(e) => setDelivDesc(e.target.value)}
+                            rows={2}
+                            className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs"
+                            placeholder="Détails ou synthèse des résultats..."
+                          />
+                          <Input
+                            value={delivUrl}
+                            onChange={(e) => setDelivUrl(e.target.value)}
+                            placeholder="URL du fichier (Drive, Cloud, etc.)"
+                            className="text-xs bg-white"
+                          />
+                          <div className="flex gap-2">
+                            <Button
+                              size="sm"
+                              onClick={() => addDeliverableMutation.mutate()}
+                              disabled={!delivTitle.trim() || addDeliverableMutation.isPending}
+                              className="text-xs bg-emerald-600 hover:bg-emerald-700 text-white"
+                            >
+                              Enregistrer le livrable
+                            </Button>
+                            <Button size="sm" variant="ghost" onClick={() => setShowDeliverableModal(false)} className="text-xs">
+                              Annuler
+                            </Button>
+                          </div>
+                        </div>
+                      )}
+
+                      {taskDeliverables.length === 0 ? (
+                        <p className="text-xs text-slate-400 italic">Aucun livrable déposé pour cette tâche.</p>
+                      ) : (
+                        <div className="space-y-2">
+                          {taskDeliverables.map((deliv: any) => (
+                            <div key={deliv.id} className="rounded-lg border p-3 flex items-center justify-between text-xs">
+                              <div>
+                                <span className="font-bold text-slate-900 block">{deliv.title}</span>
+                                {deliv.description && <p className="text-slate-500 mt-0.5">{deliv.description}</p>}
+                                {deliv.fileUrl && (
+                                  <a href={deliv.fileUrl} target="_blank" rel="noreferrer" className="text-indigo-600 hover:underline mt-1 inline-flex items-center gap-1">
+                                    <Paperclip className="h-3 w-3" /> Voir le document
+                                  </a>
+                                )}
+                              </div>
+                              <span className={`rounded-full px-2 py-0.5 text-[11px] font-bold ${
+                                deliv.status === 'approved' ? 'bg-emerald-100 text-emerald-800' : deliv.status === 'rejected' ? 'bg-red-100 text-red-800' : 'bg-amber-100 text-amber-800'
+                              }`}>
+                                {deliv.status === 'approved' ? 'Approuvé' : deliv.status === 'rejected' ? 'Rejeté' : 'En attente'}
+                              </span>
+                            </div>
+                          ))}
                         </div>
                       )}
                     </div>
 
-                    {/* Commentaire de compte-rendu */}
-                    <div>
-                      <label className="mb-1 block text-xs font-semibold text-slate-700">
-                        Commentaire / Note d'évolution *
-                      </label>
-                      <textarea
-                        value={logComment}
-                        onChange={(e) => setLogComment(e.target.value)}
-                        rows={2}
-                        className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500"
-                        placeholder="Ex: 50% réalisé, matériel configuré par l'équipe..."
-                      />
-                    </div>
-
-                    <Button
-                      size="sm"
-                      onClick={() => addUpdateLogMutation.mutate()}
-                      disabled={!logComment.trim() || addUpdateLogMutation.isPending}
-                    >
-                      <Send className="mr-1.5 h-3.5 w-3.5" />
-                      Mettre à jour l'avancement
-                    </Button>
-                  </div>
-                </div>
-
-                {/* 3. Section Livrables & Preuves d'achèvement (Activée seulement si tâche terminée) */}
-                <div className="rounded-xl border bg-white p-5 shadow-sm">
-                  <div className="flex items-center justify-between border-b pb-3">
-                    <div>
-                      <h3 className="flex items-center gap-2 font-bold text-slate-900">
-                        <PackageCheck className="h-5 w-5 text-emerald-600" />
-                        Livrables & Preuves d'Achèvement
+                    {/* Historique du journal de bord */}
+                    <div className="rounded-xl border bg-white p-5 shadow-sm space-y-3">
+                      <h3 className="font-bold text-slate-900 text-sm flex items-center gap-2 border-b pb-2">
+                        <Clock className="h-4 w-4 text-slate-500" />
+                        <span>Journal d'activité & Mises à jour ({taskUpdates.length})</span>
                       </h3>
-                      <p className="text-xs text-slate-500">
-                        {selectedTask.status === 'completed' || selectedTask.progressPct === 100
-                          ? 'Comptes-rendus, documents finaux et validation formelle de fin'
-                          : '⚠️ Les livrables ne peuvent être déposés que lorsque la tâche est marquée comme Terminée (100%).'}
-                      </p>
-                    </div>
-                    {(selectedTask.status === 'completed' || selectedTask.progressPct === 100) && (
-                      <Button size="sm" onClick={() => setShowDeliverableModal(!showDeliverableModal)}>
-                        <Plus className="mr-1 h-4 w-4" />
-                        Déposer
-                      </Button>
-                    )}
-                  </div>
-
-                  {/* Formulaire dépôt livrable si tâche terminée */}
-                  {showDeliverableModal && (selectedTask.status === 'completed' || selectedTask.progressPct === 100) && (
-                    <div className="mt-4 rounded-lg border border-emerald-200 bg-emerald-50 p-4">
-                      <h4 className="mb-2 text-xs font-bold text-emerald-900">Nouveau livrable de fin de tâche</h4>
-                      <div className="space-y-3">
-                        <Input
-                          value={delivTitle}
-                          onChange={(e) => setDelivTitle(e.target.value)}
-                          placeholder="Intitulé du livrable (ex: Rapport d'évaluation final)"
-                        />
-                        <textarea
-                          value={delivDesc}
-                          onChange={(e) => setDelivDesc(e.target.value)}
-                          rows={2}
-                          className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs"
-                          placeholder="Détails ou synthèse des résultats..."
-                        />
-                        <Input
-                          value={delivUrl}
-                          onChange={(e) => setDelivUrl(e.target.value)}
-                          placeholder="Lien web / Document partagé (https://...)"
-                        />
-                      </div>
-                      <div className="mt-3 flex gap-2">
-                        <Button
-                          size="sm"
-                          onClick={() => addDeliverableMutation.mutate()}
-                          disabled={!delivTitle.trim() || addDeliverableMutation.isPending}
-                        >
-                          Enregistrer le livrable
-                        </Button>
-                        <Button size="sm" variant="ghost" onClick={() => setShowDeliverableModal(false)}>
-                          Annuler
-                        </Button>
-                      </div>
-                    </div>
-                  )}
-
-                  {/* Liste des livrables */}
-                  <div className="mt-4 space-y-2">
-                    {taskDeliverables.length === 0 ? (
-                      <p className="text-center text-xs text-slate-400 py-3">
-                        {selectedTask.status === 'completed'
-                          ? 'Aucun livrable déposé pour le moment.'
-                          : 'Tâche non achevée. Le dépôt sera débloqué à 100%.'}
-                      </p>
-                    ) : (
-                      taskDeliverables.map((deliv: any) => (
-                        <div key={deliv.id} className="flex items-center justify-between rounded-lg border bg-slate-50 p-3">
-                          <div>
-                            <div className="flex items-center gap-2">
-                              <span className="font-semibold text-slate-900">{deliv.title}</span>
-                              <span className={`rounded-full px-2 py-0.5 text-[10px] font-bold ${
-                                deliv.status === 'approved'
-                                  ? 'bg-emerald-100 text-emerald-800'
-                                  : deliv.status === 'rejected'
-                                    ? 'bg-red-100 text-red-800'
-                                    : 'bg-amber-100 text-amber-800'
-                              }`}>
-                                {deliv.status === 'approved' ? 'Validé' : deliv.status === 'rejected' ? 'Rejeté' : 'En attente de validation'}
-                              </span>
-                            </div>
-                            {deliv.description && <p className="mt-1 text-xs text-slate-500">{deliv.description}</p>}
-                            {deliv.fileUrl && (
-                              <a
-                                href={deliv.fileUrl}
-                                target="_blank"
-                                rel="noreferrer"
-                                className="mt-1 inline-flex items-center gap-1 text-xs text-indigo-600 hover:underline"
-                              >
-                                <ExternalLink className="h-3 w-3" /> {deliv.fileUrl}
-                              </a>
-                            )}
-                          </div>
-                          {deliv.status === 'pending' && (
-                            <div className="flex gap-1">
-                              <Button
-                                size="sm"
-                                variant="outline"
-                                className="h-7 text-xs text-emerald-700 hover:bg-emerald-50"
-                                onClick={() => verifyDeliverableMutation.mutate({ deliverableId: deliv.id, status: 'approved' })}
-                              >
-                                <Check className="mr-1 h-3 w-3" /> Valider
-                              </Button>
-                            </div>
-                          )}
-                        </div>
-                      ))
-                    )}
-                  </div>
-                </div>
-
-                {/* 4. Fil d'actualité & Historique de la tâche */}
-                <div className="space-y-3">
-                  <h3 className="flex items-center gap-2 font-bold text-slate-900">
-                    <MessageSquare className="h-4 w-4 text-slate-500" />
-                    Fil d'Actualité & Historique ({taskUpdates.length})
-                  </h3>
-
-                  {taskUpdates.length === 0 ? (
-                    <p className="text-center text-xs text-slate-400 py-4">Aucune mise à jour publiée sur cette tâche.</p>
-                  ) : (
-                    <div className="space-y-3">
-                      {[...taskUpdates]
-                        .sort((a: any, b: any) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
-                        .map((upd: any) => (
-                          <div key={upd.id} className="rounded-xl border bg-white p-4 shadow-sm">
-                            <div className="flex items-center justify-between text-xs">
-                              <span className="font-bold text-slate-800">{upd.authorName}</span>
-                              <span className="text-slate-400">
-                                {new Date(upd.createdAt).toLocaleDateString('fr-CA', {
-                                  day: 'numeric',
-                                  month: 'short',
-                                  hour: '2-digit',
-                                  minute: '2-digit',
-                                })}
-                              </span>
-                            </div>
-                            <p className="mt-2 text-sm text-slate-700">{upd.comment}</p>
-                            {upd.blockerReason && (
-                              <div className="mt-2 rounded bg-red-50 p-2 text-xs font-semibold text-red-700">
-                                ⚠️ Blocage : {upd.blockerReason}
+                      {taskUpdates.length === 0 ? (
+                        <p className="text-xs text-slate-400 italic">Aucun log enregistré pour cette tâche.</p>
+                      ) : (
+                        <div className="divide-y divide-slate-100 space-y-2">
+                          {taskUpdates.map((u: any) => (
+                            <div key={u.id} className="pt-2 text-xs space-y-1">
+                              <div className="flex items-center justify-between text-slate-500 text-[11px]">
+                                <span className="font-semibold text-slate-700">{u.authorName}</span>
+                                <span>{new Date(u.createdAt).toLocaleDateString('fr-CA', { hour: '2-digit', minute: '2-digit' })}</span>
                               </div>
-                            )}
-                            <div className="mt-3 flex items-center gap-3 border-t pt-2 text-xs text-slate-500">
-                              <span>Progression : <strong>{upd.progressPct}%</strong></span>
-                              {upd.status && (
-                                <span className={`rounded px-1.5 py-0.5 text-[10px] ${STATUS_CONFIG[upd.status]?.color}`}>
-                                  {STATUS_CONFIG[upd.status]?.label}
-                                </span>
+                              <p className="text-slate-800">{u.comment}</p>
+                              {u.blockerReason && (
+                                <p className="text-red-600 font-medium">🛑 Blocage : {u.blockerReason}</p>
                               )}
                             </div>
-                          </div>
-                        ))}
+                          ))}
+                        </div>
+                      )}
                     </div>
-                  )}
-                </div>
-              </>
-            )}
+                  </div>
+                )}
+              </div>
+            </div>
           </div>
-        </div>
-      </div>
-    );
-  })()}
+        );
+      })()}
     </div>
   );
 }
