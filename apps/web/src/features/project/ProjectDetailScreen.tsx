@@ -2883,7 +2883,7 @@ export function ProjectDetailScreen() {
               );
             })()}
 
-                planItems.length === 0 ? (
+                {planItems.length === 0 ? (
               <div className="rounded-xl border border-dashed border-slate-200 bg-white p-10 text-center">
                 <ListTodo className="mx-auto mb-3 h-10 w-10 text-slate-300" />
                 <p className="text-sm font-medium text-slate-500">Aucun élément de plan défini</p>
@@ -2985,7 +2985,7 @@ export function ProjectDetailScreen() {
                   </tbody>
                 </table>
               </div>
-            ))
+            )}
               </div>
             )}
 
