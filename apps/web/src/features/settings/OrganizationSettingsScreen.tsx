@@ -24,10 +24,14 @@ import {
   AlertCircle,
   HelpCircle,
   ExternalLink,
+  Layers,
+  Plus,
+  Edit2,
+  Users,
 } from 'lucide-react';
 import { Navbar } from '../../components/Navbar';
 
-type SettingsTab = 'general' | 'fiscal_legal' | 'contact' | 'regional' | 'privacy';
+type SettingsTab = 'general' | 'structure' | 'fiscal_legal' | 'contact' | 'regional' | 'privacy';
 
 export function OrganizationSettingsScreen() {
   const { t, i18n } = useTranslation();
@@ -62,6 +66,12 @@ export function OrganizationSettingsScreen() {
   const [privacyOfficerName, setPrivacyOfficerName] = useState('');
   const [privacyOfficerEmail, setPrivacyOfficerEmail] = useState('');
   const [dataRetentionMonths, setDataRetentionMonths] = useState(60);
+
+  // Departments State
+  const [deptName, setDeptName] = useState('');
+  const [deptCode, setDeptCode] = useState('');
+  const [editingDept, setEditingDept] = useState<any | null>(null);
+  const [isDeptModalOpen, setIsDeptModalOpen] = useState(false);
 
   const [success, setSuccess] = useState('');
   const [error, setError] = useState('');
@@ -105,6 +115,79 @@ export function OrganizationSettingsScreen() {
       if (!res.ok) throw new Error('Erreur de chargement');
       return res.json();
     },
+  });
+
+  // Fetch Departments
+  const { data: departmentsData = [], isLoading: isLoadingDepts, refetch: refetchDepts } = useQuery({
+    queryKey: ['departments'],
+    queryFn: async () => {
+      const res = await fetch('/api/v1/people/departments');
+      if (!res.ok) throw new Error('Erreur de chargement des départements');
+      return res.json();
+    },
+  });
+
+  const createDeptMutation = useMutation({
+    mutationFn: async (payload: { name: string; code?: string }) => {
+      const res = await fetch('/api/v1/people/departments', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      });
+      if (!res.ok) {
+        const err = await res.json();
+        throw new Error(err.message || 'Erreur lors de la création du département');
+      }
+      return res.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['departments'] });
+      setDeptName('');
+      setDeptCode('');
+      setIsDeptModalOpen(false);
+      setSuccess('Département ajouté avec succès !');
+    },
+    onError: (err: any) => setError(err.message),
+  });
+
+  const updateDeptMutation = useMutation({
+    mutationFn: async (payload: { id: string; name: string; code?: string }) => {
+      const res = await fetch(`/api/v1/people/departments/${payload.id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name: payload.name, code: payload.code }),
+      });
+      if (!res.ok) {
+        const err = await res.json();
+        throw new Error(err.message || 'Erreur lors de la modification');
+      }
+      return res.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['departments'] });
+      setEditingDept(null);
+      setIsDeptModalOpen(false);
+      setSuccess('Département mis à jour avec succès !');
+    },
+    onError: (err: any) => setError(err.message),
+  });
+
+  const deleteDeptMutation = useMutation({
+    mutationFn: async (id: string) => {
+      const res = await fetch(`/api/v1/people/departments/${id}`, {
+        method: 'DELETE',
+      });
+      if (!res.ok) {
+        const err = await res.json();
+        throw new Error(err.message || 'Erreur lors de la suppression');
+      }
+      return res.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['departments'] });
+      setSuccess('Département supprimé avec succès !');
+    },
+    onError: (err: any) => setError(err.message),
   });
 
   useEffect(() => {
@@ -248,6 +331,7 @@ export function OrganizationSettingsScreen() {
         <div className="flex border-b border-slate-200 space-x-2 sm:space-x-8 overflow-x-auto">
           {[
             { id: 'general', label: 'Identité & Marque', icon: Sparkles },
+            { id: 'structure', label: 'Structure & Départements', icon: Layers },
             { id: 'fiscal_legal', label: 'Fiscalité & ARC', icon: Award },
             { id: 'contact', label: 'Coordonnées & Siège', icon: MapPin },
             { id: 'regional', label: 'Devise & Exercice', icon: DollarSign },
@@ -429,6 +513,206 @@ export function OrganizationSettingsScreen() {
                     <strong>Astuce :</strong> Privilégiez un logo avec fond transparent au format PNG ou SVG pour un rendu optimal.
                   </span>
                 </div>
+              </div>
+            </div>
+          )}
+
+          {/* TAB: STRUCTURE & DÉPARTEMENTS */}
+          {activeTab === 'structure' && (
+            <div className="space-y-6">
+              {/* Architecture Educational Banner */}
+              <div className="p-5 bg-gradient-to-r from-blue-50 via-indigo-50 to-slate-50 border border-blue-200/80 rounded-2xl shadow-sm">
+                <div className="flex items-start space-x-3.5">
+                  <div className="p-2.5 bg-blue-600 text-white rounded-xl shadow-sm flex-shrink-0">
+                    <Layers className="w-5 h-5" />
+                  </div>
+                  <div className="space-y-3 flex-1">
+                    <div>
+                      <h3 className="text-sm font-bold text-slate-900">
+                        Architecture Organisationnelle & Gestion des Équipes
+                      </h3>
+                      <p className="text-xs text-slate-600 mt-0.5 leading-relaxed">
+                        OrgDashio structure les ressources humaines et opérationnelles en 3 niveaux complémentaires :
+                      </p>
+                    </div>
+
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-3 pt-1">
+                      <div className="bg-white/90 p-3 rounded-xl border border-blue-100 shadow-xs">
+                        <div className="flex items-center space-x-2 text-blue-800 font-bold text-xs mb-1">
+                          <span>1. Structure & Pôles</span>
+                          <Badge variant="default" className="text-[10px] bg-blue-100 text-blue-800">Ici</Badge>
+                        </div>
+                        <p className="text-[11px] text-slate-600">
+                          Création des départements et directions transversales (ex: <em>Direction Générale, Programmes Sociaux, Finances</em>).
+                        </p>
+                      </div>
+
+                      <div className="bg-white/90 p-3 rounded-xl border border-indigo-100 shadow-xs flex flex-col justify-between">
+                        <div>
+                          <div className="flex items-center space-x-2 text-indigo-800 font-bold text-xs mb-1">
+                            <span>2. Équipe & Postes</span>
+                          </div>
+                          <p className="text-[11px] text-slate-600">
+                            Affectation des collaborateurs (salariés, bénévoles, CA) à leur département avec leur intitulé de poste.
+                          </p>
+                        </div>
+                        <a
+                          href="/people"
+                          className="inline-flex items-center text-[11px] font-bold text-indigo-600 hover:text-indigo-800 mt-2"
+                        >
+                          <span>Gérer le Personnel</span>
+                          <ExternalLink className="w-3 h-3 ml-1" />
+                        </a>
+                      </div>
+
+                      <div className="bg-white/90 p-3 rounded-xl border border-emerald-100 shadow-xs flex flex-col justify-between">
+                        <div>
+                          <div className="flex items-center space-x-2 text-emerald-800 font-bold text-xs mb-1">
+                            <span>3. Taux RH & Subventions</span>
+                          </div>
+                          <p className="text-[11px] text-slate-600">
+                            Définition des taux horaires réels et de valorisation bénévole ($/h) pour les redditions de compte bailleurs.
+                          </p>
+                        </div>
+                        <a
+                          href="/timesheets"
+                          className="inline-flex items-center text-[11px] font-bold text-emerald-600 hover:text-emerald-800 mt-2"
+                        >
+                          <span>Configurer les Taux RH</span>
+                          <ExternalLink className="w-3 h-3 ml-1" />
+                        </a>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Department Management Table */}
+              <div className="bg-white rounded-2xl p-6 border border-slate-200/80 shadow-sm space-y-5">
+                <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 border-b pb-4">
+                  <div>
+                    <h3 className="text-base font-bold text-slate-900 flex items-center space-x-2">
+                      <span>Départements & Pôles Opérationnels</span>
+                      <Badge variant="default" className="bg-slate-100 text-slate-700 font-mono text-xs">
+                        {departmentsData.length} département{departmentsData.length > 1 ? 's' : ''}
+                      </Badge>
+                    </h3>
+                    <p className="text-xs text-slate-500 mt-0.5">
+                      Définissez la structure hiérarchique et les centres de responsabilité de l'organisme.
+                    </p>
+                  </div>
+
+                  <Button
+                    type="button"
+                    variant="default"
+                    size="sm"
+                    onClick={() => {
+                      setEditingDept(null);
+                      setDeptName('');
+                      setDeptCode('');
+                      setIsDeptModalOpen(true);
+                    }}
+                    className="bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs shadow-sm flex items-center space-x-1.5"
+                  >
+                    <Plus className="w-4 h-4" />
+                    <span>Nouveau Département</span>
+                  </Button>
+                </div>
+
+                {isLoadingDepts ? (
+                  <div className="py-12 text-center text-xs text-slate-400">
+                    Chargement des départements...
+                  </div>
+                ) : departmentsData.length === 0 ? (
+                  <div className="py-12 text-center space-y-3 bg-slate-50 rounded-xl border border-dashed border-slate-200">
+                    <Layers className="w-8 h-8 text-slate-400 mx-auto" />
+                    <div>
+                      <p className="text-xs font-bold text-slate-700">Aucun département configuré</p>
+                      <p className="text-[11px] text-slate-400 mt-0.5">
+                        Ajoutez vos premiers pôles (ex: Direction Générale, Programmes Sociaux, Communications).
+                      </p>
+                    </div>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      onClick={() => {
+                        setEditingDept(null);
+                        setDeptName('');
+                        setDeptCode('');
+                        setIsDeptModalOpen(true);
+                      }}
+                      className="text-xs font-semibold"
+                    >
+                      <Plus className="w-3.5 h-3.5 mr-1" />
+                      <span>Ajouter un département</span>
+                    </Button>
+                  </div>
+                ) : (
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-left text-xs">
+                      <thead>
+                        <tr className="border-b border-slate-200 text-slate-500 font-bold uppercase tracking-wider bg-slate-50/50">
+                          <th className="py-3 px-4">Code</th>
+                          <th className="py-3 px-4">Nom du Département</th>
+                          <th className="py-3 px-4">Date de création</th>
+                          <th className="py-3 px-4 text-right">Actions</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-slate-100">
+                        {departmentsData.map((d: any) => (
+                          <tr key={d.id} className="hover:bg-slate-50/80 transition-colors">
+                            <td className="py-3.5 px-4 font-mono">
+                              {d.code ? (
+                                <Badge variant="default" className="bg-blue-50 text-blue-700 border-blue-200 font-mono text-[11px]">
+                                  {d.code}
+                                </Badge>
+                              ) : (
+                                <span className="text-slate-400 italic">Sans code</span>
+                              )}
+                            </td>
+                            <td className="py-3.5 px-4 font-bold text-slate-900">
+                              {d.name}
+                            </td>
+                            <td className="py-3.5 px-4 text-slate-500">
+                              {d.createdAt ? new Date(d.createdAt).toLocaleDateString('fr-CA') : '—'}
+                            </td>
+                            <td className="py-3.5 px-4 text-right space-x-1">
+                              <Button
+                                type="button"
+                                variant="outline"
+                                size="sm"
+                                onClick={() => {
+                                  setEditingDept(d);
+                                  setDeptName(d.name || '');
+                                  setDeptCode(d.code || '');
+                                  setIsDeptModalOpen(true);
+                                }}
+                                className="text-xs py-1 px-2.5 h-auto text-slate-700 hover:text-blue-600"
+                              >
+                                <Edit2 className="w-3 h-3 mr-1" />
+                                <span>Modifier</span>
+                              </Button>
+                              <Button
+                                type="button"
+                                variant="outline"
+                                size="sm"
+                                onClick={() => {
+                                  if (window.confirm(`Êtes-vous sûr de vouloir supprimer le département "${d.name}" ?`)) {
+                                    deleteDeptMutation.mutate(d.id);
+                                  }
+                                }}
+                                className="text-xs py-1 px-2.5 h-auto text-rose-600 hover:bg-rose-50 border-rose-200"
+                              >
+                                <Trash2 className="w-3 h-3" />
+                              </Button>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
               </div>
             </div>
           )}
@@ -712,22 +996,121 @@ export function OrganizationSettingsScreen() {
             </div>
           )}
 
-          {/* Bottom Submit Action Bar */}
-          <div className="bg-white rounded-2xl p-4 border border-slate-200 flex items-center justify-between shadow-sm">
-            <p className="text-xs text-slate-500">
-              Assurez-vous d'enregistrer vos modifications pour qu'elles soient appliquées sur toute la plateforme.
-            </p>
-            <Button
-              type="submit"
-              variant="default"
-              disabled={updateMutation.isPending || isLoading}
-              className="bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs shadow-sm flex items-center space-x-1.5"
-            >
-              <Save className="w-4 h-4" />
-              <span>{updateMutation.isPending ? 'Enregistrement...' : 'Enregistrer les modifications'}</span>
-            </Button>
-          </div>
+          {/* Bottom Submit Action Bar (only for global settings tabs) */}
+          {activeTab !== 'structure' && (
+            <div className="bg-white rounded-2xl p-4 border border-slate-200 flex items-center justify-between shadow-sm">
+              <p className="text-xs text-slate-500">
+                Assurez-vous d'enregistrer vos modifications pour qu'elles soient appliquées sur toute la plateforme.
+              </p>
+              <Button
+                type="submit"
+                variant="default"
+                disabled={updateMutation.isPending || isLoading}
+                className="bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs shadow-sm flex items-center space-x-1.5"
+              >
+                <Save className="w-4 h-4" />
+                <span>{updateMutation.isPending ? 'Enregistrement...' : 'Enregistrer les modifications'}</span>
+              </Button>
+            </div>
+          )}
         </form>
+
+        {/* Modal: Ajouter / Modifier un Département */}
+        {isDeptModalOpen && (
+          <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-xs flex items-center justify-center p-4 z-50 animate-fadeIn">
+            <div className="bg-white rounded-2xl max-w-md w-full p-6 shadow-2xl border border-slate-100 space-y-5">
+              <div className="flex items-center justify-between border-b pb-3">
+                <div className="flex items-center space-x-2">
+                  <div className="p-2 bg-blue-100 text-blue-600 rounded-lg">
+                    <Layers className="w-5 h-5" />
+                  </div>
+                  <h3 className="text-base font-bold text-slate-900">
+                    {editingDept ? 'Modifier le Département' : 'Nouveau Département'}
+                  </h3>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setIsDeptModalOpen(false)}
+                  className="text-slate-400 hover:text-slate-600 text-lg font-bold"
+                >
+                  ✕
+                </button>
+              </div>
+
+              <div className="space-y-4">
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5">
+                    Nom du Département / Pôle <span className="text-rose-500">*</span>
+                  </label>
+                  <Input
+                    value={deptName}
+                    onChange={(e) => setDeptName(e.target.value)}
+                    placeholder="Ex: Programmes & Services Communautaires"
+                    required
+                  />
+                  <p className="text-[11px] text-slate-400 mt-1">
+                    Nom officiel de l'unité opérationnelle ou administrative.
+                  </p>
+                </div>
+
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5">
+                    Code / Sigle court
+                  </label>
+                  <Input
+                    value={deptCode}
+                    onChange={(e) => setDeptCode(e.target.value.toUpperCase())}
+                    placeholder="Ex: PROG-SOC"
+                    className="font-mono uppercase"
+                  />
+                  <p className="text-[11px] text-slate-400 mt-1">
+                    Identifiant court pour les filtres et imputations budgétaires.
+                  </p>
+                </div>
+              </div>
+
+              <div className="flex items-center justify-end space-x-3 pt-2 border-t">
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setIsDeptModalOpen(false)}
+                  className="text-xs"
+                >
+                  Annuler
+                </Button>
+                <Button
+                  type="button"
+                  variant="default"
+                  size="sm"
+                  disabled={!deptName.trim() || createDeptMutation.isPending || updateDeptMutation.isPending}
+                  onClick={() => {
+                    if (!deptName.trim()) return;
+                    if (editingDept) {
+                      updateDeptMutation.mutate({
+                        id: editingDept.id,
+                        name: deptName.trim(),
+                        code: deptCode.trim() || undefined,
+                      });
+                    } else {
+                      createDeptMutation.mutate({
+                        name: deptName.trim(),
+                        code: deptCode.trim() || undefined,
+                      });
+                    }
+                  }}
+                  className="bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs"
+                >
+                  {createDeptMutation.isPending || updateDeptMutation.isPending
+                    ? 'Enregistrement...'
+                    : editingDept
+                    ? 'Mettre à jour'
+                    : 'Créer le département'}
+                </Button>
+              </div>
+            </div>
+          </div>
+        )}
       </main>
     </div>
   );

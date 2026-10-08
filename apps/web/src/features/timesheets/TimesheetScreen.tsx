@@ -78,12 +78,14 @@ export function TimesheetScreen() {
   const [profileModalOpen, setProfileModalOpen] = useState(false);
   const [selectedUserId, setSelectedUserId] = useState('');
   const [profileFormData, setProfileFormData] = useState({
-    standardWeeklyHours: '35.00',
-    hourlyCostRate: '35.00',
-    volunteerRate: '25.00',
-    isVolunteer: false,
+    employeeNumber: '',
     jobTitle: '',
     department: '',
+    contractType: 'full_time',
+    standardWeeklyHours: '35',
+    defaultHourlyRate: '35.00',
+    volunteerImputedRate: '25.00',
+    active: true,
   });
 
   // Shift week navigation
@@ -173,10 +175,10 @@ export function TimesheetScreen() {
   });
 
   // 6. Fetch HR Profiles
-  const { data: hrProfilesData } = useQuery({
+  const { data: hrProfilesData = [], isLoading: isLoadingHrProfiles } = useQuery({
     queryKey: ['hrProfiles'],
     queryFn: async () => {
-      const res = await fetch('/api/v1/timesheets/profiles');
+      const res = await fetch('/api/v1/timesheets/hr-profiles');
       if (!res.ok) return [];
       const json = await res.json();
       return Array.isArray(json) ? json : json.data || [];
@@ -421,12 +423,15 @@ export function TimesheetScreen() {
   // Save HR Profile mutation
   const saveHrProfileMutation = useMutation({
     mutationFn: async (payload: any) => {
-      const res = await fetch(`/api/v1/timesheets/profiles/${selectedUserId}`, {
-        method: 'PUT',
+      const res = await fetch(`/api/v1/timesheets/hr-profiles/${selectedUserId}`, {
+        method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload),
       });
-      if (!res.ok) throw new Error('Erreur lors de la mise à jour du profil RH');
+      if (!res.ok) {
+        const errData = await res.json().catch(() => ({}));
+        throw new Error(errData.message || 'Erreur lors de la mise à jour du profil RH');
+      }
       return res.json();
     },
     onSuccess: () => {
@@ -1184,7 +1189,7 @@ export function TimesheetScreen() {
                 <div>
                   <h3 className="text-base font-bold text-slate-900">Profils RH, Taux Horaires & Bénévolat</h3>
                   <p className="text-xs text-slate-500">
-                    Configurez les taux horaires chargés et la valorisation du bénévolat pour l'imputation analytique.
+                    Configurez les taux horaires chargés et la valorisation du bénévolat pour l'imputation analytique et la reddition aux bailleurs.
                   </p>
                 </div>
               </div>
@@ -1195,66 +1200,87 @@ export function TimesheetScreen() {
                     <tr className="bg-slate-50 border-b border-slate-200 text-slate-600 uppercase font-semibold">
                       <th className="py-3 px-4">Membre / Utilisateur</th>
                       <th className="py-3 px-4">Poste & Département</th>
-                      <th className="py-3 px-4 text-center">Heures Std / Semaine</th>
+                      <th className="py-3 px-4 text-center">Contrat</th>
+                      <th className="py-3 px-4 text-center">Heures / Semaine</th>
                       <th className="py-3 px-4 text-right">Taux Horaire Chargé</th>
-                      <th className="py-3 px-4 text-right">Taux Bénévolat</th>
-                      <th className="py-3 px-4 text-center">Type</th>
+                      <th className="py-3 px-4 text-right">Taux Bénévolat Valorisé</th>
                       <th className="py-3 px-4 text-right">Actions</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-100">
-                    {Array.isArray(hrProfilesData) && hrProfilesData.length > 0 ? (
-                      hrProfilesData.map((prof: any) => (
-                        <tr key={prof.id || prof.userId} className="hover:bg-slate-50 transition-colors">
-                          <td className="py-3 px-4 font-bold text-slate-900">
-                            {prof.user?.firstName || prof.user?.lastName
-                              ? `${prof.user?.firstName || ''} ${prof.user?.lastName || ''}`.trim()
-                              : prof.user?.email || prof.userId}
-                          </td>
-                          <td className="py-3 px-4 text-slate-600">
-                            {prof.jobTitle || 'Non renseigné'} {prof.department ? `(${prof.department})` : ''}
-                          </td>
-                          <td className="py-3 px-4 text-center font-medium">{prof.standardWeeklyHours || '35.00'} h</td>
-                          <td className="py-3 px-4 text-right font-bold text-slate-900">
-                            {Number(prof.hourlyCostRate || 0).toLocaleString('fr-CA', { style: 'currency', currency: 'CAD' })}/h
-                          </td>
-                          <td className="py-3 px-4 text-right font-medium text-emerald-700">
-                            {Number(prof.volunteerRate || 0).toLocaleString('fr-CA', { style: 'currency', currency: 'CAD' })}/h
-                          </td>
-                          <td className="py-3 px-4 text-center">
-                            {prof.isVolunteer ? (
-                              <Badge variant="warning" className="bg-purple-100 text-purple-800">Bénévole</Badge>
-                            ) : (
-                              <Badge variant="secondary" className="bg-slate-100 text-slate-800">Salarié</Badge>
-                            )}
-                          </td>
-                          <td className="py-3 px-4 text-right">
-                            <Button
-                              variant="outline"
-                              size="sm"
-                              onClick={() => {
-                                setSelectedUserId(prof.userId);
-                                setProfileFormData({
-                                  standardWeeklyHours: String(prof.standardWeeklyHours || '35.00'),
-                                  hourlyCostRate: String(prof.hourlyCostRate || '35.00'),
-                                  volunteerRate: String(prof.volunteerRate || '25.00'),
-                                  isVolunteer: Boolean(prof.isVolunteer),
-                                  jobTitle: prof.jobTitle || '',
-                                  department: prof.department || '',
-                                });
-                                setProfileModalOpen(true);
-                              }}
-                              className="text-xs"
-                            >
-                              Modifier Taux
-                            </Button>
-                          </td>
-                        </tr>
-                      ))
+                    {isLoadingHrProfiles ? (
+                      <tr>
+                        <td colSpan={7} className="py-8 text-center text-slate-400">
+                          Chargement des profils RH...
+                        </td>
+                      </tr>
+                    ) : Array.isArray(hrProfilesData) && hrProfilesData.length > 0 ? (
+                      hrProfilesData.map((prof: any) => {
+                        const getContractBadge = (cType: string) => {
+                          switch (cType) {
+                            case 'volunteer':
+                              return <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold bg-purple-100 text-purple-800">Bénévole</span>;
+                            case 'part_time':
+                              return <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold bg-sky-100 text-sky-800">Temps partiel</span>;
+                            case 'contractor':
+                              return <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-100 text-amber-800">Contractuel</span>;
+                            case 'intern':
+                              return <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold bg-teal-100 text-teal-800">Stagiaire</span>;
+                            default:
+                              return <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-100 text-emerald-800">Temps plein</span>;
+                          }
+                        };
+
+                        return (
+                          <tr key={prof.id || prof.userId} className="hover:bg-slate-50 transition-colors">
+                            <td className="py-3 px-4">
+                              <div className="font-bold text-slate-900">{prof.displayName}</div>
+                              <div className="text-[11px] text-slate-400">{prof.user?.email}</div>
+                            </td>
+                            <td className="py-3 px-4 text-slate-700">
+                              <div className="font-medium">{prof.jobTitle || 'Non renseigné'}</div>
+                              <div className="text-[11px] text-slate-400">{prof.department || 'Général'}</div>
+                            </td>
+                            <td className="py-3 px-4 text-center">
+                              {getContractBadge(prof.contractType)}
+                            </td>
+                            <td className="py-3 px-4 text-center font-medium">{prof.standardWeeklyHours || 35} h</td>
+                            <td className="py-3 px-4 text-right font-bold text-slate-900">
+                              {Number(prof.defaultHourlyRate || 0).toLocaleString('fr-CA', { style: 'currency', currency: 'CAD' })}/h
+                            </td>
+                            <td className="py-3 px-4 text-right font-medium text-emerald-700">
+                              {Number(prof.volunteerImputedRate || 0).toLocaleString('fr-CA', { style: 'currency', currency: 'CAD' })}/h
+                            </td>
+                            <td className="py-3 px-4 text-right">
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                onClick={() => {
+                                  setSelectedUserId(prof.userId);
+                                  setProfileFormData({
+                                    employeeNumber: prof.employeeNumber || '',
+                                    jobTitle: prof.jobTitle || '',
+                                    department: prof.department || '',
+                                    contractType: prof.contractType || 'full_time',
+                                    standardWeeklyHours: String(prof.standardWeeklyHours || '35'),
+                                    defaultHourlyRate: String(prof.defaultHourlyRate || '35.00'),
+                                    volunteerImputedRate: String(prof.volunteerImputedRate || '25.00'),
+                                    active: prof.active !== undefined ? prof.active : true,
+                                  });
+                                  setProfileModalOpen(true);
+                                }}
+                                className="text-xs"
+                              >
+                                Modifier Profil RH
+                              </Button>
+                            </td>
+                          </tr>
+                        );
+                      })
                     ) : (
                       <tr>
                         <td colSpan={7} className="py-8 text-center text-slate-400">
-                          Aucun profil RH configuré.
+                          Aucun collaborateur trouvé dans l'organisme.
                         </td>
                       </tr>
                     )}
@@ -1335,8 +1361,8 @@ export function TimesheetScreen() {
                 <Settings className="w-6 h-6" />
               </div>
               <div>
-                <h3 className="text-base font-bold text-slate-900">Paramètres RH du Collaborateur</h3>
-                <p className="text-xs text-slate-500">Définissez le taux horaire chargé et la base contractuelle.</p>
+                <h3 className="text-base font-bold text-slate-900">Paramètres RH & Taux du Collaborateur</h3>
+                <p className="text-xs text-slate-500">Configurez le taux horaire d'imputation et la valorisation bénévole.</p>
               </div>
             </div>
 
@@ -1366,7 +1392,34 @@ export function TimesheetScreen() {
 
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="block text-xs font-semibold text-slate-700 mb-1">Heures Std / Semaine</label>
+                  <label className="block text-xs font-semibold text-slate-700 mb-1">Matricule / N° Employé</label>
+                  <input
+                    type="text"
+                    value={profileFormData.employeeNumber}
+                    onChange={(e) => setProfileFormData({ ...profileFormData, employeeNumber: e.target.value })}
+                    className="w-full text-xs rounded-lg border-slate-300 py-2 px-3"
+                    placeholder="Ex: EMP-001"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-semibold text-slate-700 mb-1">Type de Contrat</label>
+                  <select
+                    value={profileFormData.contractType}
+                    onChange={(e) => setProfileFormData({ ...profileFormData, contractType: e.target.value })}
+                    className="w-full text-xs rounded-lg border-slate-300 py-2 px-3 bg-white"
+                  >
+                    <option value="full_time">Salarié (Temps plein)</option>
+                    <option value="part_time">Salarié (Temps partiel)</option>
+                    <option value="volunteer">Bénévole / Volontaire</option>
+                    <option value="contractor">Contractuel / Consultant</option>
+                    <option value="intern">Stagiaire</option>
+                  </select>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-3 gap-3">
+                <div>
+                  <label className="block text-xs font-semibold text-slate-700 mb-1">Heures Std/Sem</label>
                   <input
                     type="number"
                     step="0.5"
@@ -1376,38 +1429,24 @@ export function TimesheetScreen() {
                   />
                 </div>
                 <div>
-                  <label className="block text-xs font-semibold text-slate-700 mb-1">Taux Horaire Chargé ($/h)</label>
+                  <label className="block text-xs font-semibold text-slate-700 mb-1">Taux Salarié ($/h)</label>
                   <input
                     type="number"
                     step="0.01"
-                    value={profileFormData.hourlyCostRate}
-                    onChange={(e) => setProfileFormData({ ...profileFormData, hourlyCostRate: e.target.value })}
-                    className="w-full text-xs rounded-lg border-slate-300 py-2 px-3 font-semibold"
+                    value={profileFormData.defaultHourlyRate}
+                    onChange={(e) => setProfileFormData({ ...profileFormData, defaultHourlyRate: e.target.value })}
+                    className="w-full text-xs rounded-lg border-slate-300 py-2 px-3 font-semibold text-slate-900"
                   />
                 </div>
-              </div>
-
-              <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="block text-xs font-semibold text-slate-700 mb-1">Taux Bénévolat ($/h)</label>
+                  <label className="block text-xs font-semibold text-slate-700 mb-1">Taux Bénévole ($/h)</label>
                   <input
                     type="number"
                     step="0.01"
-                    value={profileFormData.volunteerRate}
-                    onChange={(e) => setProfileFormData({ ...profileFormData, volunteerRate: e.target.value })}
-                    className="w-full text-xs rounded-lg border-slate-300 py-2 px-3 font-semibold"
+                    value={profileFormData.volunteerImputedRate}
+                    onChange={(e) => setProfileFormData({ ...profileFormData, volunteerImputedRate: e.target.value })}
+                    className="w-full text-xs rounded-lg border-slate-300 py-2 px-3 font-semibold text-emerald-700"
                   />
-                </div>
-                <div className="flex items-center pt-5">
-                  <label className="flex items-center space-x-2 text-xs font-semibold text-slate-700 cursor-pointer">
-                    <input
-                      type="checkbox"
-                      checked={profileFormData.isVolunteer}
-                      onChange={(e) => setProfileFormData({ ...profileFormData, isVolunteer: e.target.checked })}
-                      className="rounded border-slate-300 text-blue-600 focus:ring-blue-500"
-                    />
-                    <span>Profil Bénévole</span>
-                  </label>
                 </div>
               </div>
 
@@ -1421,12 +1460,14 @@ export function TimesheetScreen() {
                   disabled={saveHrProfileMutation.isPending}
                   onClick={() => {
                     saveHrProfileMutation.mutate({
-                      jobTitle: profileFormData.jobTitle,
-                      department: profileFormData.department,
-                      standardWeeklyHours: profileFormData.standardWeeklyHours,
-                      hourlyCostRate: profileFormData.hourlyCostRate,
-                      volunteerRate: profileFormData.volunteerRate,
-                      isVolunteer: profileFormData.isVolunteer,
+                      employeeNumber: profileFormData.employeeNumber || undefined,
+                      jobTitle: profileFormData.jobTitle || undefined,
+                      department: profileFormData.department || undefined,
+                      contractType: profileFormData.contractType as any,
+                      standardWeeklyHours: parseFloat(profileFormData.standardWeeklyHours) || 35,
+                      defaultHourlyRate: parseFloat(profileFormData.defaultHourlyRate) || 30,
+                      volunteerImputedRate: parseFloat(profileFormData.volunteerImputedRate) || 25,
+                      active: profileFormData.active,
                     });
                   }}
                   className="bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs"

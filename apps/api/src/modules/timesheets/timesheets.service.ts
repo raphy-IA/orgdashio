@@ -3,6 +3,7 @@ import { DRIZZLE_DB } from '../../common/database/database.module';
 import {
   DbClient,
   withTenantContext,
+  membership,
   userHrProfile,
   timesheet,
   timesheetEntry,
@@ -35,9 +36,9 @@ export class TimesheetsService {
   // ---------------------------------------------------------------------------
   async findAllHrProfiles(tenantId: string) {
     return withTenantContext(this.db, tenantId, async (tx) => {
-      const profiles = await tx
+      const members = await tx
         .select({
-          profile: userHrProfile,
+          membership: membership,
           user: {
             id: userAccount.id,
             email: userAccount.email,
@@ -45,20 +46,35 @@ export class TimesheetsService {
             lastName: userAccount.lastName,
             jobTitle: userAccount.jobTitle,
           },
+          profile: userHrProfile,
         })
-        .from(userHrProfile)
-        .leftJoin(userAccount, eq(userHrProfile.userId, userAccount.id))
-        .where(eq(userHrProfile.tenantId, tenantId))
-        .orderBy(desc(userHrProfile.createdAt));
+        .from(membership)
+        .innerJoin(userAccount, eq(membership.userId, userAccount.id))
+        .leftJoin(
+          userHrProfile,
+          and(eq(userHrProfile.userId, userAccount.id), eq(userHrProfile.tenantId, tenantId))
+        )
+        .where(eq(membership.tenantId, tenantId))
+        .orderBy(userAccount.lastName, userAccount.firstName);
 
-      return profiles.map((p: any) => ({
-        ...p.profile,
-        standardWeeklyHours: Number(p.profile.standardWeeklyHours),
-        defaultHourlyRate: Number(p.profile.defaultHourlyRate),
-        volunteerImputedRate: Number(p.profile.volunteerImputedRate),
-        user: p.user,
-        displayName: `${p.user?.firstName || ''} ${p.user?.lastName || ''}`.trim() || p.user?.email || 'Employé',
-      }));
+      return members.map((m: any) => {
+        const p = m.profile || {};
+        return {
+          id: p.id || `virtual-${m.user.id}`,
+          userId: m.user.id,
+          employeeNumber: p.employeeNumber || null,
+          jobTitle: p.jobTitle || m.user.jobTitle || 'Collaborateur',
+          department: p.department || 'Général',
+          contractType: p.contractType || 'full_time',
+          standardWeeklyHours: p.standardWeeklyHours ? Number(p.standardWeeklyHours) : 35,
+          defaultHourlyRate: p.defaultHourlyRate ? Number(p.defaultHourlyRate) : 30,
+          volunteerImputedRate: p.volunteerImputedRate ? Number(p.volunteerImputedRate) : 25,
+          active: p.active !== undefined ? p.active : true,
+          user: m.user,
+          displayName:
+            `${m.user?.firstName || ''} ${m.user?.lastName || ''}`.trim() || m.user?.email || 'Collaborateur',
+        };
+      });
     });
   }
 
