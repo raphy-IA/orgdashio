@@ -2640,13 +2640,25 @@ export function ProjectDetailScreen() {
                                 className="bg-white text-xs"
                               />
                             </div>
-                            <div className="text-xs text-amber-800 flex items-center">
-                              ℹ️ Un jalon est un point de contrôle clé (durée = 0 jour).
+                            <div>
+                              <label className="mb-1 block text-xs font-bold text-amber-900">
+                                Coût estimé planifié (CAD)
+                              </label>
+                              <Input
+                                type="number"
+                                value={piEstimatedCost}
+                                onChange={(e) => setPiEstimatedCost(e.target.value)}
+                                placeholder="0.00"
+                                className="bg-white text-xs"
+                              />
+                            </div>
+                            <div className="sm:col-span-2 text-xs text-amber-800 flex items-center">
+                              ℹ️ Un jalon est un point de contrôle ou livrable clé (durée = 0 jour).
                             </div>
                           </div>
                         ) : piType === 'phase' || piType === 'activity' ? (
                           <div className="sm:col-span-3 bg-purple-50/70 p-3 rounded-lg border border-purple-200 text-xs text-purple-900 leading-relaxed">
-                            🏛️ <strong>Conteneur WBS :</strong> Les dates et la durée de cette {piType === 'phase' ? 'phase' : 'activité'} seront calculées automatiquement par roll-up à partir de ses sous-tâches.
+                            🏛️ <strong>Conteneur WBS :</strong> Les dates, durées et budgets de cette {piType === 'phase' ? 'phase' : 'activité'} seront consolidés automatiquement par roll-up à partir de ses sous-tâches.
                           </div>
                         ) : (
                           <>
@@ -2658,15 +2670,7 @@ export function ProjectDetailScreen() {
                                 type="number"
                                 min={1}
                                 value={piDuration}
-                                onChange={(e) => {
-                                  const val = e.target.value;
-                                  setPiDuration(val);
-                                  if (piStart && parseInt(val) > 0) {
-                                    const d = new Date(piStart + 'T00:00:00Z');
-                                    d.setUTCDate(d.getUTCDate() + parseInt(val));
-                                    setPiEnd(d.toISOString().split('T')[0]);
-                                  }
-                                }}
+                                onChange={(e) => setPiDuration(e.target.value)}
                                 placeholder="5"
                                 className="bg-white text-xs font-bold font-mono"
                               />
@@ -2674,36 +2678,22 @@ export function ProjectDetailScreen() {
 
                             <div>
                               <label className="mb-1.5 block text-xs font-bold uppercase tracking-wider text-slate-700">
-                                Date de début souhaitée (optionnelle)
-                              </label>
-                              <Input
-                                type="date"
-                                value={piStart}
-                                min={selectedParent?.startDate || undefined}
-                                max={selectedParent?.endDate || undefined}
-                                onChange={(e) => {
-                                  const s = e.target.value;
-                                  setPiStart(s);
-                                  if (s && parseInt(piDuration) > 0) {
-                                    const d = new Date(s + 'T00:00:00Z');
-                                    d.setUTCDate(d.getUTCDate() + parseInt(piDuration));
-                                    setPiEnd(d.toISOString().split('T')[0]);
-                                  }
-                                }}
-                              />
-                            </div>
-
-                            <div>
-                              <label className="mb-1.5 block text-xs font-bold uppercase tracking-wider text-slate-700">
-                                Coût estimé planifié (CAD)
+                                Coût estimé planifié (CAD) - PV
                               </label>
                               <Input
                                 type="number"
                                 value={piEstimatedCost}
                                 onChange={(e) => setPiEstimatedCost(e.target.value)}
                                 placeholder="0.00"
-                                className="bg-white text-xs"
+                                className="bg-white text-xs font-bold"
                               />
+                            </div>
+
+                            <div className="sm:col-span-3 bg-slate-50 border border-slate-200 rounded-lg p-3 text-xs text-slate-600 flex items-start gap-2">
+                              <Calendar className="h-4 w-4 text-indigo-600 shrink-0 mt-0.5" />
+                              <div>
+                                <span className="font-semibold text-slate-800">Ordonnancement automatique (PERT / CPM) :</span> Les dates de début et de fin au calendrier seront calculées automatiquement à partir de la date de démarrage du projet et des contraintes de précédence (liaisons FS, SS, FF, SF).
+                              </div>
                             </div>
 
                             <div className="sm:col-span-3 flex items-center justify-between">
@@ -2719,11 +2709,6 @@ export function ProjectDetailScreen() {
                                 <Sparkles className="h-3.5 w-3.5" />
                                 {showPertInputs ? 'Masquer estimation PERT 3-points' : '🎯 Estimation avancée PERT à 3 points (O, M, P)'}
                               </button>
-                              {piStart && piEnd && (
-                                <span className="text-[11px] text-slate-500 font-medium">
-                                  Période calculée : <strong className="text-slate-800">{piStart} → {piEnd}</strong>
-                                </span>
-                              )}
                             </div>
 
                             {showPertInputs && (
@@ -4237,81 +4222,135 @@ export function ProjectDetailScreen() {
                         <div>
                           <h3 className="flex items-center gap-2 font-bold text-slate-900 text-sm">
                             <TrendingUp className="h-4 w-4 text-indigo-600" />
-                            Planification des Délais, Dates & Coût (PV)
+                            Planification des Délais & Coût (PV)
                           </h3>
                           <p className="text-xs text-slate-500">
-                            Durée nominale, dates au calendrier et budget prévisionnel alloué.
+                            Durée nominale, positionnement au réseau PERT et budget prévisionnel alloué.
                           </p>
                         </div>
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          className="text-xs"
-                          onClick={() => setShowTaskPertEdit(!showTaskPertEdit)}
-                        >
-                          {showTaskPertEdit ? 'Masquer PERT 3-Points' : '🎯 Estimation PERT 3-Points'}
-                        </Button>
+                        {taskType !== 'milestone' && taskType !== 'phase' && taskType !== 'activity' && (
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            className="text-xs"
+                            onClick={() => setShowTaskPertEdit(!showTaskPertEdit)}
+                          >
+                            {showTaskPertEdit ? 'Masquer PERT 3-Points' : '🎯 Estimation PERT 3-Points'}
+                          </Button>
+                        )}
                       </div>
 
-                      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                        <div>
-                          <label className="mb-1 block text-xs font-semibold text-slate-700">Date de début cible</label>
-                          <Input
-                            type="date"
-                            value={taskStart}
-                            onChange={(e) => {
-                              setTaskStart(e.target.value);
-                              if (e.target.value && parseInt(taskDuration) > 0) {
-                                const d = new Date(e.target.value + 'T00:00:00Z');
-                                d.setUTCDate(d.getUTCDate() + parseInt(taskDuration));
-                                setTaskEnd(d.toISOString().split('T')[0]);
-                              }
-                            }}
-                            className="bg-white text-xs"
-                          />
+                      {taskType === 'milestone' ? (
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 bg-amber-50/70 p-3.5 rounded-xl border border-amber-200">
+                          <div>
+                            <label className="mb-1 block text-xs font-bold text-amber-900">Date cible du jalon *</label>
+                            <Input
+                              type="date"
+                              value={taskStart || taskEnd}
+                              onChange={(e) => {
+                                setTaskStart(e.target.value);
+                                setTaskEnd(e.target.value);
+                              }}
+                              className="bg-white text-xs"
+                            />
+                          </div>
+                          <div>
+                            <label className="mb-1 block text-xs font-bold text-amber-900">Coût Estimé Planifié (CAD) - PV</label>
+                            <Input
+                              type="number"
+                              min="0"
+                              step="0.01"
+                              value={taskCost}
+                              onChange={(e) => setTaskCost(e.target.value)}
+                              placeholder="0.00"
+                              className="bg-white text-xs font-bold"
+                            />
+                          </div>
+                          <div className="sm:col-span-2 text-xs text-amber-800">
+                            ℹ️ Un jalon est un point de repère temporel clé ou un événement majeur (durée = 0 jour).
+                          </div>
                         </div>
-                        <div>
-                          <label className="mb-1 block text-xs font-semibold text-slate-700">Date de fin cible</label>
-                          <Input
-                            type="date"
-                            value={taskEnd}
-                            onChange={(e) => setTaskEnd(e.target.value)}
-                            className="bg-white text-xs"
-                          />
+                      ) : taskType === 'phase' || taskType === 'activity' ? (
+                        <div className="bg-purple-50/70 p-4 rounded-xl border border-purple-200 space-y-2 text-xs text-purple-900">
+                          <div className="font-bold flex items-center gap-1.5 text-sm">
+                            🏛️ Conteneur WBS consolidé ({taskType === 'phase' ? 'Phase' : 'Activité'})
+                          </div>
+                          <p>
+                            Les dates, durées et budgets des conteneurs WBS sont calculés automatiquement par agrégation ascendante (roll-up) de leurs sous-éléments.
+                          </p>
+                          <div className="grid grid-cols-3 gap-2 pt-2 text-[11px] font-medium">
+                            <div className="bg-white/80 p-2 rounded border border-purple-100">
+                              <span className="text-purple-600 block text-[10px] uppercase font-bold">Période Roll-up</span>
+                              <strong>{selectedTask.startDate || '—'} → {selectedTask.endDate || '—'}</strong>
+                            </div>
+                            <div className="bg-white/80 p-2 rounded border border-purple-100">
+                              <span className="text-purple-600 block text-[10px] uppercase font-bold">Durée cumulée</span>
+                              <strong>{selectedTask.durationDays || 0} jours ouvrés</strong>
+                            </div>
+                            <div className="bg-white/80 p-2 rounded border border-purple-100">
+                              <span className="text-purple-600 block text-[10px] uppercase font-bold">Budget PV consolidé</span>
+                              <strong>{fmt(selectedTask.estimatedCost || 0)}</strong>
+                            </div>
+                          </div>
                         </div>
-                        <div>
-                          <label className="mb-1 block text-xs font-semibold text-slate-700">Durée (jours ouvrés)</label>
-                          <Input
-                            type="number"
-                            min="0"
-                            value={taskDuration}
-                            onChange={(e) => {
-                              setTaskDuration(e.target.value);
-                              if (taskStart && parseInt(e.target.value) > 0) {
-                                const d = new Date(taskStart + 'T00:00:00Z');
-                                d.setUTCDate(d.getUTCDate() + parseInt(e.target.value));
-                                setTaskEnd(d.toISOString().split('T')[0]);
-                              }
-                            }}
-                            placeholder="5"
-                            className="bg-white font-mono font-bold text-xs"
-                            disabled={taskType === 'milestone'}
-                          />
-                        </div>
+                      ) : (
+                        <div className="space-y-3">
+                          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                            <div>
+                              <label className="mb-1 block text-xs font-bold uppercase tracking-wider text-slate-700">Durée estimée (jours ouvrés) *</label>
+                              <Input
+                                type="number"
+                                min="1"
+                                value={taskDuration}
+                                onChange={(e) => setTaskDuration(e.target.value)}
+                                placeholder="5"
+                                className="bg-white font-mono font-bold text-xs"
+                              />
+                            </div>
+                            <div>
+                              <label className="mb-1 block text-xs font-bold uppercase tracking-wider text-slate-700">Coût Estimé Planifié (CAD) - PV</label>
+                              <Input
+                                type="number"
+                                min="0"
+                                step="0.01"
+                                value={taskCost}
+                                onChange={(e) => setTaskCost(e.target.value)}
+                                placeholder="0.00"
+                                className="bg-white text-xs font-bold"
+                              />
+                            </div>
+                          </div>
 
-                        <div className="sm:col-span-3">
-                          <label className="mb-1 block text-xs font-semibold text-slate-700">Coût Estimé Planifié (CAD) - PV</label>
-                          <Input
-                            type="number"
-                            min="0"
-                            step="0.01"
-                            value={taskCost}
-                            onChange={(e) => setTaskCost(e.target.value)}
-                            placeholder="0.00"
-                            className="bg-white text-xs font-bold"
-                          />
+                          <div className="rounded-xl border border-indigo-100 bg-indigo-50/60 p-3.5 space-y-2">
+                            <div className="flex items-center justify-between">
+                              <span className="text-xs font-bold text-indigo-950 flex items-center gap-1.5">
+                                <Calendar className="h-4 w-4 text-indigo-600" />
+                                Période calculée par le réseau PERT / CPM
+                              </span>
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                onClick={() => syncPertScheduleMutation.mutate()}
+                                disabled={syncPertScheduleMutation.isPending}
+                                className="h-7 text-[11px] bg-white border-indigo-200 text-indigo-700 hover:bg-indigo-50 shadow-none font-semibold"
+                              >
+                                🔄 Synchroniser le réseau
+                              </Button>
+                            </div>
+                            <div className="flex items-center gap-3 text-xs">
+                              <span className="font-mono font-bold text-slate-800 bg-white px-2.5 py-1 rounded border border-indigo-200">
+                                {selectedTask.startDate || 'Non positionnée'} → {selectedTask.endDate || 'Non positionnée'}
+                              </span>
+                              <span className="text-indigo-800 font-medium text-[11px]">
+                                ({selectedTask.durationDays || taskDuration || 1} jours calculés)
+                              </span>
+                            </div>
+                            <p className="text-[11px] text-indigo-700/80 leading-relaxed">
+                              Positionnée automatiquement d'après la date de début du projet ({data.project.startDate || 'T₀'}) et ses antécédents de précédence.
+                            </p>
+                          </div>
                         </div>
-                      </div>
+                      )}
 
                       {showTaskPertEdit && (
                         <div className="rounded-xl border border-indigo-100 bg-indigo-50/50 p-4 space-y-2">
