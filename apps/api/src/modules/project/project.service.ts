@@ -555,6 +555,10 @@ export class ProjectService {
           startDate: input.startDate,
           endDate: input.endDate,
           durationDays: input.durationDays,
+          estimatedCost: input.estimatedCost !== undefined ? input.estimatedCost.toString() : '0',
+          optimisticDays: input.optimisticDays,
+          mostLikelyDays: input.mostLikelyDays,
+          pessimisticDays: input.pessimisticDays,
           assigneePartyId: input.assigneePartyId,
         })
         .returning();
@@ -780,6 +784,22 @@ export class ProjectService {
     });
   }
 
+  async deleteDependency(tenantId: string, projectId: string, dependencyId: string) {
+    return withTenantContext(this.db, tenantId, async (tx) => {
+      const [deleted] = await tx
+        .delete(planDependency)
+        .where(
+          and(
+            eq(planDependency.id, dependencyId),
+            eq(planDependency.tenantId, tenantId)
+          )
+        )
+        .returning();
+      if (!deleted) throw new NotFoundException('Dépendance non trouvée');
+      return { success: true, deletedId: dependencyId };
+    });
+  }
+
   async addBudgetLines(tenantId: string, projectId: string, lines: CreateBudgetLineInput[]) {
     return withTenantContext(this.db, tenantId, async (tx) => {
       const [projBudget] = await tx.select().from(budget).where(eq(budget.projectId, projectId));
@@ -973,6 +993,11 @@ export class ProjectService {
           ...(input.title !== undefined && { title: input.title }),
           ...(input.startDate !== undefined && { startDate: input.startDate }),
           ...(input.endDate !== undefined && { endDate: input.endDate }),
+          ...(input.durationDays !== undefined && { durationDays: input.durationDays }),
+          ...(input.estimatedCost !== undefined && { estimatedCost: input.estimatedCost.toString() }),
+          ...(input.optimisticDays !== undefined && { optimisticDays: input.optimisticDays }),
+          ...(input.mostLikelyDays !== undefined && { mostLikelyDays: input.mostLikelyDays }),
+          ...(input.pessimisticDays !== undefined && { pessimisticDays: input.pessimisticDays }),
           ...(input.progressPct !== undefined && { progressPct: input.progressPct }),
           ...(input.status !== undefined && { status: input.status }),
           ...(input.assigneePartyId !== undefined && { assigneePartyId: input.assigneePartyId }),

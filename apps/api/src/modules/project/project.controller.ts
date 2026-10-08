@@ -123,6 +123,15 @@ export class ProjectController {
     return this.projectService.addDependency(req.tenantId, id, parsed);
   }
 
+  @Delete(':id/dependencies/:dependencyId')
+  async deleteDependency(
+    @Req() req: any,
+    @Param('id') id: string,
+    @Param('dependencyId') dependencyId: string,
+  ) {
+    return this.projectService.deleteDependency(req.tenantId, id, dependencyId);
+  }
+
   @Post(':id/budget-lines')
   async addBudgetLines(@Req() req: any, @Param('id') id: string, @Body() body: any) {
     const parsed = Array.isArray(body)

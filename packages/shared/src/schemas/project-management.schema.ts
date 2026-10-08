@@ -29,6 +29,10 @@ export const CreatePlanItemSchema = z.object({
   startDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
   endDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
   durationDays: z.number().int().min(1).default(1),
+  estimatedCost: z.number().nonnegative().optional().default(0),
+  optimisticDays: z.number().int().min(1).optional().nullable(),
+  mostLikelyDays: z.number().int().min(1).optional().nullable(),
+  pessimisticDays: z.number().int().min(1).optional().nullable(),
   assigneePartyId: z.string().uuid().optional(),
 });
 
@@ -91,6 +95,11 @@ export const UpdatePlanItemSchema = z.object({
   title: z.string().min(2).optional(),
   startDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
   endDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
+  durationDays: z.number().int().min(1).optional(),
+  estimatedCost: z.number().nonnegative().optional(),
+  optimisticDays: z.number().int().min(1).optional().nullable(),
+  mostLikelyDays: z.number().int().min(1).optional().nullable(),
+  pessimisticDays: z.number().int().min(1).optional().nullable(),
   progressPct: z.number().int().min(0).max(100).optional(),
   status: z.enum(['todo', 'in_progress', 'blocked', 'completed', 'cancelled']).optional(),
   assigneePartyId: z.string().uuid().nullable().optional(),

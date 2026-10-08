@@ -1199,6 +1199,10 @@ export const planItem = pgTable(
     startDate: date('start_date'),
     endDate: date('end_date'),
     durationDays: integer('duration_days').default(1),
+    estimatedCost: numeric('estimated_cost', { precision: 19, scale: 4 }).default('0'),
+    optimisticDays: integer('optimistic_days'),
+    mostLikelyDays: integer('most_likely_days'),
+    pessimisticDays: integer('pessimistic_days'),
     progressPct: integer('progress_pct').notNull().default(0),
     status: text('status', {
       enum: ['todo', 'in_progress', 'blocked', 'completed', 'cancelled'],
