@@ -81,6 +81,7 @@ export function GrantDetailScreen() {
 
   // Edit Grant modal state
   const [showEditGrantModal, setShowEditGrantModal] = useState(false);
+  const [editFunderId, setEditFunderId] = useState('');
   const [editTitle, setEditTitle] = useState('');
   const [editFunderName, setEditFunderName] = useState('');
   const [editFunderType, setEditFunderType] = useState<
@@ -136,6 +137,16 @@ export function GrantDetailScreen() {
       return res.json();
     },
     enabled: !!id,
+  });
+
+  // Fetch Funders Directory
+  const { data: funders = [] } = useQuery({
+    queryKey: ['funders'],
+    queryFn: async () => {
+      const res = await fetch('/api/v1/grants/funders');
+      if (!res.ok) return [];
+      return res.json();
+    },
   });
 
   React.useEffect(() => {
@@ -358,6 +369,12 @@ export function GrantDetailScreen() {
 
   const openEditGrant = () => {
     if (!grant) return;
+    const matchedFunder = funders.find(
+      (f: any) =>
+        (grant as any).funderId === f.id ||
+        f.name.trim().toLowerCase() === grant.funderName.trim().toLowerCase()
+    );
+    setEditFunderId(matchedFunder ? matchedFunder.id : 'custom');
     setEditTitle(grant.title);
     setEditFunderName(grant.funderName);
     setEditFunderType(grant.funderType);
@@ -377,6 +394,7 @@ export function GrantDetailScreen() {
     e.preventDefault();
     updateGrantMutation.mutate({
       title: editTitle,
+      funderId: editFunderId && editFunderId !== 'custom' ? editFunderId : null,
       funderName: editFunderName,
       funderType: editFunderType,
       programName: editProgramName || null,
@@ -1132,33 +1150,93 @@ export function GrantDetailScreen() {
                   />
                 </div>
 
-                <div>
-                  <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">
-                    Nom du bailleur *
-                  </label>
-                  <Input
-                    value={editFunderName}
-                    onChange={(e: any) => setEditFunderName(e.target.value)}
-                    required
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">
-                    Type de bailleur *
+                {/* Funder selection section */}
+                <div className="sm:col-span-2 space-y-2">
+                  <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300">
+                    Bailleur de fonds institutionnel *
                   </label>
                   <select
-                    value={editFunderType}
-                    onChange={(e: any) => setEditFunderType(e.target.value)}
                     className="w-full h-10 px-3 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-sm"
+                    value={editFunderId}
+                    onChange={(e) => {
+                      const selId = e.target.value;
+                      setEditFunderId(selId);
+                      if (selId && selId !== 'custom') {
+                        const found = funders.find((f: any) => f.id === selId);
+                        if (found) {
+                          setEditFunderName(found.name);
+                          setEditFunderType(found.type);
+                        }
+                      }
+                    }}
+                    required
                   >
-                    <option value="foundation">Fondation</option>
-                    <option value="provincial">Provincial</option>
-                    <option value="federal">Fédéral</option>
-                    <option value="municipal">Municipal</option>
-                    <option value="corporate">Entreprise / RSE</option>
-                    <option value="other">Autre</option>
+                    <option value="">-- Sélectionnez un bailleur dans le répertoire --</option>
+                    {funders.map((f: any) => (
+                      <option key={f.id} value={f.id}>
+                        🏛️ {f.name} ({f.code}) — {f.type}
+                      </option>
+                    ))}
+                    <option value="custom">✍️ Saisie libre (Bailleur temporaire / hors répertoire)</option>
                   </select>
+
+                  {/* Funder summary card if registered funder selected */}
+                  {(() => {
+                    const selectedFunder = funders.find((f: any) => f.id === editFunderId);
+                    if (!selectedFunder) return null;
+                    return (
+                      <div className="p-3 bg-indigo-50/70 dark:bg-indigo-950/30 border border-indigo-100 dark:border-indigo-900 rounded-xl flex items-center justify-between text-xs">
+                        <div className="flex items-center gap-3">
+                          <span className="font-mono font-black text-indigo-700 dark:text-indigo-400 bg-indigo-100 dark:bg-indigo-900 px-2 py-0.5 rounded">
+                            {selectedFunder.code}
+                          </span>
+                          <div>
+                            <div className="font-bold text-slate-900 dark:text-white">{selectedFunder.name}</div>
+                            <div className="text-slate-500">
+                              {selectedFunder.contactPerson ? `Contact : ${selectedFunder.contactPerson}` : ''}
+                              {selectedFunder.contactEmail ? ` • ${selectedFunder.contactEmail}` : ''}
+                            </div>
+                          </div>
+                        </div>
+                        <span className="text-[10px] uppercase font-bold text-indigo-600 bg-indigo-50 dark:bg-indigo-900/50 px-2 py-0.5 rounded border border-indigo-200 dark:border-indigo-800">
+                          {getFunderTypeLabel(selectedFunder.type)}
+                        </span>
+                      </div>
+                    );
+                  })()}
+
+                  {/* Manual inputs if custom */}
+                  {editFunderId === 'custom' && (
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 p-3 bg-amber-50/60 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-900 rounded-xl mt-2">
+                      <div>
+                        <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">
+                          Nom du bailleur *
+                        </label>
+                        <Input
+                          value={editFunderName}
+                          onChange={(e: any) => setEditFunderName(e.target.value)}
+                          required
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">
+                          Type de bailleur *
+                        </label>
+                        <select
+                          value={editFunderType}
+                          onChange={(e: any) => setEditFunderType(e.target.value)}
+                          className="w-full h-10 px-3 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-sm"
+                        >
+                          <option value="foundation">Fondation</option>
+                          <option value="provincial">Provincial</option>
+                          <option value="federal">Fédéral</option>
+                          <option value="municipal">Municipal</option>
+                          <option value="corporate">Entreprise / RSE</option>
+                          <option value="other">Autre</option>
+                        </select>
+                      </div>
+                    </div>
+                  )}
                 </div>
 
                 <div>

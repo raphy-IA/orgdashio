@@ -1117,60 +1117,132 @@ export function GrantListScreen() {
                 }}
                 className="space-y-4"
               >
-                {/* Select from existing funders or manual */}
-                <div className="p-3 bg-slate-50 rounded-xl border border-slate-200 space-y-2">
-                  <label className="text-xs font-bold text-slate-800 flex items-center gap-1.5">
-                    <Landmark className="w-4 h-4 text-indigo-600" /> Choisir un Bailleur Institutionnel
-                  </label>
+                {/* Funder selection section */}
+                <div className="space-y-2">
+                  <div className="flex items-center justify-between">
+                    <label className="text-xs font-bold text-slate-800 flex items-center gap-1.5">
+                      <Landmark className="w-4 h-4 text-indigo-600" /> Bailleur de Fonds Institutionnel *
+                    </label>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setShowGrantModal(false);
+                        resetFunderForm();
+                        setShowFunderModal(true);
+                      }}
+                      className="text-xs text-indigo-600 hover:text-indigo-800 font-semibold hover:underline flex items-center gap-1"
+                    >
+                      <Plus className="w-3.5 h-3.5" /> Nouveau bailleur
+                    </button>
+                  </div>
+
                   <select
-                    className="w-full border border-slate-300 rounded-lg p-2 text-sm bg-white"
+                    className="w-full border border-slate-300 rounded-lg p-2.5 text-sm bg-white text-slate-900 font-medium focus:ring-2 focus:ring-indigo-500 focus:outline-none"
                     value={grantFunderId}
                     onChange={(e) => {
                       const selId = e.target.value;
                       setGrantFunderId(selId);
-                      if (selId) {
+                      if (selId && selId !== 'custom') {
                         const found = funders.find((f: any) => f.id === selId);
                         if (found) {
                           setFunderName(found.name);
                           setFunderType(found.type);
                         }
+                      } else if (selId === 'custom') {
+                        setFunderName('');
+                        setFunderType('foundation');
                       }
                     }}
+                    required
                   >
-                    <option value="">-- Saisie libre ou bailleur non répertorié --</option>
+                    <option value="">-- Sélectionnez un bailleur dans le répertoire --</option>
                     {funders.map((f: any) => (
                       <option key={f.id} value={f.id}>
-                        🏛️ {f.name} ({f.code}) — {f.type}
+                        🏛️ {f.name} ({f.code})
                       </option>
                     ))}
+                    <option value="custom">✍️ Saisie libre (Bailleur temporaire ou hors répertoire)</option>
                   </select>
+
+                  {/* Summary card for selected funder */}
+                  {(() => {
+                    const selectedFunder = funders.find((f: any) => f.id === grantFunderId);
+                    if (!selectedFunder) return null;
+                    return (
+                      <div className="p-3 bg-indigo-50/70 border border-indigo-100 rounded-xl flex items-center justify-between text-xs mt-2">
+                        <div className="flex items-center gap-3">
+                          <span className="font-mono font-black text-indigo-700 bg-indigo-100 px-2 py-1 rounded">
+                            {selectedFunder.code}
+                          </span>
+                          <div>
+                            <div className="font-bold text-slate-900 text-sm">{selectedFunder.name}</div>
+                            <div className="text-slate-500">
+                              {selectedFunder.contactPerson ? `Contact : ${selectedFunder.contactPerson}` : ''}
+                              {selectedFunder.contactEmail ? ` • ${selectedFunder.contactEmail}` : ''}
+                            </div>
+                          </div>
+                        </div>
+                        {getFunderTypeBadge(selectedFunder.type)}
+                      </div>
+                    );
+                  })()}
+
+                  {/* Custom manual funder inputs if selected */}
+                  {grantFunderId === 'custom' && (
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-3 p-3.5 bg-amber-50/60 border border-amber-200 rounded-xl mt-2">
+                      <div>
+                        <label className="text-xs font-semibold text-slate-700">Nom de l'organisme bailleur *</label>
+                        <Input
+                          value={funderName}
+                          onChange={(e) => setFunderName(e.target.value)}
+                          placeholder="Ex: Fondation McConnell..."
+                          required
+                        />
+                      </div>
+                      <div>
+                        <label className="text-xs font-semibold text-slate-700">Type d'organisme *</label>
+                        <select
+                          className="w-full border border-slate-300 rounded-lg p-2 text-sm bg-white mt-1"
+                          value={funderType}
+                          onChange={(e: any) => setFunderType(e.target.value)}
+                        >
+                          <option value="foundation">Fondation Philanthropique</option>
+                          <option value="federal">Fédéral (Canada / GAC / IRCC)</option>
+                          <option value="provincial">Provincial (Québec)</option>
+                          <option value="municipal">Municipal / Ville</option>
+                          <option value="corporate">Entreprise / Mécénat</option>
+                          <option value="other">Autre</option>
+                        </select>
+                      </div>
+                    </div>
+                  )}
                 </div>
 
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                {/* Dossier Code & Program */}
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-3 pt-2">
                   <div>
-                    <label className="text-xs font-semibold text-slate-700">Code Dossier (ex. SUBV-2026-001)</label>
-                    <Input value={code} onChange={(e) => setCode(e.target.value.toUpperCase())} required />
+                    <label className="text-xs font-semibold text-slate-700">Code Dossier (ex. SUBV-2026-001) *</label>
+                    <Input
+                      value={code}
+                      onChange={(e) => setCode(e.target.value.toUpperCase())}
+                      placeholder="SUBV-2026-01"
+                      required
+                    />
                   </div>
                   <div>
-                    <label className="text-xs font-semibold text-slate-700">Type de Bailleur</label>
-                    <select
-                      className="w-full border border-slate-300 rounded-lg p-2 text-sm bg-white mt-1"
-                      value={funderType}
-                      onChange={(e: any) => setFunderType(e.target.value)}
-                    >
-                      <option value="foundation">Fondation Philanthropique</option>
-                      <option value="federal">Fédéral (Canada / GAC / IRCC)</option>
-                      <option value="provincial">Provincial (Québec)</option>
-                      <option value="municipal">Municipal / Ville</option>
-                      <option value="corporate">Entreprise / Mécénat</option>
-                      <option value="other">Autre</option>
-                    </select>
+                    <label className="text-xs font-semibold text-slate-700">Programme de Financement / Volet</label>
+                    <Input
+                      value={programName}
+                      onChange={(e) => setProgramName(e.target.value)}
+                      placeholder="Ex: Programme d'Appui Communautaire"
+                    />
                   </div>
                 </div>
 
+                {/* Dossier Title */}
                 <div>
                   <label className="text-xs font-semibold text-slate-700">
-                    Intitulé de la Subvention / Appel à projet
+                    Intitulé de la Subvention / Appel à projet *
                   </label>
                   <Input
                     value={title}
@@ -1180,63 +1252,45 @@ export function GrantListScreen() {
                   />
                 </div>
 
+                {/* Linked Project & Status */}
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                   <div>
-                    <label className="text-xs font-semibold text-slate-700">Nom du Bailleur</label>
-                    <Input
-                      value={funderName}
-                      onChange={(e) => setFunderName(e.target.value)}
-                      placeholder="Ex: Centraide, Fondation McConnell..."
-                      required
-                    />
-                  </div>
-                  <div>
-                    <label className="text-xs font-semibold text-slate-700">Programme de Financement</label>
-                    <Input
-                      value={programName}
-                      onChange={(e) => setProgramName(e.target.value)}
-                      placeholder="Ex: Programme d'Appui Communautaire"
-                    />
-                  </div>
-                </div>
-
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                  <div>
-                    <label className="text-xs font-semibold text-slate-700">Projet rattaché</label>
+                    <label className="text-xs font-semibold text-slate-700">Projet opérationnel rattaché</label>
                     <select
                       className="w-full border border-slate-300 rounded-lg p-2 text-sm bg-white mt-1"
                       value={projectId}
                       onChange={(e) => setProjectId(e.target.value)}
                     >
-                      <option value="">Aucun (Non rattaché)</option>
+                      <option value="">Aucun (Dossier autonome)</option>
                       {projects.map((p: any) => (
                         <option key={p.id} value={p.id}>
-                          {p.name}
+                          📁 {p.code} — {p.name}
                         </option>
                       ))}
                     </select>
                   </div>
 
                   <div>
-                    <label className="text-xs font-semibold text-slate-700">Statut du Dossier</label>
+                    <label className="text-xs font-semibold text-slate-700">Statut du Dossier *</label>
                     <select
                       className="w-full border border-slate-300 rounded-lg p-2 text-sm bg-white mt-1"
                       value={status}
                       onChange={(e: any) => setStatus(e.target.value)}
                     >
-                      <option value="prospect">Prospection (Veille)</option>
+                      <option value="prospect">Prospection (Veille / Opportunité)</option>
                       <option value="drafting">En rédaction</option>
                       <option value="submitted">Déposée (En étude)</option>
-                      <option value="approved">Accordée (En cours)</option>
+                      <option value="approved">Accordée (Convention signée)</option>
                       <option value="rejected">Non retenue</option>
                       <option value="closed">Clôturée</option>
                     </select>
                   </div>
                 </div>
 
+                {/* Requested and Awarded Amounts */}
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                   <div>
-                    <label className="text-xs font-semibold text-slate-700">Montant Demandé ($ CAD)</label>
+                    <label className="text-xs font-semibold text-slate-700">Montant Demandé ($ CAD) *</label>
                     <Input
                       type="number"
                       value={requestedAmount}
@@ -1245,15 +1299,19 @@ export function GrantListScreen() {
                     />
                   </div>
                   <div>
-                    <label className="text-xs font-semibold text-slate-700">Montant Octroyé ($ CAD si accordé)</label>
+                    <label className="text-xs font-semibold text-slate-700">
+                      Montant Octroyé ($ CAD) {status === 'approved' ? '*' : '(si accordé)'}
+                    </label>
                     <Input
                       type="number"
                       value={awardedAmount}
                       onChange={(e) => setAwardedAmount(Number(e.target.value))}
+                      placeholder={status === 'approved' ? 'Montant accordé' : '0'}
                     />
                   </div>
                 </div>
 
+                {/* Dates */}
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
                   <div>
                     <label className="text-xs font-semibold text-slate-700">Date limite de dépôt</label>
@@ -1273,9 +1331,14 @@ export function GrantListScreen() {
                   </div>
                 </div>
 
+                {/* Notes */}
                 <div>
                   <label className="text-xs font-semibold text-slate-700">Notes & Alignement stratégique</label>
-                  <Input value={notes} onChange={(e) => setNotes(e.target.value)} />
+                  <Input
+                    value={notes}
+                    onChange={(e) => setNotes(e.target.value)}
+                    placeholder="Précisions sur les livrables clés ou objectifs du bailleur..."
+                  />
                 </div>
 
                 <div className="flex justify-end gap-2 pt-4 border-t border-slate-100">
