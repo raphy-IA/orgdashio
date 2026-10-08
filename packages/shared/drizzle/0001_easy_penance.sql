@@ -326,22 +326,22 @@ CREATE TABLE IF NOT EXISTS "user_hr_profile" (
 	CONSTRAINT "user_hr_profile_tenant_id_user_id_unique" UNIQUE("tenant_id","user_id")
 );
 --> statement-breakpoint
-ALTER TABLE "indicator" ADD COLUMN "description" text;--> statement-breakpoint
-ALTER TABLE "indicator" ADD COLUMN "means_of_verification" text;--> statement-breakpoint
-ALTER TABLE "indicator" ADD COLUMN "disaggregation_dimensions" jsonb;--> statement-breakpoint
-ALTER TABLE "indicator" ADD COLUMN "status" text DEFAULT 'active' NOT NULL;--> statement-breakpoint
-ALTER TABLE "indicator" ADD COLUMN "updated_at" timestamp with time zone DEFAULT now() NOT NULL;--> statement-breakpoint
-ALTER TABLE "indicator_observation" ADD COLUMN "disaggregation_data" jsonb;--> statement-breakpoint
-ALTER TABLE "indicator_observation" ADD COLUMN "source_file_url" text;--> statement-breakpoint
-ALTER TABLE "project" ADD COLUMN "description" text;--> statement-breakpoint
-ALTER TABLE "project" ADD COLUMN "start_date" date;--> statement-breakpoint
-ALTER TABLE "project" ADD COLUMN "end_date" date;--> statement-breakpoint
-ALTER TABLE "tenant_registry" ADD COLUMN "charity_registration_number" text;--> statement-breakpoint
-ALTER TABLE "tenant_registry" ADD COLUMN "authorized_signer_name" text;--> statement-breakpoint
-ALTER TABLE "tenant_registry" ADD COLUMN "authorized_signer_title" text;--> statement-breakpoint
-ALTER TABLE "tenant_registry" ADD COLUMN "currency" text DEFAULT 'CAD';--> statement-breakpoint
-ALTER TABLE "tenant_registry" ADD COLUMN "fiscal_year_end" text DEFAULT '12-31';--> statement-breakpoint
-ALTER TABLE "tenant_registry" ADD COLUMN "timezone" text DEFAULT 'America/Toronto';--> statement-breakpoint
+ALTER TABLE "indicator" ADD COLUMN IF NOT EXISTS "description" text;--> statement-breakpoint
+ALTER TABLE "indicator" ADD COLUMN IF NOT EXISTS "means_of_verification" text;--> statement-breakpoint
+ALTER TABLE "indicator" ADD COLUMN IF NOT EXISTS "disaggregation_dimensions" jsonb;--> statement-breakpoint
+ALTER TABLE "indicator" ADD COLUMN IF NOT EXISTS "status" text DEFAULT 'active' NOT NULL;--> statement-breakpoint
+ALTER TABLE "indicator" ADD COLUMN IF NOT EXISTS "updated_at" timestamp with time zone DEFAULT now() NOT NULL;--> statement-breakpoint
+ALTER TABLE "indicator_observation" ADD COLUMN IF NOT EXISTS "disaggregation_data" jsonb;--> statement-breakpoint
+ALTER TABLE "indicator_observation" ADD COLUMN IF NOT EXISTS "source_file_url" text;--> statement-breakpoint
+ALTER TABLE "project" ADD COLUMN IF NOT EXISTS "description" text;--> statement-breakpoint
+ALTER TABLE "project" ADD COLUMN IF NOT EXISTS "start_date" date;--> statement-breakpoint
+ALTER TABLE "project" ADD COLUMN IF NOT EXISTS "end_date" date;--> statement-breakpoint
+ALTER TABLE "tenant_registry" ADD COLUMN IF NOT EXISTS "charity_registration_number" text;--> statement-breakpoint
+ALTER TABLE "tenant_registry" ADD COLUMN IF NOT EXISTS "authorized_signer_name" text;--> statement-breakpoint
+ALTER TABLE "tenant_registry" ADD COLUMN IF NOT EXISTS "authorized_signer_title" text;--> statement-breakpoint
+ALTER TABLE "tenant_registry" ADD COLUMN IF NOT EXISTS "currency" text DEFAULT 'CAD';--> statement-breakpoint
+ALTER TABLE "tenant_registry" ADD COLUMN IF NOT EXISTS "fiscal_year_end" text DEFAULT '12-31';--> statement-breakpoint
+ALTER TABLE "tenant_registry" ADD COLUMN IF NOT EXISTS "timezone" text DEFAULT 'America/Toronto';--> statement-breakpoint
 DO $$ BEGIN
  ALTER TABLE "case_referral" ADD CONSTRAINT "case_referral_tenant_id_case_file_id_case_file_tenant_id_id_fk" FOREIGN KEY ("tenant_id","case_file_id") REFERENCES "public"."case_file"("tenant_id","id") ON DELETE cascade ON UPDATE no action;
 EXCEPTION
