@@ -228,7 +228,7 @@ export function GrantListScreen() {
               setShowModal(true);
             }}
           >
-            <Plus className="w-4 h-4 mr-2" /> Nouvelle subvention
+            <Plus className="w-4 h-4 mr-2" /> Nouveau Bailleur / Subvention
           </Button>
         </div>
 
@@ -686,7 +686,7 @@ export function GrantListScreen() {
           <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-50 overflow-y-auto">
             <div className="bg-white rounded-2xl p-6 max-w-2xl w-full space-y-4 my-8 max-h-[90vh] overflow-y-auto shadow-xl">
               <div className="flex justify-between items-center pb-2 border-b border-slate-100">
-                <h3 className="text-lg font-bold text-slate-900">Nouveau Dossier de Subvention (GRN-01)</h3>
+                <h3 className="text-lg font-bold text-slate-900">Enregistrer un Nouveau Bailleur / Dossier de Subvention</h3>
                 <button
                   onClick={() => setShowModal(false)}
                   className="text-slate-400 hover:text-slate-600 font-bold text-xl"
