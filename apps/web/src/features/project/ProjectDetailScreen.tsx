@@ -3583,321 +3583,389 @@ export function ProjectDetailScreen() {
                   </div>
                 </div>
 
-                {/* 2. Délais, Coût Prévisionnel & Estimation PERT 3-Points */}
-                <div className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
-                  <div className="flex items-center justify-between border-b pb-3">
-                    <div>
-                      <h3 className="flex items-center gap-2 font-bold text-slate-900">
-                        <TrendingUp className="h-4 w-4 text-indigo-600" />
-                        Planification Délais, Coût & Évaluation PERT
-                      </h3>
-                      <p className="text-xs text-slate-500">
-                        Paramétrez la durée de référence, le coût budgété (PV) et l'estimation 3-points (O, M, P).
-                      </p>
-                    </div>
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      className="text-xs"
-                      onClick={() => setShowTaskPertEdit(!showTaskPertEdit)}
-                    >
-                      {showTaskPertEdit ? 'Masquer PERT 3-Points' : 'Afficher PERT 3-Points'}
-                    </Button>
-                  </div>
-
-                  <div className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-2">
-                    <div>
-                      <label className="mb-1 block text-xs font-semibold text-slate-700">Durée nominale (jours)</label>
-                      <Input
-                        type="number"
-                        min="0"
-                        value={taskDuration}
-                        onChange={(e) => setTaskDuration(e.target.value)}
-                        placeholder="Ex: 5"
-                        disabled={selectedTask.type === 'milestone'}
-                      />
-                    </div>
-                    <div>
-                      <label className="mb-1 block text-xs font-semibold text-slate-700">Coût Prévisionnel / Budget alloué ($ CAD)</label>
-                      <Input
-                        type="number"
-                        min="0"
-                        step="0.01"
-                        value={taskCost}
-                        onChange={(e) => setTaskCost(e.target.value)}
-                        placeholder="0.00"
-                      />
-                    </div>
-                  </div>
-
-                  {showTaskPertEdit && (
-                    <div className="mt-4 rounded-xl border border-indigo-100 bg-indigo-50/50 p-4">
-                      <div className="mb-2 flex items-center justify-between">
-                        <span className="text-xs font-bold text-indigo-900">Estimation PERT à 3 Points</span>
-                        <span className="font-mono text-[11px] text-indigo-600">Te = (O + 4M + P) / 6</span>
+                {/* 2 & 3: Selon le type d'élément (Conteneur de synthèse vs Tâche/Jalon opérationnel) */}
+                {selectedTask.type === 'phase' || selectedTask.type === 'activity' ? (
+                  /* ── Conteneur WBS (Phase ou Activité de regroupement) ── */
+                  <div className="rounded-xl border border-indigo-200 bg-indigo-50/50 p-5 space-y-4 shadow-sm">
+                    <div className="flex items-center gap-2.5">
+                      <span className="flex h-9 w-9 items-center justify-center rounded-lg bg-indigo-600 text-white font-bold">
+                        <Layers className="h-5 w-5" />
+                      </span>
+                      <div>
+                        <h3 className="font-bold text-indigo-950 text-sm">
+                          Conteneur WBS de synthèse ({selectedTask.type === 'phase' ? 'Phase' : 'Activité'})
+                        </h3>
+                        <p className="text-xs text-slate-500">
+                          Élément de regroupement hiérarchique dans la structure WBS
+                        </p>
                       </div>
-                      <div className="grid grid-cols-3 gap-2">
-                        <div>
-                          <label className="mb-1 block text-[11px] font-medium text-slate-600">Optimiste (O)</label>
-                          <Input
-                            type="number"
-                            min="0"
-                            value={taskOptimistic}
-                            onChange={(e) => setTaskOptimistic(e.target.value)}
-                            placeholder="Min j"
-                            className="bg-white text-xs"
-                          />
-                        </div>
-                        <div>
-                          <label className="mb-1 block text-[11px] font-medium text-slate-600">Plus probable (M)</label>
-                          <Input
-                            type="number"
-                            min="0"
-                            value={taskMostLikely}
-                            onChange={(e) => setTaskMostLikely(e.target.value)}
-                            placeholder="Moy j"
-                            className="bg-white text-xs"
-                          />
-                        </div>
-                        <div>
-                          <label className="mb-1 block text-[11px] font-medium text-slate-600">Pessimiste (P)</label>
-                          <Input
-                            type="number"
-                            min="0"
-                            value={taskPessimistic}
-                            onChange={(e) => setTaskPessimistic(e.target.value)}
-                            placeholder="Max j"
-                            className="bg-white text-xs"
-                          />
-                        </div>
-                      </div>
-                      {taskOptimistic && taskMostLikely && taskPessimistic && (
-                        <div className="mt-3 flex items-center justify-between rounded-lg bg-white p-2.5 text-xs">
-                          <span className="text-slate-600">
-                            Durée calculée Te : <strong className="text-indigo-700">{((parseFloat(taskOptimistic) + 4 * parseFloat(taskMostLikely) + parseFloat(taskPessimistic)) / 6).toFixed(1)} j</strong>
-                          </span>
-                          <span className="text-slate-500">
-                            Écart-type σ : <strong>{((parseFloat(taskPessimistic) - parseFloat(taskOptimistic)) / 6).toFixed(2)} j</strong>
-                          </span>
-                        </div>
-                      )}
                     </div>
-                  )}
 
-                  <div className="mt-4 flex justify-end">
-                    <Button
-                      size="sm"
-                      onClick={() => updateTaskParamsMutation.mutate()}
-                      disabled={updateTaskParamsMutation.isPending}
-                    >
-                      <Check className="mr-1.5 h-3.5 w-3.5" />
-                      Enregistrer les paramètres
-                    </Button>
+                    <div className="rounded-lg border border-indigo-100 bg-white p-3 text-xs text-slate-600 leading-relaxed">
+                      💡 <strong>Règle de gestion de projet (WBS / PERT) :</strong> Les phases et activités sont des conteneurs logiques. Leurs dates, leur durée, leurs coûts et leur avancement sont automatiquement <strong>consolidés (rollup)</strong> à partir des tâches opérationnelles et des jalons qu'ils englobent. Les dépendances de réseau (PERT / PDM) s'appliquent directement sur les sous-tâches.
+                    </div>
+
+                    {(() => {
+                      // Collect all recursive child tasks & milestones
+                      const collectChildren = (parentId: string): any[] => {
+                        const direct = planItems.filter((p: any) => p.parentId === parentId);
+                        let res = [...direct];
+                        direct.forEach((d: any) => {
+                          res = res.concat(collectChildren(d.id));
+                        });
+                        return res;
+                      };
+                      const descendants = collectChildren(selectedTask.id);
+                      const childTasks = descendants.filter((d: any) => d.type === 'task' || d.type === 'milestone');
+                      const totalCost = childTasks.reduce((s: number, t: any) => s + (parseFloat(t.estimatedCost) || 0), 0);
+                      const completedCount = childTasks.filter((t: any) => t.progressPct === 100 || t.status === 'completed').length;
+
+                      return (
+                        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 pt-1">
+                          <div className="bg-white rounded-lg p-3 border border-indigo-100 shadow-2xs">
+                            <span className="text-[10px] text-slate-400 block font-bold uppercase tracking-wider">Sous-tâches & Jalons</span>
+                            <span className="font-extrabold text-slate-800 text-base">{childTasks.length}</span>
+                          </div>
+                          <div className="bg-white rounded-lg p-3 border border-indigo-100 shadow-2xs">
+                            <span className="text-[10px] text-slate-400 block font-bold uppercase tracking-wider">Tâches Terminées</span>
+                            <span className="font-extrabold text-emerald-700 text-base">{completedCount} / {childTasks.length}</span>
+                          </div>
+                          <div className="bg-white rounded-lg p-3 border border-indigo-100 shadow-2xs">
+                            <span className="text-[10px] text-slate-400 block font-bold uppercase tracking-wider">Budget Consolidé</span>
+                            <span className="font-extrabold text-indigo-700 text-base">{fmt(totalCost)}</span>
+                          </div>
+                          <div className="bg-white rounded-lg p-3 border border-indigo-100 shadow-2xs">
+                            <span className="text-[10px] text-slate-400 block font-bold uppercase tracking-wider">Avancement Global</span>
+                            <span className="font-extrabold text-indigo-900 text-base">{selectedTask.progressPct || 0}%</span>
+                          </div>
+                        </div>
+                      );
+                    })()}
                   </div>
-                </div>
-
-                {/* 3. Dépendances & Liaisons Réseau PDM */}
-                {(() => {
-                  const incomingDeps = (dependencies || []).filter((d: any) => d.successorId === selectedTask.id);
-                  const outgoingDeps = (dependencies || []).filter((d: any) => d.predecessorId === selectedTask.id);
-                  const availablePredecessors = planItems.filter((p: any) => p.id !== selectedTask.id);
-
-                  const DEP_TYPE_LABELS: Record<string, string> = {
-                    FS: 'Fin à Début (FS)',
-                    SS: 'Début à Début (SS)',
-                    FF: 'Fin à Fin (FF)',
-                    SF: 'Début à Fin (SF)',
-                  };
-
-                  return (
+                ) : (
+                  <>
+                    {/* 2. Délais, Coût Prévisionnel & Estimation PERT 3-Points */}
                     <div className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
                       <div className="flex items-center justify-between border-b pb-3">
                         <div>
                           <h3 className="flex items-center gap-2 font-bold text-slate-900">
-                            <GitBranch className="h-4 w-4 text-violet-600" />
-                            Liaisons & Dépendances Réseau (PDM)
+                            <TrendingUp className="h-4 w-4 text-indigo-600" />
+                            Planification Délais, Coût & Évaluation PERT
                           </h3>
                           <p className="text-xs text-slate-500">
-                            Contraintes de précédence définissant le chemin critique et le diagramme PERT.
+                            Paramétrez la durée de référence, le coût budgété (PV) et l'estimation 3-points (O, M, P).
                           </p>
                         </div>
                         <Button
                           size="sm"
                           variant="outline"
-                          onClick={() => setShowAddDepForm(!showAddDepForm)}
                           className="text-xs"
+                          onClick={() => setShowTaskPertEdit(!showTaskPertEdit)}
                         >
-                          <Plus className="mr-1 h-3.5 w-3.5" />
-                          Ajouter une liaison
+                          {showTaskPertEdit ? 'Masquer PERT 3-Points' : 'Afficher PERT 3-Points'}
                         </Button>
                       </div>
 
-                      {/* Formulaire d'ajout de liaison */}
-                      {showAddDepForm && (
-                        <div className="mt-4 rounded-xl border border-violet-200 bg-violet-50/60 p-4">
-                          <h4 className="mb-3 text-xs font-bold text-violet-900">Nouvelle contrainte de précédence (Antécédent)</h4>
-                          <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
-                            <div className="sm:col-span-1">
-                              <label className="mb-1 block text-xs font-semibold text-slate-700">Tâche Antécédente *</label>
-                              <select
-                                value={depPredId}
-                                onChange={(e) => setDepPredId(e.target.value)}
-                                className="w-full rounded-lg border border-slate-200 bg-white px-2.5 py-2 text-xs font-medium text-slate-700"
-                              >
-                                <option value="">— Sélectionner —</option>
-                                {availablePredecessors.map((p: any) => (
-                                  <option key={p.id} value={p.id}>
-                                    {p.wbs ? `[${p.wbs}] ` : ''}{p.title}
-                                  </option>
-                                ))}
-                              </select>
-                            </div>
+                      <div className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-2">
+                        <div>
+                          <label className="mb-1 block text-xs font-semibold text-slate-700">Durée nominale (jours)</label>
+                          <Input
+                            type="number"
+                            min="0"
+                            value={taskDuration}
+                            onChange={(e) => setTaskDuration(e.target.value)}
+                            placeholder="Ex: 5"
+                            disabled={selectedTask.type === 'milestone'}
+                          />
+                        </div>
+                        <div>
+                          <label className="mb-1 block text-xs font-semibold text-slate-700">Coût Prévisionnel / Budget alloué ($ CAD)</label>
+                          <Input
+                            type="number"
+                            min="0"
+                            step="0.01"
+                            value={taskCost}
+                            onChange={(e) => setTaskCost(e.target.value)}
+                            placeholder="0.00"
+                          />
+                        </div>
+                      </div>
+
+                      {showTaskPertEdit && (
+                        <div className="mt-4 rounded-xl border border-indigo-100 bg-indigo-50/50 p-4">
+                          <div className="mb-2 flex items-center justify-between">
+                            <span className="text-xs font-bold text-indigo-900">Estimation PERT à 3 Points</span>
+                            <span className="font-mono text-[11px] text-indigo-600">Te = (O + 4M + P) / 6</span>
+                          </div>
+                          <div className="grid grid-cols-3 gap-2">
                             <div>
-                              <label className="mb-1 block text-xs font-semibold text-slate-700">Type de liaison</label>
-                              <select
-                                value={depType}
-                                onChange={(e) => setDepType(e.target.value as any)}
-                                className="w-full rounded-lg border border-slate-200 bg-white px-2.5 py-2 text-xs font-medium text-slate-700"
-                              >
-                                <option value="FS">Fin à Début (FS - Standard)</option>
-                                <option value="SS">Début à Début (SS - Parallèle)</option>
-                                <option value="FF">Fin à Fin (FF - Co-terminaison)</option>
-                                <option value="SF">Début à Fin (SF - Inversion)</option>
-                              </select>
-                            </div>
-                            <div>
-                              <label className="mb-1 block text-xs font-semibold text-slate-700">Décalage (Lag jours)</label>
+                              <label className="mb-1 block text-[11px] font-medium text-slate-600">Optimiste (O)</label>
                               <Input
                                 type="number"
-                                value={depLag}
-                                onChange={(e) => setDepLag(e.target.value)}
-                                placeholder="0"
+                                min="0"
+                                value={taskOptimistic}
+                                onChange={(e) => setTaskOptimistic(e.target.value)}
+                                placeholder="Min j"
+                                className="bg-white text-xs"
+                              />
+                            </div>
+                            <div>
+                              <label className="mb-1 block text-[11px] font-medium text-slate-600">Plus probable (M)</label>
+                              <Input
+                                type="number"
+                                min="0"
+                                value={taskMostLikely}
+                                onChange={(e) => setTaskMostLikely(e.target.value)}
+                                placeholder="Moy j"
+                                className="bg-white text-xs"
+                              />
+                            </div>
+                            <div>
+                              <label className="mb-1 block text-[11px] font-medium text-slate-600">Pessimiste (P)</label>
+                              <Input
+                                type="number"
+                                min="0"
+                                value={taskPessimistic}
+                                onChange={(e) => setTaskPessimistic(e.target.value)}
+                                placeholder="Max j"
                                 className="bg-white text-xs"
                               />
                             </div>
                           </div>
-                          <div className="mt-3 flex gap-2">
-                            <Button
-                              size="sm"
-                              onClick={() => addDependencyMutation.mutate()}
-                              disabled={!depPredId || addDependencyMutation.isPending}
-                            >
-                              <Link2 className="mr-1 h-3.5 w-3.5" />
-                              Créer la liaison
-                            </Button>
-                            <Button size="sm" variant="ghost" onClick={() => setShowAddDepForm(false)}>
-                              Annuler
-                            </Button>
-                          </div>
+                          {taskOptimistic && taskMostLikely && taskPessimistic && (
+                            <div className="mt-3 flex items-center justify-between rounded-lg bg-white p-2.5 text-xs">
+                              <span className="text-slate-600">
+                                Durée calculée Te : <strong className="text-indigo-700">{((parseFloat(taskOptimistic) + 4 * parseFloat(taskMostLikely) + parseFloat(taskPessimistic)) / 6).toFixed(1)} j</strong>
+                              </span>
+                              <span className="text-slate-500">
+                                Écart-type σ : <strong>{((parseFloat(taskPessimistic) - parseFloat(taskOptimistic)) / 6).toFixed(2)} j</strong>
+                              </span>
+                            </div>
+                          )}
                         </div>
                       )}
 
-                      {/* Liste des Antécédents (Incoming) */}
-                      <div className="mt-4 space-y-3">
-                        <div>
-                          <span className="text-xs font-bold uppercase tracking-wider text-slate-600">
-                            Antécédents directs (Tâches dont celle-ci dépend) :
-                          </span>
-                          {incomingDeps.length === 0 ? (
-                            <p className="mt-1 text-xs text-slate-400 italic">Aucun antécédent (tâche initiale de chaîne ou indépendante).</p>
-                          ) : (
-                            <div className="mt-2 space-y-2">
-                              {incomingDeps.map((dep: any) => {
-                                const pred = planItems.find((p: any) => p.id === dep.predecessorId);
-                                return (
-                                  <div
-                                    key={dep.id}
-                                    className="flex items-center justify-between rounded-lg border border-slate-200 bg-slate-50 p-3"
-                                  >
-                                    <div className="flex items-center gap-2">
-                                      <span className="font-mono text-xs font-bold text-slate-500">
-                                        {pred?.wbs || '—'}
-                                      </span>
-                                      <span className="text-xs font-semibold text-slate-800">
-                                        {pred?.title || 'Tâche inconnue'}
-                                      </span>
-                                      <span className="rounded-full bg-violet-100 px-2 py-0.5 text-[10px] font-bold text-violet-700">
-                                        {DEP_TYPE_LABELS[dep.type] || dep.type}
-                                      </span>
-                                      {dep.lagDays !== 0 && (
-                                        <span className="rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-semibold text-amber-800">
-                                          Lag: {dep.lagDays > 0 ? `+${dep.lagDays}` : dep.lagDays}j
-                                        </span>
-                                      )}
-                                    </div>
-                                    <Button
-                                      size="sm"
-                                      variant="ghost"
-                                      className="h-7 w-7 p-0 text-slate-400 hover:bg-red-50 hover:text-red-600"
-                                      onClick={() => {
-                                        if (window.confirm('Supprimer cette liaison de dépendance ?')) {
-                                          deleteDependencyMutation.mutate(dep.id);
-                                        }
-                                      }}
-                                    >
-                                      <Trash2 className="h-3.5 w-3.5" />
-                                    </Button>
-                                  </div>
-                                );
-                              })}
-                            </div>
-                          )}
-                        </div>
-
-                        {/* Liste des Successeurs (Outgoing) */}
-                        <div className="pt-2 border-t">
-                          <span className="text-xs font-bold uppercase tracking-wider text-slate-600">
-                            Successeurs directs (Tâches dépendantes de celle-ci) :
-                          </span>
-                          {outgoingDeps.length === 0 ? (
-                            <p className="mt-1 text-xs text-slate-400 italic">Aucun successeur immédiat.</p>
-                          ) : (
-                            <div className="mt-2 space-y-2">
-                              {outgoingDeps.map((dep: any) => {
-                                const succ = planItems.find((p: any) => p.id === dep.successorId);
-                                return (
-                                  <div
-                                    key={dep.id}
-                                    className="flex items-center justify-between rounded-lg border border-slate-200 bg-slate-50 p-3"
-                                  >
-                                    <div className="flex items-center gap-2">
-                                      <span className="font-mono text-xs font-bold text-slate-500">
-                                        {succ?.wbs || '—'}
-                                      </span>
-                                      <span className="text-xs font-semibold text-slate-800">
-                                        {succ?.title || 'Tâche inconnue'}
-                                      </span>
-                                      <span className="rounded-full bg-indigo-100 px-2 py-0.5 text-[10px] font-bold text-indigo-700">
-                                        {DEP_TYPE_LABELS[dep.type] || dep.type}
-                                      </span>
-                                      {dep.lagDays !== 0 && (
-                                        <span className="rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-semibold text-amber-800">
-                                          Lag: {dep.lagDays > 0 ? `+${dep.lagDays}` : dep.lagDays}j
-                                        </span>
-                                      )}
-                                    </div>
-                                    <Button
-                                      size="sm"
-                                      variant="ghost"
-                                      className="h-7 w-7 p-0 text-slate-400 hover:bg-red-50 hover:text-red-600"
-                                      onClick={() => {
-                                        if (window.confirm('Supprimer cette liaison de dépendance ?')) {
-                                          deleteDependencyMutation.mutate(dep.id);
-                                        }
-                                      }}
-                                    >
-                                      <Trash2 className="h-3.5 w-3.5" />
-                                    </Button>
-                                  </div>
-                                );
-                              })}
-                            </div>
-                          )}
-                        </div>
+                      <div className="mt-4 flex justify-end">
+                        <Button
+                          size="sm"
+                          onClick={() => updateTaskParamsMutation.mutate()}
+                          disabled={updateTaskParamsMutation.isPending}
+                        >
+                          <Check className="mr-1.5 h-3.5 w-3.5" />
+                          Enregistrer les paramètres
+                        </Button>
                       </div>
                     </div>
-                  );
-                })()}
+
+                    {/* 3. Dépendances & Liaisons Réseau PDM */}
+                    {(() => {
+                      const incomingDeps = (dependencies || []).filter((d: any) => d.successorId === selectedTask.id);
+                      const outgoingDeps = (dependencies || []).filter((d: any) => d.predecessorId === selectedTask.id);
+                      // Filtre strict : Seules les tâches opérationnelles et les jalons peuvent être liés en réseau PDM
+                      const availablePredecessors = planItems.filter(
+                        (p: any) =>
+                          p.id !== selectedTask.id &&
+                          (p.type === 'task' || p.type === 'milestone' || p.type === 'deliverable')
+                      );
+
+                      const DEP_TYPE_LABELS: Record<string, string> = {
+                        FS: 'Fin à Début (FS)',
+                        SS: 'Début à Début (SS)',
+                        FF: 'Fin à Fin (FF)',
+                        SF: 'Début à Fin (SF)',
+                      };
+
+                      return (
+                        <div className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
+                          <div className="flex items-center justify-between border-b pb-3">
+                            <div>
+                              <h3 className="flex items-center gap-2 font-bold text-slate-900">
+                                <GitBranch className="h-4 w-4 text-violet-600" />
+                                Liaisons & Dépendances Réseau (PDM)
+                              </h3>
+                              <p className="text-xs text-slate-500">
+                                Contraintes de précédence entre tâches définissant le chemin critique et le diagramme PERT.
+                              </p>
+                            </div>
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              onClick={() => setShowAddDepForm(!showAddDepForm)}
+                              className="text-xs"
+                            >
+                              <Plus className="mr-1 h-3.5 w-3.5" />
+                              Ajouter une liaison
+                            </Button>
+                          </div>
+
+                          {/* Formulaire d'ajout de liaison */}
+                          {showAddDepForm && (
+                            <div className="mt-4 rounded-xl border border-violet-200 bg-violet-50/60 p-4">
+                              <h4 className="mb-3 text-xs font-bold text-violet-900">Nouvelle contrainte de précédence (Antécédent)</h4>
+                              <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+                                <div className="sm:col-span-1">
+                                  <label className="mb-1 block text-xs font-semibold text-slate-700">Tâche Antécédente *</label>
+                                  <select
+                                    value={depPredId}
+                                    onChange={(e) => setDepPredId(e.target.value)}
+                                    className="w-full rounded-lg border border-slate-200 bg-white px-2.5 py-2 text-xs font-medium text-slate-700"
+                                  >
+                                    <option value="">— Sélectionner une tâche —</option>
+                                    {availablePredecessors.map((p: any) => (
+                                      <option key={p.id} value={p.id}>
+                                        {p.wbs ? `[${p.wbs}] ` : ''}{p.title} ({p.type === 'milestone' ? 'Jalon' : 'Tâche'})
+                                      </option>
+                                    ))}
+                                  </select>
+                                </div>
+                                <div>
+                                  <label className="mb-1 block text-xs font-semibold text-slate-700">Type de liaison</label>
+                                  <select
+                                    value={depType}
+                                    onChange={(e) => setDepType(e.target.value as any)}
+                                    className="w-full rounded-lg border border-slate-200 bg-white px-2.5 py-2 text-xs font-medium text-slate-700"
+                                  >
+                                    <option value="FS">Fin à Début (FS - Standard)</option>
+                                    <option value="SS">Début à Début (SS - Parallèle)</option>
+                                    <option value="FF">Fin à Fin (FF - Co-terminaison)</option>
+                                    <option value="SF">Début à Fin (SF - Inversion)</option>
+                                  </select>
+                                </div>
+                                <div>
+                                  <label className="mb-1 block text-xs font-semibold text-slate-700">Décalage (Lag jours)</label>
+                                  <Input
+                                    type="number"
+                                    value={depLag}
+                                    onChange={(e) => setDepLag(e.target.value)}
+                                    placeholder="0"
+                                    className="bg-white text-xs"
+                                  />
+                                </div>
+                              </div>
+                              <div className="mt-3 flex gap-2">
+                                <Button
+                                  size="sm"
+                                  onClick={() => addDependencyMutation.mutate()}
+                                  disabled={!depPredId || addDependencyMutation.isPending}
+                                >
+                                  <Link2 className="mr-1 h-3.5 w-3.5" />
+                                  Créer la liaison
+                                </Button>
+                                <Button size="sm" variant="ghost" onClick={() => setShowAddDepForm(false)}>
+                                  Annuler
+                                </Button>
+                              </div>
+                            </div>
+                          )}
+
+                          {/* Liste des Antécédents (Incoming) */}
+                          <div className="mt-4 space-y-3">
+                            <div>
+                              <span className="text-xs font-bold uppercase tracking-wider text-slate-600">
+                                Antécédents directs (Tâches dont celle-ci dépend) :
+                              </span>
+                              {incomingDeps.length === 0 ? (
+                                <p className="mt-1 text-xs text-slate-400 italic">Aucun antécédent (tâche initiale de chaîne ou indépendante).</p>
+                              ) : (
+                                <div className="mt-2 space-y-2">
+                                  {incomingDeps.map((dep: any) => {
+                                    const pred = planItems.find((p: any) => p.id === dep.predecessorId);
+                                    return (
+                                      <div
+                                        key={dep.id}
+                                        className="flex items-center justify-between rounded-lg border border-slate-200 bg-slate-50 p-3"
+                                      >
+                                        <div className="flex items-center gap-2">
+                                          <span className="font-mono text-xs font-bold text-slate-500">
+                                            {pred?.wbs || '—'}
+                                          </span>
+                                          <span className="text-xs font-semibold text-slate-800">
+                                            {pred?.title || 'Tâche inconnue'}
+                                          </span>
+                                          <span className="rounded-full bg-violet-100 px-2 py-0.5 text-[10px] font-bold text-violet-700">
+                                            {DEP_TYPE_LABELS[dep.type] || dep.type}
+                                          </span>
+                                          {dep.lagDays !== 0 && (
+                                            <span className="rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-semibold text-amber-800">
+                                              Lag: {dep.lagDays > 0 ? `+${dep.lagDays}` : dep.lagDays}j
+                                            </span>
+                                          )}
+                                        </div>
+                                        <Button
+                                          size="sm"
+                                          variant="ghost"
+                                          className="h-7 w-7 p-0 text-slate-400 hover:bg-red-50 hover:text-red-600"
+                                          onClick={() => {
+                                            if (window.confirm('Supprimer cette liaison de dépendance ?')) {
+                                              deleteDependencyMutation.mutate(dep.id);
+                                            }
+                                          }}
+                                        >
+                                          <Trash2 className="h-3.5 w-3.5" />
+                                        </Button>
+                                      </div>
+                                    );
+                                  })}
+                                </div>
+                              )}
+                            </div>
+
+                            {/* Liste des Successeurs (Outgoing) */}
+                            <div className="pt-2 border-t">
+                              <span className="text-xs font-bold uppercase tracking-wider text-slate-600">
+                                Successeurs directs (Tâches dépendantes de celle-ci) :
+                              </span>
+                              {outgoingDeps.length === 0 ? (
+                                <p className="mt-1 text-xs text-slate-400 italic">Aucun successeur immédiat.</p>
+                              ) : (
+                                <div className="mt-2 space-y-2">
+                                  {outgoingDeps.map((dep: any) => {
+                                    const succ = planItems.find((p: any) => p.id === dep.successorId);
+                                    return (
+                                      <div
+                                        key={dep.id}
+                                        className="flex items-center justify-between rounded-lg border border-slate-200 bg-slate-50 p-3"
+                                      >
+                                        <div className="flex items-center gap-2">
+                                          <span className="font-mono text-xs font-bold text-slate-500">
+                                            {succ?.wbs || '—'}
+                                          </span>
+                                          <span className="text-xs font-semibold text-slate-800">
+                                            {succ?.title || 'Tâche inconnue'}
+                                          </span>
+                                          <span className="rounded-full bg-indigo-100 px-2 py-0.5 text-[10px] font-bold text-indigo-700">
+                                            {DEP_TYPE_LABELS[dep.type] || dep.type}
+                                          </span>
+                                          {dep.lagDays !== 0 && (
+                                            <span className="rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-semibold text-amber-800">
+                                              Lag: {dep.lagDays > 0 ? `+${dep.lagDays}` : dep.lagDays}j
+                                            </span>
+                                          )}
+                                        </div>
+                                        <Button
+                                          size="sm"
+                                          variant="ghost"
+                                          className="h-7 w-7 p-0 text-slate-400 hover:bg-red-50 hover:text-red-600"
+                                          onClick={() => {
+                                            if (window.confirm('Supprimer cette liaison de dépendance ?')) {
+                                              deleteDependencyMutation.mutate(dep.id);
+                                            }
+                                          }}
+                                        >
+                                          <Trash2 className="h-3.5 w-3.5" />
+                                        </Button>
+                                      </div>
+                                    );
+                                  })}
+                                </div>
+                              )}
+                            </div>
+                          </div>
+                        </div>
+                      );
+                    })()}
+                  </>
+                )}
 
                 {/* 4. Évolution de l'avancement & Point d'étape */}
                 <div className="rounded-xl border border-indigo-200 bg-indigo-50/40 p-5 shadow-sm">

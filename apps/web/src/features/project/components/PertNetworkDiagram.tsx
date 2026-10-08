@@ -28,10 +28,40 @@ export function PertNetworkDiagram({ tasks, dependencies, onSelectTask }: PertNe
 
   // Phases for filtering
   const rootPhases = useMemo(() => tasks.filter((t) => t.type === 'phase'), [tasks]);
+  const taskMap = useMemo(() => new Map(tasks.map((t) => [t.id, t])), [tasks]);
 
-  // Compute CPM network
+  const getAncestorPhase = useMemo(() => {
+    return (taskId: string) => {
+      let curr = taskMap.get(taskId);
+      while (curr) {
+        if (curr.type === 'phase') return curr;
+        if (!curr.parentId) break;
+        curr = taskMap.get(curr.parentId);
+      }
+      return null;
+    };
+  }, [taskMap]);
+
+  const getParentActivity = useMemo(() => {
+    return (taskId: string) => {
+      const task = taskMap.get(taskId);
+      if (!task || !task.parentId) return null;
+      const parent = taskMap.get(task.parentId);
+      if (parent && parent.type === 'activity') return parent;
+      return null;
+    };
+  }, [taskMap]);
+
+  // Compute CPM network strictly on actionable tasks and milestones
   const cpmData = useMemo(() => {
-    const cpmTasks: CPMTaskInput[] = tasks.map((t) => ({
+    const parentIds = new Set(tasks.map((t) => t.parentId).filter(Boolean));
+    const actionableTasks = tasks.filter((t) => {
+      if (t.type === 'task' || t.type === 'milestone' || t.type === 'deliverable') return true;
+      if (!parentIds.has(t.id)) return true;
+      return false;
+    });
+
+    const cpmTasks: CPMTaskInput[] = actionableTasks.map((t) => ({
       id: t.id,
       wbs: t.wbs,
       title: t.title,
@@ -63,10 +93,9 @@ export function PertNetworkDiagram({ tasks, dependencies, onSelectTask }: PertNe
   const levelColumns = useMemo(() => {
     const columns: CPMNodeResult[][] = [];
     cpmData.nodeList.forEach((node) => {
-      // Filter out root phases if they are only high-level groupings, or filter by phase
       if (selectedPhaseFilter !== 'all') {
-        const taskObj = tasks.find((t) => t.id === node.id);
-        if (taskObj?.parentId !== selectedPhaseFilter && taskObj?.id !== selectedPhaseFilter) {
+        const rootP = getAncestorPhase(node.id);
+        if (!rootP || rootP.id !== selectedPhaseFilter) {
           return;
         }
       }
@@ -78,7 +107,7 @@ export function PertNetworkDiagram({ tasks, dependencies, onSelectTask }: PertNe
       columns[lvl].push(node);
     });
     return columns.filter((col) => col && col.length > 0);
-  }, [cpmData, selectedPhaseFilter, showCriticalOnly, tasks]);
+  }, [cpmData, selectedPhaseFilter, showCriticalOnly, getAncestorPhase]);
 
   return (
     <div className="space-y-6">
@@ -106,12 +135,15 @@ export function PertNetworkDiagram({ tasks, dependencies, onSelectTask }: PertNe
               onChange={(e) => setSelectedPhaseFilter(e.target.value)}
               className="rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 shadow-xs"
             >
-              <option value="all">Toutes les phases ({tasks.length} éléments)</option>
-              {rootPhases.map((p) => (
-                <option key={p.id} value={p.id}>
-                  Phase {p.wbs} — {p.title}
-                </option>
-              ))}
+              <option value="all">Toutes les phases ({cpmData.nodeList.length} tâches opérationnelles & jalons)</option>
+              {rootPhases.map((p) => {
+                const countInPhase = cpmData.nodeList.filter((n) => getAncestorPhase(n.id)?.id === p.id).length;
+                return (
+                  <option key={p.id} value={p.id}>
+                    Phase {p.wbs} — {p.title} ({countInPhase} tâches)
+                  </option>
+                );
+              })}
             </select>
 
             {/* Critical only toggle */}
@@ -289,6 +321,20 @@ export function PertNetworkDiagram({ tasks, dependencies, onSelectTask }: PertNe
                               )}
                             </div>
                           </div>
+
+                          {(() => {
+                            const rootP = getAncestorPhase(node.id);
+                            const parentAct = getParentActivity(node.id);
+                            if (!rootP && !parentAct) return null;
+                            return (
+                              <div className="mb-1 flex items-center gap-1 text-[10px] text-indigo-700/80 font-medium truncate">
+                                <Layers className="h-2.5 w-2.5 shrink-0 text-indigo-500" />
+                                <span className="truncate">
+                                  {rootP ? rootP.title : ''}{parentAct ? ` › ${parentAct.title}` : ''}
+                                </span>
+                              </div>
+                            );
+                          })()}
 
                           <h4 className="font-bold text-slate-900 text-xs line-clamp-2 leading-tight">
                             {node.title}

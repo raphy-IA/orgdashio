@@ -95,25 +95,32 @@ export function calculateCPM(
   dependencies: CPMDependencyInput[],
   projectStartStr?: string
 ): CPMProjectResult {
-  // Filtrer uniquement les tâches opérationnelles et jalons pertinents pour le réseau CPM
-  // (Les phases et activités peuvent être des conteneurs WBS ou participer au réseau)
-  const taskMap = new Map<string, CPMTaskInput>();
-  tasks.forEach((t) => taskMap.set(t.id, t));
+  // 1. Filtrer uniquement les tâches opérationnelles, jalons et livrables (Work Packages)
+  // Les conteneurs WBS (Phases / Activités parentes) sont des conteneurs logiques et ne doivent pas polluer le réseau PERT
+  const parentIds = new Set(tasks.map((t) => t.parentId).filter(Boolean));
+  const actionableTasks = tasks.filter((t) => {
+    if (t.type === 'task' || t.type === 'milestone' || t.type === 'deliverable') return true;
+    if (!parentIds.has(t.id)) return true;
+    return false;
+  });
 
-  // 1. Déterminer la date de démarrage du projet
+  const taskMap = new Map<string, CPMTaskInput>();
+  actionableTasks.forEach((t) => taskMap.set(t.id, t));
+
+  // 2. Déterminer la date de démarrage du projet
   let earliestDate = projectStartStr;
   if (!earliestDate) {
-    const dates = tasks.map((t) => t.startDate).filter((d): d is string => !!d);
+    const dates = actionableTasks.map((t) => t.startDate).filter((d): d is string => !!d);
     earliestDate = dates.length > 0 ? dates.sort()[0] : new Date().toISOString().split('T')[0];
   }
 
-  // 2. Initialiser les nœuds avec calcul PERT 3-points
+  // 3. Initialiser les nœuds avec calcul PERT 3-points
   const nodes = new Map<string, CPMNodeResult>();
   const inDegree = new Map<string, number>();
   const successorsMap = new Map<string, { succId: string; type: 'FS' | 'SS' | 'FF' | 'SF'; lag: number }[]>();
   const predecessorsMap = new Map<string, { predId: string; type: 'FS' | 'SS' | 'FF' | 'SF'; lag: number }[]>();
 
-  tasks.forEach((t) => {
+  actionableTasks.forEach((t) => {
     inDegree.set(t.id, 0);
     successorsMap.set(t.id, []);
     predecessorsMap.set(t.id, []);

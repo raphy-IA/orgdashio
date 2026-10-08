@@ -25,12 +25,21 @@ interface GanttChartProps {
 
 export function GanttChartInteractive({ tasks, dependencies, onSelectTask }: GanttChartProps) {
   const [timeScale, setTimeScale] = useState<'days' | 'weeks' | 'months'>('weeks');
-  const [collapsedPhases, setCollapsedPhases] = useState<Record<string, boolean>>({});
+  const [collapsedContainers, setCollapsedContainers] = useState<Record<string, boolean>>({});
   const [filterCritical, setFilterCritical] = useState(false);
 
-  // Compute CPM data for exact early/late schedules and critical path
+  const taskMap = useMemo(() => new Map(tasks.map((t) => [t.id, t])), [tasks]);
+
+  // Compute CPM data for actionable tasks
   const cpmData = useMemo(() => {
-    const cpmTasks: CPMTaskInput[] = tasks.map((t) => ({
+    const parentIds = new Set(tasks.map((t) => t.parentId).filter(Boolean));
+    const actionableTasks = tasks.filter((t) => {
+      if (t.type === 'task' || t.type === 'milestone' || t.type === 'deliverable') return true;
+      if (!parentIds.has(t.id)) return true;
+      return false;
+    });
+
+    const cpmTasks: CPMTaskInput[] = actionableTasks.map((t) => ({
       id: t.id,
       wbs: t.wbs,
       title: t.title,
@@ -58,13 +67,68 @@ export function GanttChartInteractive({ tasks, dependencies, onSelectTask }: Gan
     return calculateCPM(cpmTasks, cpmDeps);
   }, [tasks, dependencies]);
 
+  // Compute bounding date range for container elements (Phases / Activities)
+  const getContainerSpan = useMemo(() => {
+    return (containerId: string) => {
+      const collectChildTasks = (pId: string): any[] => {
+        const direct = tasks.filter((t) => t.parentId === pId);
+        let list: any[] = [];
+        for (const d of direct) {
+          if (d.type === 'task' || d.type === 'milestone' || d.type === 'deliverable') {
+            list.push(d);
+          } else {
+            list = list.concat(collectChildTasks(d.id));
+          }
+        }
+        return list;
+      };
+
+      const children = collectChildTasks(containerId);
+      if (children.length === 0) return null;
+
+      let minStart: number = Infinity;
+      let maxEnd: number = -Infinity;
+
+      for (const ct of children) {
+        const cNode = cpmData.nodes.get(ct.id);
+        const sStr = (cNode && cNode.earlyStartDate) || ct.startDate;
+        const eStr = (cNode && cNode.earlyFinishDate) || ct.endDate || sStr;
+
+        if (sStr) {
+          const sTs = new Date(sStr + 'T00:00:00Z').getTime();
+          if (sTs < minStart) minStart = sTs;
+        }
+        if (eStr) {
+          const eTs = new Date(eStr + 'T00:00:00Z').getTime();
+          if (eTs > maxEnd) maxEnd = eTs;
+        }
+      }
+
+      if (minStart === Infinity || maxEnd === -Infinity) return null;
+      return { minStartTs: minStart, maxEndTs: maxEnd };
+    };
+  }, [tasks, cpmData]);
+
   // Project timeline bounds
   const { startTs, endTs, totalDays, datesArray } = useMemo(() => {
-    const startStr = cpmData.projectEarlyStartDate || new Date().toISOString().split('T')[0];
-    const endStr = cpmData.projectEarlyFinishDate || new Date().toISOString().split('T')[0];
+    let s = cpmData.projectEarlyStartDate ? new Date(cpmData.projectEarlyStartDate + 'T00:00:00Z').getTime() : 0;
+    let e = cpmData.projectEarlyFinishDate ? new Date(cpmData.projectEarlyFinishDate + 'T00:00:00Z').getTime() : 0;
 
-    const s = new Date(startStr + 'T00:00:00Z').getTime();
-    const e = new Date(endStr + 'T00:00:00Z').getTime();
+    // Check container spans as well
+    tasks.forEach((t) => {
+      if (t.startDate) {
+        const ts = new Date(t.startDate + 'T00:00:00Z').getTime();
+        if (!s || ts < s) s = ts;
+      }
+      if (t.endDate) {
+        const te = new Date(t.endDate + 'T00:00:00Z').getTime();
+        if (!e || te > e) e = te;
+      }
+    });
+
+    if (!s) s = new Date().getTime();
+    if (!e || e <= s) e = s + 15 * 86400000;
+
     const days = Math.max(7, Math.round((e - s) / (1000 * 60 * 60 * 24)) + 5);
 
     const dates: Date[] = [];
@@ -80,7 +144,17 @@ export function GanttChartInteractive({ tasks, dependencies, onSelectTask }: Gan
       totalDays: days,
       datesArray: dates,
     };
-  }, [cpmData]);
+  }, [cpmData, tasks]);
+
+  // Check if any ancestor is collapsed
+  const isAncestorCollapsed = (taskId: string): boolean => {
+    let curr = taskMap.get(taskId);
+    while (curr && curr.parentId) {
+      if (collapsedContainers[curr.parentId]) return true;
+      curr = taskMap.get(curr.parentId);
+    }
+    return false;
+  };
 
   // Hierarchical list of sorted tasks
   const sortedDisplayTasks = useMemo(() => {
@@ -88,19 +162,20 @@ export function GanttChartInteractive({ tasks, dependencies, onSelectTask }: Gan
     return sorted.filter((t) => {
       if (filterCritical) {
         const cNode = cpmData.nodes.get(t.id);
-        if (!cNode?.isCritical) return false;
+        if (t.type === 'task' || t.type === 'milestone') {
+          if (!cNode?.isCritical) return false;
+        }
       }
 
-      // Check if parent phase is collapsed
-      if (t.parentId && collapsedPhases[t.parentId]) {
+      if (isAncestorCollapsed(t.id)) {
         return false;
       }
       return true;
     });
-  }, [tasks, filterCritical, cpmData, collapsedPhases]);
+  }, [tasks, filterCritical, cpmData, collapsedContainers]);
 
-  const togglePhase = (phaseId: string) => {
-    setCollapsedPhases((prev) => ({ ...prev, [phaseId]: !prev[phaseId] }));
+  const toggleContainer = (id: string) => {
+    setCollapsedContainers((prev) => ({ ...prev, [id]: !prev[id] }));
   };
 
   const dayWidthPx = timeScale === 'days' ? 36 : timeScale === 'weeks' ? 14 : 6;
@@ -209,8 +284,10 @@ export function GanttChartInteractive({ tasks, dependencies, onSelectTask }: Gan
             {sortedDisplayTasks.map((t) => {
               const depth = (t.wbs.match(/\./g) || []).length;
               const isPhase = t.type === 'phase';
+              const isActivity = t.type === 'activity';
               const isMilestone = t.type === 'milestone';
-              const isCollapsed = collapsedPhases[t.id];
+              const isContainer = isPhase || isActivity;
+              const isCollapsed = collapsedContainers[t.id];
               const cpmNode = cpmData.nodes.get(t.id);
               const isCritical = cpmNode?.isCritical;
 
@@ -220,15 +297,19 @@ export function GanttChartInteractive({ tasks, dependencies, onSelectTask }: Gan
                   onClick={() => onSelectTask?.(t)}
                   style={{ paddingLeft: `${Math.max(12, depth * 16 + 8)}px` }}
                   className={`flex h-11 items-center justify-between pr-3 text-xs cursor-pointer transition hover:bg-slate-50 ${
-                    isPhase ? 'bg-slate-50/70 font-bold text-slate-900' : 'text-slate-700'
+                    isPhase
+                      ? 'bg-slate-100/70 font-bold text-slate-900 border-l-4 border-l-slate-700'
+                      : isActivity
+                      ? 'bg-indigo-50/40 font-semibold text-indigo-950'
+                      : 'text-slate-700'
                   }`}
                 >
                   <div className="flex items-center gap-1.5 truncate">
-                    {isPhase ? (
+                    {isContainer ? (
                       <button
                         onClick={(e) => {
                           e.stopPropagation();
-                          togglePhase(t.id);
+                          toggleContainer(t.id);
                         }}
                         className="p-0.5 text-slate-500 hover:text-slate-800"
                       >
@@ -285,22 +366,33 @@ export function GanttChartInteractive({ tasks, dependencies, onSelectTask }: Gan
               {sortedDisplayTasks.map((t) => {
                 const isMilestone = t.type === 'milestone';
                 const isPhase = t.type === 'phase';
+                const isActivity = t.type === 'activity';
+                const isContainer = isPhase || isActivity;
                 const cpmNode = cpmData.nodes.get(t.id);
                 const isCritical = cpmNode?.isCritical;
 
                 // Determine start and duration offsets
-                let taskStartOffset = cpmNode ? cpmNode.earlyStart : 0;
-                let taskDuration = cpmNode ? cpmNode.duration : t.durationDays || 1;
+                let taskStartOffset = 0;
+                let taskDuration = 1;
 
-                if (t.startDate) {
-                  const manualOffset = Math.max(
-                    0,
-                    Math.round(
-                      (new Date(t.startDate + 'T00:00:00Z').getTime() - startTs) / (1000 * 60 * 60 * 24)
-                    )
-                  );
-                  if (manualOffset > 0 && (!cpmNode || cpmNode.predecessorIds.length === 0)) {
-                    taskStartOffset = manualOffset;
+                if (isContainer) {
+                  const span = getContainerSpan(t.id);
+                  if (span) {
+                    taskStartOffset = Math.max(0, Math.round((span.minStartTs - startTs) / (1000 * 60 * 60 * 24)));
+                    taskDuration = Math.max(1, Math.round((span.maxEndTs - span.minStartTs) / (1000 * 60 * 60 * 24)));
+                  } else if (t.startDate) {
+                    taskStartOffset = Math.max(0, Math.round((new Date(t.startDate + 'T00:00:00Z').getTime() - startTs) / (1000 * 60 * 60 * 24)));
+                    if (t.endDate) {
+                      taskDuration = Math.max(1, Math.round((new Date(t.endDate + 'T00:00:00Z').getTime() - new Date(t.startDate + 'T00:00:00Z').getTime()) / (1000 * 60 * 60 * 24)));
+                    }
+                  }
+                } else if (cpmNode) {
+                  taskStartOffset = cpmNode.earlyStart;
+                  taskDuration = cpmNode.duration;
+                } else if (t.startDate) {
+                  taskStartOffset = Math.max(0, Math.round((new Date(t.startDate + 'T00:00:00Z').getTime() - startTs) / (1000 * 60 * 60 * 24)));
+                  if (t.endDate) {
+                    taskDuration = Math.max(1, Math.round((new Date(t.endDate + 'T00:00:00Z').getTime() - new Date(t.startDate + 'T00:00:00Z').getTime()) / (1000 * 60 * 60 * 24)));
                   }
                 }
 
@@ -319,7 +411,7 @@ export function GanttChartInteractive({ tasks, dependencies, onSelectTask }: Gan
                       <div
                         style={{ left: `${barLeftPx}px` }}
                         className="absolute z-10 flex items-center justify-center transition-transform group-hover:scale-125"
-                        title={`${t.wbs} — ${t.title} (Jalon le ${cpmNode?.earlyStartDate})`}
+                        title={`${t.wbs} — ${t.title} (Jalon)`}
                       >
                         <div
                           className={`h-4 w-4 rotate-45 border shadow-sm ${
@@ -330,30 +422,58 @@ export function GanttChartInteractive({ tasks, dependencies, onSelectTask }: Gan
                           {t.title}
                         </span>
                       </div>
-                    ) : (
-                      /* Standard / Phase Bar */
+                    ) : isPhase ? (
+                      /* Phase Summary Bracket (MS Project style) */
                       <div
                         style={{ left: `${barLeftPx}px`, width: `${barWidthPx}px` }}
-                        className={`absolute z-10 h-6 rounded-md shadow-xs overflow-hidden transition-all duration-200 border ${
-                          isPhase
-                            ? 'bg-slate-700 border-slate-900'
-                            : isCritical
+                        className="absolute z-10 h-3 bg-slate-800 rounded-xs shadow-xs"
+                        title={`Phase ${t.wbs} : ${t.title} (${taskDuration}j, ${pct}% global)`}
+                      >
+                        {/* Downward triangle brackets at both ends */}
+                        <div className="absolute -left-1 top-0 w-0 h-0 border-l-[4px] border-l-transparent border-r-[4px] border-r-transparent border-t-[8px] border-t-slate-800" />
+                        <div className="absolute -right-1 top-0 w-0 h-0 border-l-[4px] border-l-transparent border-r-[4px] border-r-transparent border-t-[8px] border-t-slate-800" />
+                        {/* Progress fill */}
+                        <div
+                          style={{ width: `${pct}%` }}
+                          className="h-full bg-slate-950 rounded-xs"
+                        />
+                      </div>
+                    ) : isActivity ? (
+                      /* Activity Summary Bracket */
+                      <div
+                        style={{ left: `${barLeftPx}px`, width: `${barWidthPx}px` }}
+                        className="absolute z-10 h-2.5 bg-indigo-700 rounded-xs shadow-xs"
+                        title={`Activité ${t.wbs} : ${t.title} (${taskDuration}j, ${pct}% global)`}
+                      >
+                        <div className="absolute -left-0.5 top-0 w-0 h-0 border-l-[3px] border-l-transparent border-r-[3px] border-r-transparent border-t-[6px] border-t-indigo-700" />
+                        <div className="absolute -right-0.5 top-0 w-0 h-0 border-l-[3px] border-l-transparent border-r-[3px] border-r-transparent border-t-[6px] border-t-indigo-700" />
+                        <div
+                          style={{ width: `${pct}%` }}
+                          className="h-full bg-indigo-950 rounded-xs"
+                        />
+                      </div>
+                    ) : (
+                      /* Operational Task Progress Bar */
+                      <div
+                        style={{ left: `${barLeftPx}px`, width: `${barWidthPx}px` }}
+                        className={`absolute z-10 h-5 rounded-md shadow-xs overflow-hidden transition-all duration-200 border ${
+                          isCritical
                             ? 'bg-red-500 border-red-700 ring-1 ring-red-300'
                             : 'bg-indigo-500 border-indigo-700'
                         }`}
-                        title={`${t.wbs} — ${t.title} (${taskDuration}j, ${pct}% réalisé) | Début: ${cpmNode?.earlyStartDate} - Fin: ${cpmNode?.earlyFinishDate}`}
+                        title={`${t.wbs} — ${t.title} (${taskDuration}j, ${pct}% réalisé)`}
                       >
                         {/* Progress Fill */}
                         <div
                           style={{ width: `${pct}%` }}
                           className={`h-full transition-all duration-300 ${
-                            isPhase ? 'bg-slate-900' : isCritical ? 'bg-red-800' : 'bg-indigo-700'
+                            isCritical ? 'bg-red-800' : 'bg-indigo-700'
                           }`}
                         />
 
                         {/* Text inside bar if wide enough */}
                         {barWidthPx > 60 && (
-                          <span className="absolute inset-0 flex items-center px-2 text-[10px] font-bold text-white truncate pointer-events-none drop-shadow-xs">
+                          <span className="absolute inset-0 flex items-center px-2 text-[9px] font-bold text-white truncate pointer-events-none drop-shadow-xs">
                             {t.title} ({pct}%)
                           </span>
                         )}
