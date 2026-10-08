@@ -112,6 +112,20 @@ export class AuthController {
     return this.authService.switchTenant(sessionToken, body.tenantId ?? null);
   }
 
+  @Get('sessions')
+  @UseGuards(AuthGuard)
+  async getSessions(@Req() req: any) {
+    const sessionToken = req.cookies?.['orgdashio_session'];
+    return this.authService.getUserSessions(req.user.id, sessionToken);
+  }
+
+  @Post('sessions/revoke-others')
+  @UseGuards(AuthGuard)
+  async revokeOtherSessions(@Req() req: any) {
+    const sessionToken = req.cookies?.['orgdashio_session'];
+    return this.authService.revokeOtherSessions(req.user.id, sessionToken);
+  }
+
   @Post('logout')
   @HttpCode(HttpStatus.OK)
   async logout(@Res({ passthrough: true }) res: Response) {

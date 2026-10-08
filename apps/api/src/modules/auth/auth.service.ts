@@ -505,5 +505,52 @@ export class AuthService {
       tenant,
     };
   }
+
+  async getUserSessions(userId: string, currentSessionToken: string) {
+    const currentTokenHash = crypto
+      .createHash('sha256')
+      .update(currentSessionToken)
+      .digest('hex');
+
+    const sessions = await this.db
+      .select({
+        id: userSession.id,
+        ipAddress: userSession.ipAddress,
+        userAgent: userSession.userAgent,
+        createdAt: userSession.createdAt,
+        expiresAt: userSession.expiresAt,
+        tokenHash: userSession.tokenHash,
+      })
+      .from(userSession)
+      .where(and(eq(userSession.userId, userId), sql`${userSession.expiresAt} > now()`))
+      .orderBy(sql`${userSession.createdAt} desc`);
+
+    return sessions.map((s) => ({
+      id: s.id,
+      ipAddress: s.ipAddress || '127.0.0.1',
+      userAgent: s.userAgent || 'Navigateur Web',
+      createdAt: s.createdAt,
+      expiresAt: s.expiresAt,
+      isCurrent: s.tokenHash === currentTokenHash,
+    }));
+  }
+
+  async revokeOtherSessions(userId: string, currentSessionToken: string) {
+    const currentTokenHash = crypto
+      .createHash('sha256')
+      .update(currentSessionToken)
+      .digest('hex');
+
+    await this.db
+      .delete(userSession)
+      .where(
+        and(
+          eq(userSession.userId, userId),
+          sql`${userSession.tokenHash} != ${currentTokenHash}`
+        )
+      );
+
+    return { success: true };
+  }
 }
 
