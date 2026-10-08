@@ -644,6 +644,34 @@ export function ProjectDetailScreen() {
     },
   });
 
+  const updateProjectStartDateMutation = useMutation({
+    mutationFn: async (newStartDate: string) => {
+      const res = await fetch(`/api/v1/projects/${id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ startDate: newStartDate || undefined }),
+      });
+      if (!res.ok) {
+        const errorData = await res.json().catch(() => ({}));
+        throw new Error(errorData.message || 'Erreur lors de la mise à jour de la date de démarrage');
+      }
+      // Re-synchroniser automatiquement le calendrier PERT avec la nouvelle date
+      if (newStartDate) {
+        await fetch(`/api/v1/projects/${id}/sync-pert-schedule`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+        });
+      }
+      return res.json();
+    },
+    onSuccess: () => {
+      invalidate();
+    },
+    onError: (err: any) => {
+      alert(err.message);
+    },
+  });
+
   const addDependencyMutation = useMutation({
     mutationFn: async () => {
       if (!selectedTask || !depPredId) return;
@@ -2461,18 +2489,38 @@ export function ProjectDetailScreen() {
                 </button>
               </div>
 
-              {/* PERT CPM Auto-Scheduling Synchronization button */}
-              <Button
-                size="sm"
-                variant="outline"
-                onClick={() => syncPertScheduleMutation.mutate()}
-                disabled={syncPertScheduleMutation.isPending || planItems.length === 0}
-                className="text-xs font-bold border-indigo-300 text-indigo-700 bg-indigo-50/70 hover:bg-indigo-100 flex items-center gap-1.5 shadow-2xs"
-                title="Recalcule automatiquement les dates de début et de fin de toutes les tâches et conteneurs selon la logique du réseau PERT/CPM"
-              >
-                <RefreshCw className={`h-3.5 w-3.5 ${syncPertScheduleMutation.isPending ? 'animate-spin' : ''}`} />
-                <span>{syncPertScheduleMutation.isPending ? 'Synchronisation...' : '🔄 Synchroniser le calendrier (PERT/CPM)'}</span>
-              </Button>
+              {/* PERT CPM Auto-Scheduling Bar & Project Start Date (T0) */}
+              <div className="flex flex-wrap items-center gap-3">
+                <div className="flex items-center gap-2 rounded-lg border border-slate-200 bg-white px-3 py-1.5 shadow-2xs">
+                  <span className="flex items-center gap-1.5 text-xs font-bold text-slate-700">
+                    <Calendar className="h-3.5 w-3.5 text-indigo-600" />
+                    Date début projet (T₀) :
+                  </span>
+                  <input
+                    type="date"
+                    value={proj.startDate ? proj.startDate.split('T')[0] : ''}
+                    onChange={(e) => updateProjectStartDateMutation.mutate(e.target.value)}
+                    disabled={updateProjectStartDateMutation.isPending}
+                    className="rounded border border-slate-200 bg-slate-50 px-2 py-0.5 text-xs font-bold text-indigo-900 focus:bg-white focus:outline-indigo-500"
+                    title="Date de référence T0 du projet. La modifier ventile automatiquement toutes les dates du réseau PERT/CPM."
+                  />
+                  {updateProjectStartDateMutation.isPending && (
+                    <span className="text-[10px] text-indigo-600 font-medium animate-pulse">Ventilation...</span>
+                  )}
+                </div>
+
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={() => syncPertScheduleMutation.mutate()}
+                  disabled={syncPertScheduleMutation.isPending || planItems.length === 0}
+                  className="text-xs font-bold border-indigo-300 text-indigo-700 bg-indigo-50/70 hover:bg-indigo-100 flex items-center gap-1.5 shadow-2xs"
+                  title="Recalcule automatiquement les dates de début et de fin de toutes les tâches et conteneurs selon la logique du réseau PERT/CPM"
+                >
+                  <RefreshCw className={`h-3.5 w-3.5 ${syncPertScheduleMutation.isPending ? 'animate-spin' : ''}`} />
+                  <span>{syncPertScheduleMutation.isPending ? 'Synchronisation...' : '🔄 Synchroniser PERT/CPM'}</span>
+                </Button>
+              </div>
             </div>
 
             {/* Sub-tab 1: WBS Table (Baseline Planning) */}
