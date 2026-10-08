@@ -52,7 +52,7 @@ import { GanttChartInteractive } from './components/GanttChartInteractive';
 import { EarnedValueManagementView } from './components/EarnedValueManagementView';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
-type TabKey = 'overview' | 'logframe' | 'wbs' | 'tasks' | 'team' | 'budget' | 'raid' | 'funding';
+type TabKey = 'overview' | 'strategy' | 'planning' | 'execution' | 'monitoring';
 
 interface ProjectMember {
   id: string;
@@ -382,6 +382,12 @@ export function ProjectDetailScreen() {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const [activeTab, setActiveTab] = useState<TabKey>('overview');
+
+  // Sub-tabs for 4 Lifecycle Pillars
+  const [strategySubTab, setStrategySubTab] = useState<'logframe' | 'funding' | 'team'>('logframe');
+  const [planningSubTab, setPlanningSubTab] = useState<'wbs' | 'gantt' | 'pert' | 'budget_plan'>('wbs');
+  const [executionSubTab, setExecutionSubTab] = useState<'tasks' | 'expenses' | 'deliverables'>('tasks');
+  const [monitoringSubTab, setMonitoringSubTab] = useState<'evm' | 'raid' | 'health'>('evm');
 
   // Modals & form state
   const [showResultNodeForm, setShowResultNodeForm] = useState(false);
@@ -1149,15 +1155,12 @@ export function ProjectDetailScreen() {
       ? { label: 'Vigilance : À risque', color: 'bg-amber-100 text-amber-800 border-amber-300' }
       : { label: 'Sur les rails', color: 'bg-emerald-50 text-emerald-700 border-emerald-200' };
 
-  const TABS = [
-    { key: 'overview' as TabKey, label: 'Vue d\'ensemble', icon: FolderKanban },
-    { key: 'logframe' as TabKey, label: 'Cadre Logique', icon: Target },
-    { key: 'wbs' as TabKey, label: 'Planification', icon: ListTodo },
-    { key: 'tasks' as TabKey, label: 'Tâches & Évolution', icon: CheckCircle2 },
-    { key: 'team' as TabKey, label: 'Équipe & RACI', icon: Users },
-    { key: 'budget' as TabKey, label: 'Budget & Finances', icon: DollarSign },
-    { key: 'raid' as TabKey, label: 'RAID', icon: AlertTriangle },
-    { key: 'funding' as TabKey, label: 'Financement', icon: HandCoins },
+    const TABS = [
+    { key: 'overview' as TabKey, label: "Vue d'ensemble", icon: FolderKanban },
+    { key: 'strategy' as TabKey, label: "1. Cadrage & Stratégie", icon: Target },
+    { key: 'planning' as TabKey, label: "2. Planification", icon: ListTodo },
+    { key: 'execution' as TabKey, label: "3. Exécution & Opérations", icon: CheckCircle2 },
+    { key: 'monitoring' as TabKey, label: "4. Suivi & Performance", icon: BarChart3 },
   ];
 
   const PROJECT_STATUS_LABELS: Record<string, string> = {
@@ -1274,7 +1277,7 @@ export function ProjectDetailScreen() {
         </div>
       </header>
 
-      {/* ── Content ── */}
+            {/* ── Content ── */}
       <main className="mx-auto max-w-7xl p-6">
         {/* ═══════════════════════════════════════════════════════════════ */}
         {/* TAB: VUE D'ENSEMBLE                                            */}
@@ -1514,10 +1517,44 @@ export function ProjectDetailScreen() {
         )}
 
         {/* ═══════════════════════════════════════════════════════════════ */}
-        {/* TAB: CADRE LOGIQUE                                             */}
+        {/* PILIER 1: CADRAGE & STRATÉGIE                                   */}
         {/* ═══════════════════════════════════════════════════════════════ */}
-        {activeTab === 'logframe' && (
-          <div className="space-y-4">
+        {activeTab === 'strategy' && (
+          <div className="space-y-6">
+            {/* Sub-tab Navigation */}
+            <div className="flex items-center gap-1.5 p-1 bg-slate-200/80 rounded-xl w-fit border border-slate-300 shadow-2xs">
+              <button
+                onClick={() => setStrategySubTab('logframe')}
+                className={`flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg text-xs font-bold transition ${
+                  strategySubTab === 'logframe' ? 'bg-white text-indigo-700 shadow-xs' : 'text-slate-600 hover:text-slate-900'
+                }`}
+              >
+                <Target className="h-3.5 w-3.5" />
+                Cadre Logique & Objectifs
+              </button>
+              <button
+                onClick={() => setStrategySubTab('funding')}
+                className={`flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg text-xs font-bold transition ${
+                  strategySubTab === 'funding' ? 'bg-white text-violet-700 shadow-xs' : 'text-slate-600 hover:text-slate-900'
+                }`}
+              >
+                <HandCoins className="h-3.5 w-3.5" />
+                Bailleurs & Financements ({fundingSources.length})
+              </button>
+              <button
+                onClick={() => setStrategySubTab('team')}
+                className={`flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg text-xs font-bold transition ${
+                  strategySubTab === 'team' ? 'bg-white text-indigo-700 shadow-xs' : 'text-slate-600 hover:text-slate-900'
+                }`}
+              >
+                <Users className="h-3.5 w-3.5" />
+                Équipe & Matrice RACI ({members.length})
+              </button>
+            </div>
+
+            {/* Sub-tab 1: Cadre Logique */}
+            {strategySubTab === 'logframe' && (
+              <div className="space-y-4">
             <div className="flex items-center justify-between">
               <div>
                 <h2 className="text-base font-bold text-slate-800">Cadre Logique (Chaîne de Résultats)</h2>
@@ -1637,806 +1674,120 @@ export function ProjectDetailScreen() {
               </div>
             )}
           </div>
-        )}
+            )}
 
-        {/* ═══════════════════════════════════════════════════════════════ */}
-        {/* TAB: PLANIFICATION (WBS)                                       */}
-        {/* ═══════════════════════════════════════════════════════════════ */}
-        {activeTab === 'wbs' && (
-          <div className="space-y-4">
+            {/* Sub-tab 2: Bailleurs & Financements */}
+            {strategySubTab === 'funding' && (
+              <div className="space-y-4">
             <div className="flex items-center justify-between">
               <div>
-                <h2 className="text-base font-bold text-slate-800">Structure de Découpage du Travail (WBS)</h2>
-                <p className="text-sm text-slate-500">Phases, activités, tâches, jalons et livrables</p>
+                <h2 className="text-base font-bold text-slate-800">Sources de Financement</h2>
+                <p className="text-sm text-slate-500">Bailleurs de fonds, subventions et dons</p>
               </div>
-              <Button size="sm" onClick={() => setShowPlanItemForm(!showPlanItemForm)}>
+              <Button size="sm" onClick={() => setShowFundingForm(!showFundingForm)}>
                 <Plus className="mr-2 h-4 w-4" />
-                Ajouter un élément
+                Ajouter un bailleur
               </Button>
             </div>
 
-            {/* Add Plan Item Form */}
-            {showPlanItemForm && (() => {
-              const rootPhases = planItems.filter((p: any) => p.type === 'phase');
-              const allActivities = planItems.filter((p: any) => p.type === 'activity');
-              const selectedParent = planItems.find((p: any) => p.id === piParentId);
-              
-              // Calcul automatique et rigoureux du WBS selon la hiérarchie standard WBS / OTP
-              const getSuggestedWbs = () => {
-                if (piWbs) return piWbs;
-                if (piType === 'phase') {
-                  return `${rootPhases.length + 1}`;
-                }
-                if (selectedParent) {
-                  const siblings = planItems.filter((p: any) => p.parentId === piParentId);
-                  return `${selectedParent.wbs}.${siblings.length + 1}`;
-                }
-                const rootItems = planItems.filter((p: any) => !p.parentId);
-                return `${rootItems.length + 1}`;
-              };
-
-              const suggestedWbs = getSuggestedWbs();
-
-              return (
-                <div className="rounded-xl border border-indigo-200 bg-indigo-50 p-5 shadow-sm space-y-4">
-                  <div className="flex items-center justify-between border-b border-indigo-200/60 pb-3">
-                    <h3 className="text-sm font-bold text-indigo-900 flex items-center gap-2">
-                      <Sparkles className="h-4 w-4 text-indigo-600" />
-                      <span>Ajouter un élément au plan WBS</span>
-                    </h3>
-                    <span className="text-xs text-indigo-600 bg-indigo-100 px-2 py-0.5 rounded font-mono font-bold">
-                      Code suggéré : {suggestedWbs}
-                    </span>
+            {/* Funding form */}
+            {showFundingForm && (
+              <div className="rounded-xl border border-violet-200 bg-violet-50 p-5 shadow-sm">
+                <h3 className="mb-4 text-sm font-semibold text-violet-800">Nouveau bailleur de fonds</h3>
+                <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                  <div>
+                    <label className="mb-1 block text-xs font-medium text-slate-600">Nom du bailleur *</label>
+                    <Input value={fsName} onChange={(e) => setFsName(e.target.value)} placeholder="Ex: Fondation XYZ, MSSS..." />
                   </div>
-
-                  <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
-                    <div>
-                      <label className="mb-1.5 block text-xs font-bold uppercase tracking-wider text-slate-700">
-                        1. Type d'élément *
-                      </label>
-                      <select
-                        value={piType}
-                        onChange={(e) => {
-                          const newType = e.target.value as PlanItem['type'];
-                          setPiType(newType);
-                          setPiWbs('');
-                          
-                          // Ajuster le parent selon le type
-                          if (newType === 'phase') {
-                            setPiParentId('');
-                          } else if (newType === 'activity' && rootPhases.length > 0) {
-                            if (!piParentId || !rootPhases.some((p: any) => p.id === piParentId)) {
-                              setPiParentId(rootPhases[0].id);
-                            }
-                          } else if (newType === 'task' && allActivities.length > 0) {
-                            if (!piParentId || !allActivities.some((a: any) => a.id === piParentId)) {
-                              setPiParentId(allActivities[0].id);
-                            }
-                          }
-
-                          if (newType === 'milestone') {
-                            const dateToUse = piEnd || piStart;
-                            setPiStart(dateToUse);
-                            setPiEnd(dateToUse);
-                          }
-                        }}
-                        className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-xs font-semibold shadow-xs"
-                      >
-                        <option value="phase">🏛️ Phase (Niveau 1 — Macro)</option>
-                        <option value="activity">📦 Activité / Lot (Niveau 2)</option>
-                        <option value="task">📋 Tâche opérationnelle (Niveau 3)</option>
-                        <option value="milestone">🚩 Jalon clé (Date cible)</option>
-                        <option value="deliverable">📄 Livrable formel</option>
-                      </select>
-                    </div>
-
-                    <div>
-                      <label className="mb-1.5 block text-xs font-bold uppercase tracking-wider text-slate-700">
-                        2. Élément parent (Rattachement)
-                      </label>
-                      {piType === 'phase' ? (
-                        <div className="w-full rounded-lg border border-slate-200 bg-slate-100 px-3 py-2 text-xs text-slate-500 font-medium">
-                          Niveau 1 (Racine du projet)
-                        </div>
-                      ) : (
-                        <select
-                          value={piParentId}
-                          onChange={(e) => {
-                            const newParentId = e.target.value;
-                            setPiParentId(newParentId);
-                            setPiWbs('');
-                            const parent = planItems.find((p: any) => p.id === newParentId);
-                            if (parent) {
-                              if (piType === 'milestone') {
-                                const milestoneDate = parent.endDate || parent.startDate || '';
-                                setPiStart(milestoneDate);
-                                setPiEnd(milestoneDate);
-                              } else {
-                                if (parent.startDate && (!piStart || piStart < parent.startDate)) {
-                                  setPiStart(parent.startDate);
-                                }
-                                if (parent.endDate && (!piEnd || piEnd > parent.endDate)) {
-                                  setPiEnd(parent.endDate);
-                                }
-                              }
-                            }
-                          }}
-                          className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-xs font-semibold shadow-xs"
-                        >
-                          {piType === 'activity' ? (
-                            rootPhases.length > 0 ? (
-                              rootPhases.map((p: any) => (
-                                <option key={p.id} value={p.id}>
-                                  Phase {p.wbs} — {p.title}
-                                </option>
-                              ))
-                            ) : (
-                              <option value="">— Aucune Phase existante (Racine) —</option>
-                            )
-                          ) : piType === 'task' ? (
-                            allActivities.length > 0 ? (
-                              allActivities.map((a: any) => (
-                                <option key={a.id} value={a.id}>
-                                  Activité {a.wbs} — {a.title}
-                                </option>
-                              ))
-                            ) : rootPhases.length > 0 ? (
-                              rootPhases.map((p: any) => (
-                                <option key={p.id} value={p.id}>
-                                  Phase {p.wbs} — {p.title}
-                                </option>
-                              ))
-                            ) : (
-                              <option value="">— Aucun parent disponible (Racine) —</option>
-                            )
-                          ) : (
-                            <>
-                              <option value="">— Aucun parent (Racine) —</option>
-                              {planItems.filter((p: any) => p.type === 'phase' || p.type === 'activity').map((p: any) => (
-                                <option key={p.id} value={p.id}>
-                                  {p.type === 'phase' ? 'Phase' : 'Activité'} {p.wbs} — {p.title}
-                                </option>
-                              ))}
-                            </>
-                          )}
-                        </select>
-                      )}
-                    </div>
-
-                    <div>
-                      <label className="mb-1.5 block text-xs font-bold uppercase tracking-wider text-slate-700">
-                        3. Code WBS (Nomenclature)
-                      </label>
-                      <Input
-                        value={piWbs || suggestedWbs}
-                        onChange={(e) => setPiWbs(e.target.value)}
-                        placeholder={suggestedWbs}
-                        className="font-mono font-bold text-xs"
-                      />
-                    </div>
-
-                    <div className="sm:col-span-3">
-                      <label className="mb-1.5 block text-xs font-bold uppercase tracking-wider text-slate-700">
-                        Titre descriptif *
-                      </label>
-                      <Input
-                        value={piTitle}
-                        onChange={(e) => setPiTitle(e.target.value)}
-                        placeholder={
-                          piType === 'phase'
-                            ? 'Ex: Phase 1 — Cadrage & Mobilisation communautaire'
-                            : piType === 'activity'
-                            ? 'Ex: Activité 1.1 — Diagnostic des besoins et cartographie'
-                            : piType === 'task'
-                            ? 'Ex: Tâche 1.1.1 — Conduire 15 entretiens individuels'
-                            : piType === 'milestone'
-                            ? 'Ex: Validation du rapport d\'étape par le comité de pilotage'
-                            : 'Ex: Document de synthèse et grille d\'analyse livrés'
-                        }
-                        className="text-xs font-medium"
-                      />
-                    </div>
-
-                    {/* Champs conditionnels selon le type : Phase/Activité = Conteneur de synthèse / Jalon = Date cible / Tâche = Durée & PERT */}
-                    {piType === 'phase' || piType === 'activity' ? (
-                      <div className="sm:col-span-3 rounded-lg border border-indigo-200 bg-indigo-50/80 p-3.5 text-xs text-indigo-900 flex items-start gap-2.5">
-                        <Layers className="h-4 w-4 text-indigo-600 shrink-0 mt-0.5" />
-                        <div>
-                          <span className="font-bold block text-indigo-950">
-                            🏛️ Conteneur WBS de synthèse ({piType === 'phase' ? 'Phase Macro' : 'Activité / Lot de travail'})
-                          </span>
-                          <span className="text-indigo-800/90 text-[11px] mt-0.5 block">
-                            Les dates de début et fin, la durée globale, le budget consolidé et l'avancement % seront calculés et agrégés automatiquement à partir des tâches enfants que vous y ajouterez.
-                          </span>
-                        </div>
-                      </div>
-                    ) : piType === 'milestone' ? (
-                      <div className="sm:col-span-3 grid grid-cols-1 sm:grid-cols-2 gap-4">
-                        <div>
-                          <label className="mb-1.5 block text-xs font-bold uppercase tracking-wider text-slate-700">
-                            Date cible du Jalon *
-                            {selectedParent?.startDate && selectedParent?.endDate && (
-                              <span className="ml-1 text-[10px] text-indigo-600 font-normal">
-                                (période parent : {selectedParent.startDate} au {selectedParent.endDate})
-                              </span>
-                            )}
-                          </label>
-                          <Input
-                            type="date"
-                            value={piEnd || piStart}
-                            min={selectedParent?.startDate || undefined}
-                            max={selectedParent?.endDate || undefined}
-                            onChange={(e) => {
-                              setPiStart(e.target.value);
-                              setPiEnd(e.target.value);
-                            }}
-                          />
-                        </div>
-                        <div className="flex items-center text-xs text-slate-500 bg-white p-3 rounded-lg border border-slate-200">
-                          <span>🚩 <strong>Jalon clé :</strong> Événement marquant ou point de contrôle (Durée = 0 jour).</span>
-                        </div>
-                      </div>
-                    ) : (
-                      <>
-                        <div>
-                          <label className="mb-1.5 block text-xs font-bold uppercase tracking-wider text-slate-700">
-                            Durée estimée (jours ouvrés) *
-                          </label>
-                          <Input
-                            type="number"
-                            min={1}
-                            value={piDuration}
-                            onChange={(e) => {
-                              const val = e.target.value;
-                              setPiDuration(val);
-                              if (piStart && parseInt(val) > 0) {
-                                const d = new Date(piStart + 'T00:00:00Z');
-                                d.setUTCDate(d.getUTCDate() + parseInt(val));
-                                setPiEnd(d.toISOString().split('T')[0]);
-                              }
-                            }}
-                            placeholder="5"
-                            className="bg-white text-xs font-bold font-mono"
-                          />
-                        </div>
-
-                        <div>
-                          <label className="mb-1.5 block text-xs font-bold uppercase tracking-wider text-slate-700">
-                            Date de début souhaitée (optionnelle)
-                          </label>
-                          <Input
-                            type="date"
-                            value={piStart}
-                            min={selectedParent?.startDate || undefined}
-                            max={selectedParent?.endDate || undefined}
-                            onChange={(e) => {
-                              const s = e.target.value;
-                              setPiStart(s);
-                              if (s && parseInt(piDuration) > 0) {
-                                const d = new Date(s + 'T00:00:00Z');
-                                d.setUTCDate(d.getUTCDate() + parseInt(piDuration));
-                                setPiEnd(d.toISOString().split('T')[0]);
-                              }
-                            }}
-                          />
-                        </div>
-
-                        <div>
-                          <label className="mb-1.5 block text-xs font-bold uppercase tracking-wider text-slate-700">
-                            Coût estimé planifié (CAD)
-                          </label>
-                          <Input
-                            type="number"
-                            value={piEstimatedCost}
-                            onChange={(e) => setPiEstimatedCost(e.target.value)}
-                            placeholder="0.00"
-                            className="bg-white text-xs"
-                          />
-                        </div>
-
-                        <div className="sm:col-span-3 flex items-center justify-between">
-                          <button
-                            type="button"
-                            onClick={() => setShowPertInputs(!showPertInputs)}
-                            className={`text-xs font-bold px-3 py-1.5 rounded-lg border transition flex items-center gap-1.5 ${
-                              showPertInputs
-                                ? 'bg-indigo-600 text-white border-indigo-700'
-                                : 'bg-white text-indigo-700 border-indigo-200 hover:bg-indigo-50'
-                            }`}
-                          >
-                            <Sparkles className="h-3.5 w-3.5" />
-                            {showPertInputs ? 'Masquer estimation PERT 3-points' : '🎯 Estimation avancée PERT à 3 points (O, M, P)'}
-                          </button>
-                          {piStart && piEnd && (
-                            <span className="text-[11px] text-slate-500 font-medium">
-                              Période calculée : <strong className="text-slate-800">{piStart} → {piEnd}</strong>
-                            </span>
-                          )}
-                        </div>
-
-                        {showPertInputs && (
-                          <div className="sm:col-span-3 rounded-lg bg-white border border-indigo-100 p-3 space-y-2">
-                            <span className="text-[11px] font-bold text-indigo-900 block">
-                              Estimation PERT probabiliste : Durée moyenne attendue Te = (O + 4M + P) / 6
-                            </span>
-                            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                              <div>
-                                <label className="mb-1 block text-[10px] font-bold text-slate-600">Durée Optimiste (O) [jours]</label>
-                                <Input
-                                  type="number"
-                                  min={1}
-                                  value={piOptimistic}
-                                  onChange={(e) => {
-                                    setPiOptimistic(e.target.value);
-                                    if (e.target.value && piMostLikely && piPessimistic) {
-                                      const te = Math.round(((parseInt(e.target.value) + 4 * parseInt(piMostLikely) + parseInt(piPessimistic)) / 6) * 10) / 10;
-                                      setPiDuration(String(Math.max(1, Math.round(te))));
-                                    }
-                                  }}
-                                  placeholder="Ex: 2"
-                                  className="text-xs"
-                                />
-                              </div>
-                              <div>
-                                <label className="mb-1 block text-[10px] font-bold text-slate-600">Durée la plus Probable (M) [jours]</label>
-                                <Input
-                                  type="number"
-                                  min={1}
-                                  value={piMostLikely}
-                                  onChange={(e) => {
-                                    setPiMostLikely(e.target.value);
-                                    if (piOptimistic && e.target.value && piPessimistic) {
-                                      const te = Math.round(((parseInt(piOptimistic) + 4 * parseInt(e.target.value) + parseInt(piPessimistic)) / 6) * 10) / 10;
-                                      setPiDuration(String(Math.max(1, Math.round(te))));
-                                    }
-                                  }}
-                                  placeholder="Ex: 5"
-                                  className="text-xs"
-                                />
-                              </div>
-                              <div>
-                                <label className="mb-1 block text-[10px] font-bold text-slate-600">Durée Pessimiste (P) [jours]</label>
-                                <Input
-                                  type="number"
-                                  min={1}
-                                  value={piPessimistic}
-                                  onChange={(e) => {
-                                    setPiPessimistic(e.target.value);
-                                    if (piOptimistic && piMostLikely && e.target.value) {
-                                      const te = Math.round(((parseInt(piOptimistic) + 4 * parseInt(piMostLikely) + parseInt(e.target.value)) / 6) * 10) / 10;
-                                      setPiDuration(String(Math.max(1, Math.round(te))));
-                                    }
-                                  }}
-                                  placeholder="Ex: 12"
-                                  className="text-xs"
-                                />
-                              </div>
-                            </div>
-                            {piOptimistic && piMostLikely && piPessimistic && (
-                              <div className="text-[11px] text-indigo-700 font-mono bg-indigo-50 p-2 rounded">
-                                Durée retenue Te : <strong>{Math.round(((parseInt(piOptimistic) + 4 * parseInt(piMostLikely) + parseInt(piPessimistic)) / 6) * 10) / 10} jours</strong> (Écart-type σ: ±{Math.round(((parseInt(piPessimistic) - parseInt(piOptimistic)) / 6) * 10) / 10} j)
-                              </div>
-                            )}
-                          </div>
-                        )}
-                      </>
-                    )}
-                  </div>
-
-                  {/* Guide Pédagogique d'Ordre et Hiérarchie */}
-                  {piType === 'activity' && rootPhases.length === 0 && (
-                    <div className="p-3 bg-amber-50 border border-amber-200 text-amber-900 rounded-lg text-xs flex items-center justify-between">
-                      <span>
-                        ⚠️ <strong>Bonne pratique :</strong> Aucune Phase n'est encore définie. Il est fortement recommandé de créer d'abord une <strong>Phase</strong> (ex: Phase 1 — Cadrage) afin de structurer vos activités sous une numérotation WBS rigoureuse (ex: 1.1, 1.2).
-                      </span>
-                      <Button
-                        type="button"
-                        size="sm"
-                        variant="outline"
-                        onClick={() => {
-                          setPiType('phase');
-                          setPiParentId('');
-                          setPiTitle('Phase 1 — ');
-                          setPiWbs('1');
-                        }}
-                        className="text-xs ml-3 whitespace-nowrap bg-white text-amber-800 border-amber-300"
-                      >
-                        Créer une Phase d'abord
-                      </Button>
-                    </div>
-                  )}
-
-                  {piType === 'task' && allActivities.length === 0 && (
-                    <div className="p-3 bg-blue-50 border border-blue-200 text-blue-900 rounded-lg text-xs">
-                      💡 <strong>Conseil hiérarchique :</strong> Dans la gestion de projet OBNL (norme PMI/WBS), les tâches opérationnelles (ex: 1.1.1) découlent d'une <strong>Activité</strong> (ex: 1.1).
-                    </div>
-                  )}
-
-                  <div className="flex gap-2 pt-2 border-t border-indigo-200/60">
-                    <Button
-                      size="sm"
-                      onClick={() => {
-                        if (!piWbs && suggestedWbs) {
-                          setPiWbs(suggestedWbs);
-                        }
-                        if (piType === 'milestone') {
-                          const milestoneDate = piEnd || piStart;
-                          setPiStart(milestoneDate);
-                          setPiEnd(milestoneDate);
-                        }
-                        addPlanItem.mutate();
-                      }}
-                      disabled={!piTitle.trim() || addPlanItem.isPending}
-                      className="bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs"
+                  <div>
+                    <label className="mb-1 block text-xs font-medium text-slate-600">Type de financement</label>
+                    <select
+                      value={fsType}
+                      onChange={(e) => setFsType(e.target.value)}
+                      className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm"
                     >
-                      {addPlanItem.isPending ? 'Enregistrement...' : 'Enregistrer dans le WBS'}
-                    </Button>
-                    <Button size="sm" variant="ghost" onClick={() => setShowPlanItemForm(false)} className="text-xs">
-                      Annuler
-                    </Button>
+                      {Object.entries(FUNDING_TYPE_LABELS).map(([k, v]) => (
+                        <option key={k} value={k}>{v}</option>
+                      ))}
+                    </select>
+                  </div>
+                  <div>
+                    <label className="mb-1 block text-xs font-medium text-slate-600">Montant (CAD) *</label>
+                    <Input type="number" value={fsAmount} onChange={(e) => setFsAmount(e.target.value)} placeholder="0.00" />
+                  </div>
+                  <div>
+                    <label className="mb-1 block text-xs font-medium text-slate-600">Date de rapport due</label>
+                    <Input type="date" value={fsDue} onChange={(e) => setFsDue(e.target.value)} />
                   </div>
                 </div>
-              );
-            })()}
-
-            {/* Sub-view switcher toolbar & PERT Synchronizer */}
-            <div className="flex flex-wrap items-center justify-between gap-3">
-              <div className="flex items-center gap-1.5 p-1 bg-slate-200/80 rounded-xl w-fit border border-slate-300 shadow-2xs">
-                <button
-                  onClick={() => setPlanSubView('table')}
-                  className={`flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg text-xs font-bold transition ${
-                    planSubView === 'table' ? 'bg-white text-indigo-700 shadow-xs' : 'text-slate-600 hover:text-slate-900'
-                  }`}
-                >
-                  <ListTodo className="h-3.5 w-3.5" />
-                  Arborescence WBS
-                </button>
-                <button
-                  onClick={() => setPlanSubView('gantt')}
-                  className={`flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg text-xs font-bold transition ${
-                    planSubView === 'gantt' ? 'bg-white text-indigo-700 shadow-xs' : 'text-slate-600 hover:text-slate-900'
-                  }`}
-                >
-                  <Calendar className="h-3.5 w-3.5" />
-                  Diagramme de Gantt
-                </button>
-                <button
-                  onClick={() => setPlanSubView('pert')}
-                  className={`flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg text-xs font-bold transition ${
-                    planSubView === 'pert' ? 'bg-white text-red-600 shadow-xs' : 'text-slate-600 hover:text-slate-900'
-                  }`}
-                >
-                  <Flame className="h-3.5 w-3.5" />
-                  Réseau PERT & Chemin Critique
-                </button>
-                <button
-                  onClick={() => setPlanSubView('evm')}
-                  className={`flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg text-xs font-bold transition ${
-                    planSubView === 'evm' ? 'bg-white text-emerald-700 shadow-xs' : 'text-slate-600 hover:text-slate-900'
-                  }`}
-                >
-                  <TrendingUp className="h-3.5 w-3.5" />
-                  Valeur Acquise & Coûts (EVM)
-                </button>
+                <div className="mt-4 flex gap-2">
+                  <Button size="sm" onClick={() => addFunding.mutate()} disabled={!fsName.trim() || !fsAmount || addFunding.isPending}>
+                    Enregistrer
+                  </Button>
+                  <Button size="sm" variant="ghost" onClick={() => setShowFundingForm(false)}>Annuler</Button>
+                </div>
               </div>
-
-              {/* PERT Auto-Scheduling Synchronization button */}
-              <Button
-                size="sm"
-                variant="outline"
-                onClick={() => syncPertScheduleMutation.mutate()}
-                disabled={syncPertScheduleMutation.isPending || planItems.length === 0}
-                className="text-xs font-bold border-indigo-300 text-indigo-700 bg-indigo-50/70 hover:bg-indigo-100 flex items-center gap-1.5 shadow-2xs"
-                title="Recalcule automatiquement les dates de début et de fin de toutes les tâches et conteneurs selon la logique du réseau PERT/CPM"
-              >
-                <RefreshCw className={`h-3.5 w-3.5 ${syncPertScheduleMutation.isPending ? 'animate-spin' : ''}`} />
-                <span>{syncPertScheduleMutation.isPending ? 'Synchronisation...' : '🔄 Synchroniser le calendrier (PERT/CPM)'}</span>
-              </Button>
-            </div>
-
-            {/* Sub-view Content Conditional Rendering */}
-            {planSubView === 'gantt' && (
-              <GanttChartInteractive
-                tasks={planItems}
-                dependencies={dependencies}
-                onSelectTask={(t) => {
-                  setSelectedTask(t);
-                  setLogProgress(t.progressPct || 0);
-                  setLogIsBlocked(t.status === 'blocked');
-                }}
-              />
             )}
 
-            {planSubView === 'pert' && (
-              <PertNetworkDiagram
-                tasks={planItems}
-                dependencies={dependencies}
-                onSelectTask={(t) => {
-                  setSelectedTask(t);
-                  setLogProgress(t.progressPct || 0);
-                  setLogIsBlocked(t.status === 'blocked');
-                }}
-              />
+            {/* Total */}
+            {fundingSources.length > 0 && (
+              <div className="flex items-center justify-between rounded-xl border bg-violet-50 px-5 py-4">
+                <span className="text-sm font-semibold text-violet-800">Total financé</span>
+                <span className="text-xl font-bold text-violet-900">{fmt(totalFunding)}</span>
+              </div>
             )}
 
-            {planSubView === 'evm' && (
-              <EarnedValueManagementView
-                tasks={planItems}
-                expenses={expenses}
-                budgetTotal={totalBudget}
-              />
-            )}
-
-            {/* WBS Table */}
-            {planSubView === 'table' && (planItems.length === 0 ? (
+            {/* Funding cards */}
+            {fundingSources.length === 0 ? (
               <div className="rounded-xl border border-dashed border-slate-200 bg-white p-10 text-center">
-                <ListTodo className="mx-auto mb-3 h-10 w-10 text-slate-300" />
-                <p className="text-sm font-medium text-slate-500">Aucun élément de plan défini</p>
-                <p className="mt-1 text-xs text-slate-400">Structurez le projet en phases (1, 2), activités (1.1, 1.2), tâches (1.1.1) et jalons.</p>
+                <HandCoins className="mx-auto mb-3 h-10 w-10 text-slate-300" />
+                <p className="text-sm font-medium text-slate-500">Aucune source de financement</p>
+                <p className="mt-1 text-xs text-slate-400">Ajoutez les bailleurs de fonds du projet.</p>
               </div>
             ) : (
-              <div className="overflow-hidden rounded-xl border bg-white shadow-sm">
-                <table className="w-full text-sm">
-                  <thead className="border-b bg-slate-50">
-                    <tr className="text-left text-xs font-semibold uppercase tracking-wide text-slate-500">
-                      <th className="px-4 py-3">WBS</th>
-                      <th className="px-4 py-3">Type</th>
-                      <th className="px-4 py-3">Titre de l'élément</th>
-                      <th className="px-4 py-3">Période / Date</th>
-                      <th className="w-44 px-4 py-3">Avancement</th>
-                      <th className="px-4 py-3">Statut</th>
-                      <th className="px-4 py-3 text-right">Actions</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-slate-100">
-                    {[...planItems]
-                      .sort((a: any, b: any) => a.wbs.localeCompare(b.wbs, undefined, { numeric: true }))
-                      .map((item: any) => {
-                        const depth = Math.max(0, (item.wbs || '').split('.').length - 1);
-                        const statusCfg = STATUS_CONFIG[item.status] || STATUS_CONFIG.todo;
-                        const typeCfg = TYPE_CONFIG[item.type] || TYPE_CONFIG.task;
-                        const isMilestone = item.type === 'milestone';
-
-                        return (
-                          <tr key={item.id} className="group hover:bg-slate-50 transition-colors">
-                            <td className="px-4 py-3 font-mono text-xs font-bold text-slate-600">{item.wbs}</td>
-                            <td className="px-4 py-3">
-                              <span className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-0.5 text-xs font-medium ${typeCfg.badgeClass}`}>
-                                {typeCfg.icon}
-                                {typeCfg.label}
-                              </span>
-                            </td>
-                            <td className="px-4 py-3">
-                              <div
-                                className={`flex items-center gap-1.5 ${isMilestone ? 'text-amber-900 font-bold' : item.type === 'phase' ? 'text-indigo-950 font-bold' : 'text-slate-800 font-medium'}`}
-                                style={{ paddingLeft: `${depth * 20}px` }}
-                              >
-                                {depth > 0 && <span className="text-slate-300 font-mono">↳</span>}
-                                <span>{item.title}</span>
-                              </div>
-                            </td>
-                            <td className="px-4 py-3 text-xs text-slate-600">
-                              {isMilestone ? (
-                                <span className="inline-flex items-center gap-1 rounded bg-amber-50 px-2 py-0.5 font-medium text-amber-800 border border-amber-200">
-                                  <Flag className="h-3 w-3 text-amber-600" />
-                                  {item.endDate || item.startDate || '—'}
-                                </span>
-                              ) : item.startDate && item.endDate ? (
-                                <div className="flex flex-col gap-0.5">
-                                  <span className="flex items-center gap-1 font-medium">
-                                    <Calendar className="h-3 w-3 text-slate-400" />
-                                    {item.startDate} → {item.endDate}
-                                  </span>
-                                  <span className="text-[10px] text-slate-400 font-mono">
-                                    Durée : {item.durationDays || 1} j {item.type === 'phase' || item.type === 'activity' ? '(synthèse)' : ''}
-                                  </span>
-                                </div>
-                              ) : (
-                                <span className="text-slate-400 italic">
-                                  {item.type === 'phase' || item.type === 'activity' ? 'Calculé au roll-up' : item.startDate || 'Non planifié'}
-                                </span>
-                              )}
-                            </td>
-                            <td className="px-4 py-3">
-                              <InlineProgress item={item} projectId={id!} onSaved={invalidate} />
-                            </td>
-                            <td className="px-4 py-3">
-                              <span className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-medium ${statusCfg.color}`}>
-                                {statusCfg.icon}
-                                {statusCfg.label}
-                              </span>
-                            </td>
-                            <td className="px-4 py-3 text-right">
-                              <button
-                                type="button"
-                                onClick={() => {
-                                  const children = planItems.filter((p: any) => p.parentId === item.id);
-                                  const confirmMsg = children.length > 0
-                                    ? `Supprimer "${item.wbs} — ${item.title}" supprimera également ses ${children.length} sous-élément(s) rattaché(s). Confirmer ?`
-                                    : `Êtes-vous sûr de vouloir supprimer l'élément "${item.wbs} — ${item.title}" ?`;
-                                  if (window.confirm(confirmMsg)) {
-                                    deletePlanItem.mutate(item.id);
-                                  }
-                                }}
-                                className="p-1.5 text-slate-400 hover:text-rose-600 rounded hover:bg-rose-50 transition-colors"
-                                title="Supprimer cet élément"
-                              >
-                                <Trash2 className="h-4 w-4" />
-                              </button>
-                            </td>
-                          </tr>
-                        );
-                      })}
-                  </tbody>
-                </table>
-              </div>
-            ))}
-          </div>
-        )}
-
-        {/* ═══════════════════════════════════════════════════════════════ */}
-        {/* TAB: TÂCHES & ÉVOLUTION                                         */}
-        {/* ═══════════════════════════════════════════════════════════════ */}
-        {activeTab === 'tasks' && (
-          <div className="space-y-6">
-            <div className="flex items-center justify-between">
-              <div>
-                <h2 className="text-base font-bold text-slate-800">Centre d'Évolution des Tâches & Livrables</h2>
-                <p className="text-sm text-slate-500">
-                  Cliquez sur n'importe quelle tâche pour ouvrir son journal d'évolution, consigner des logs, signaler un blocage ou déposer un livrable.
-                </p>
-              </div>
-            </div>
-
-            {/* Kanban Columns */}
-            <div className="grid grid-cols-1 gap-4 sm:grid-cols-5">
-              {Object.entries(STATUS_CONFIG).map(([statusKey, cfg]) => {
-                const items = planItems.filter((p: any) => p.status === statusKey && (p.type === 'task' || p.type === 'milestone'));
-                return (
-                  <div key={statusKey} className="space-y-3">
-                    <div className={`flex items-center justify-between rounded-lg px-3 py-2 text-xs font-semibold ${cfg.color}`}>
-                      <span className="flex items-center gap-1.5">{cfg.icon} {cfg.label}</span>
-                      <span className="rounded-full bg-white/70 px-2 py-0.5 font-bold">{items.length}</span>
-                    </div>
-                    {items.length === 0 && (
-                      <div className="rounded-xl border border-dashed border-slate-200 p-4 text-center text-xs text-slate-300">
-                        Aucune tâche
+              <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
+                {fundingSources.map((fs: any) => (
+                  <div key={fs.id} className="relative rounded-xl border bg-white p-5 shadow-sm group">
+                    <div className="mb-3 flex items-start justify-between">
+                      <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-violet-100">
+                        <HandCoins className="h-5 w-5 text-violet-600" />
                       </div>
-                    )}
-                    {items.map((item: any) => {
-                      const typeCfg = TYPE_CONFIG[item.type] || TYPE_CONFIG.task;
-                      const isMilestone = item.type === 'milestone';
-                      const taskUpdates = updates.filter((u: any) => u.planItemId === item.id);
-                      const taskDeliverables = deliverables.filter((d: any) => d.planItemId === item.id);
-                      const hasBlocker = item.status === 'blocked';
-
-                      return (
-                        <div
-                          key={item.id}
+                      <div className="flex items-center gap-2">
+                        <span className="rounded-full bg-slate-100 px-2 py-0.5 text-xs font-medium text-slate-600">
+                          {FUNDING_TYPE_LABELS[fs.fundingType] || fs.fundingType}
+                        </span>
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          className="h-7 w-7 p-0 text-slate-300 hover:text-red-600 hover:bg-red-50"
+                          title="Supprimer cette source de financement"
                           onClick={() => {
-                            setSelectedTask(item);
-                            setLogProgress(item.progressPct || 0);
-                            setLogIsBlocked(item.status === 'blocked');
+                            if (window.confirm(`Supprimer le financement "${fs.donorName}" (${fmt(fs.amount)}) ?`)) {
+                              deleteFundingSource.mutate(fs.id);
+                            }
                           }}
-                          className={`cursor-pointer rounded-xl border bg-white p-4 shadow-sm transition hover:border-indigo-400 hover:shadow-md ${
-                            hasBlocker ? 'border-red-300 bg-red-50/30' : ''
-                          }`}
                         >
-                          <div className="mb-2 flex items-center justify-between">
-                            <span className="font-mono text-xs font-bold text-slate-500">{item.wbs}</span>
-                            <span className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] ${typeCfg.badgeClass}`}>
-                              {typeCfg.icon}
-                              {typeCfg.label}
-                            </span>
-                          </div>
-                          <p className="text-sm font-semibold text-slate-900">{item.title}</p>
-                          
-                          {item.endDate && (
-                            <p className="mt-2 flex items-center gap-1 text-xs text-slate-500">
-                              {isMilestone ? <Flag className="h-3.5 w-3.5 text-amber-500" /> : <Calendar className="h-3.5 w-3.5 text-slate-400" />}
-                              {isMilestone ? `Jalon le : ${item.endDate}` : `Échéance : ${item.endDate}`}
-                            </p>
-                          )}
-
-                          <div className="mt-3">
-                            <ProgressBar value={item.progressPct || 0} />
-                          </div>
-
-                          {/* Mini badges for updates and deliverables */}
-                          <div className="mt-3 flex items-center gap-3 border-t border-slate-100 pt-2 text-[11px] text-slate-500">
-                            <span className="flex items-center gap-1">
-                              <MessageSquare className="h-3 w-3 text-indigo-500" />
-                              {taskUpdates.length} log{taskUpdates.length !== 1 ? 's' : ''}
-                            </span>
-                            <span className="flex items-center gap-1">
-                              <PackageCheck className="h-3 w-3 text-emerald-500" />
-                              {taskDeliverables.length} livrable{taskDeliverables.length !== 1 ? 's' : ''}
-                            </span>
-                          </div>
-                        </div>
-                      );
-                    })}
+                          <Trash2 className="h-3.5 w-3.5" />
+                        </Button>
+                      </div>
+                    </div>
+                    <h3 className="font-semibold text-slate-800">{fs.donorName}</h3>
+                    <p className="mt-1 text-xl font-bold text-violet-700">{fmt(fs.amount, fs.currency || 'CAD')}</p>
+                    {fs.reportDueAt && (
+                      <p className="mt-2 text-xs text-slate-400">
+                        Rapport dû: <span className="font-medium text-slate-600">{fs.reportDueAt}</span>
+                      </p>
+                    )}
                   </div>
-                );
-              })}
-            </div>
-
-            {/* Non-task items (phases, activities, deliverables) */}
-            {planItems.filter((p: any) => p.type === 'phase' || p.type === 'activity' || p.type === 'deliverable').length > 0 && (
-              <div className="mt-8">
-                <h3 className="mb-3 text-sm font-bold text-slate-700">Phases, Activités & Livrables Globaux</h3>
-                <div className="overflow-hidden rounded-xl border bg-white shadow-sm">
-                  <table className="w-full text-sm">
-                    <thead className="border-b bg-slate-50">
-                      <tr className="text-left text-xs font-semibold uppercase text-slate-500">
-                        <th className="px-4 py-3">WBS</th>
-                        <th className="px-4 py-3">Type</th>
-                        <th className="px-4 py-3">Titre</th>
-                        <th className="px-4 py-3">Logs & Livrables</th>
-                        <th className="px-4 py-3">Avancement</th>
-                        <th className="px-4 py-3">Action</th>
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-slate-100">
-                      {planItems
-                        .filter((p: any) => p.type === 'phase' || p.type === 'activity' || p.type === 'deliverable')
-                        .sort((a: any, b: any) => a.wbs.localeCompare(b.wbs, undefined, { numeric: true }))
-                        .map((item: any) => {
-                          const typeCfg = TYPE_CONFIG[item.type] || TYPE_CONFIG.activity;
-                          const taskUpdates = updates.filter((u: any) => u.planItemId === item.id);
-                          const taskDeliverables = deliverables.filter((d: any) => d.planItemId === item.id);
-
-                          return (
-                            <tr key={item.id} className="group hover:bg-slate-50">
-                              <td className="px-4 py-3 font-mono text-xs font-semibold text-slate-400">{item.wbs}</td>
-                              <td className="px-4 py-3">
-                                <span className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-medium ${typeCfg.badgeClass}`}>
-                                  {typeCfg.icon}
-                                  {typeCfg.label}
-                                </span>
-                              </td>
-                              <td className="px-4 py-3 font-semibold text-slate-800">{item.title}</td>
-                              <td className="px-4 py-3 text-xs text-slate-500">
-                                <span className="mr-3 inline-flex items-center gap-1">
-                                  <MessageSquare className="h-3 w-3 text-indigo-500" /> {taskUpdates.length}
-                                </span>
-                                <span className="inline-flex items-center gap-1">
-                                  <PackageCheck className="h-3 w-3 text-emerald-500" /> {taskDeliverables.length}
-                                </span>
-                              </td>
-                              <td className="w-44 px-4 py-3">
-                                <ProgressBar value={item.progressPct || 0} />
-                              </td>
-                              <td className="px-4 py-3">
-                                <Button
-                                  size="sm"
-                                  variant="outline"
-                                  className="h-7 text-xs"
-                                  onClick={() => {
-                                    setSelectedTask(item);
-                                    setLogProgress(item.progressPct || 0);
-                                    setLogIsBlocked(item.status === 'blocked');
-                                  }}
-                                >
-                                  Ouvrir journal
-                                </Button>
-                              </td>
-                            </tr>
-                          );
-                        })}
-                    </tbody>
-                  </table>
-                </div>
+                ))}
               </div>
             )}
           </div>
-        )}
+            )}
 
-        {/* ═══════════════════════════════════════════════════════════════ */}
-        {/* TAB: ÉQUIPE, PARTIES PRENANTES & MATRICE RACI 2D               */}
-        {/* ═══════════════════════════════════════════════════════════════ */}
-        {activeTab === 'team' && (() => {
-          // Sort items for RACI Matrix
+            {/* Sub-tab 3: Équipe & RACI */}
+            {strategySubTab === 'team' && (() => {
+              // Sort items for RACI Matrix
           const sortedPlanItems = [...planItems].sort((a: any, b: any) => {
             const partsA = (a.wbs || '').split('.').map((n: string) => parseInt(n, 10) || 0);
             const partsB = (b.wbs || '').split('.').map((n: string) => parseInt(n, 10) || 0);
@@ -3031,14 +2382,643 @@ export function ProjectDetailScreen() {
               </div>
             </div>
           );
-        })()}
+            })()}
+          </div>
+        )}
 
         {/* ═══════════════════════════════════════════════════════════════ */}
-        {/* TAB: BUDGET & FINANCES                                         */}
+        {/* PILIER 2: PLANIFICATION INTÉGRALE                               */}
         {/* ═══════════════════════════════════════════════════════════════ */}
-        {activeTab === 'budget' && (
+        {activeTab === 'planning' && (
           <div className="space-y-6">
-            {/* Budget Summary */}
+            {/* Sub-tab Navigation & PERT CPM Synchronizer */}
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <div className="flex items-center gap-1.5 p-1 bg-slate-200/80 rounded-xl w-fit border border-slate-300 shadow-2xs">
+                <button
+                  onClick={() => setPlanningSubTab('wbs')}
+                  className={`flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg text-xs font-bold transition ${
+                    planningSubTab === 'wbs' ? 'bg-white text-indigo-700 shadow-xs' : 'text-slate-600 hover:text-slate-900'
+                  }`}
+                >
+                  <ListTodo className="h-3.5 w-3.5" />
+                  Arborescence WBS ({planItems.length})
+                </button>
+                <button
+                  onClick={() => setPlanningSubTab('gantt')}
+                  className={`flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg text-xs font-bold transition ${
+                    planningSubTab === 'gantt' ? 'bg-white text-indigo-700 shadow-xs' : 'text-slate-600 hover:text-slate-900'
+                  }`}
+                >
+                  <Calendar className="h-3.5 w-3.5" />
+                  Diagramme de Gantt
+                </button>
+                <button
+                  onClick={() => setPlanningSubTab('pert')}
+                  className={`flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg text-xs font-bold transition ${
+                    planningSubTab === 'pert' ? 'bg-white text-red-600 shadow-xs' : 'text-slate-600 hover:text-slate-900'
+                  }`}
+                >
+                  <Flame className="h-3.5 w-3.5" />
+                  Réseau PERT & Chemin Critique
+                </button>
+                <button
+                  onClick={() => setPlanningSubTab('budget_plan')}
+                  className={`flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg text-xs font-bold transition ${
+                    planningSubTab === 'budget_plan' ? 'bg-white text-emerald-700 shadow-xs' : 'text-slate-600 hover:text-slate-900'
+                  }`}
+                >
+                  <DollarSign className="h-3.5 w-3.5" />
+                  Budget Prévisionnel ({projBudget?.lines?.length || 0})
+                </button>
+              </div>
+
+              {/* PERT CPM Auto-Scheduling Synchronization button */}
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={() => syncPertScheduleMutation.mutate()}
+                disabled={syncPertScheduleMutation.isPending || planItems.length === 0}
+                className="text-xs font-bold border-indigo-300 text-indigo-700 bg-indigo-50/70 hover:bg-indigo-100 flex items-center gap-1.5 shadow-2xs"
+                title="Recalcule automatiquement les dates de début et de fin de toutes les tâches et conteneurs selon la logique du réseau PERT/CPM"
+              >
+                <RefreshCw className={`h-3.5 w-3.5 ${syncPertScheduleMutation.isPending ? 'animate-spin' : ''}`} />
+                <span>{syncPertScheduleMutation.isPending ? 'Synchronisation...' : '🔄 Synchroniser le calendrier (PERT/CPM)'}</span>
+              </Button>
+            </div>
+
+            {/* Sub-tab 1: WBS Table */}
+            {planningSubTab === 'wbs' && (
+              <div className="space-y-4">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <h2 className="text-base font-bold text-slate-800">Structure de Découpage du Travail (WBS)</h2>
+                    <p className="text-sm text-slate-500">Phases, activités, tâches, jalons et livrables</p>
+                  </div>
+                  <Button size="sm" onClick={() => setShowPlanItemForm(!showPlanItemForm)}>
+                    <Plus className="mr-2 h-4 w-4" />
+                    Ajouter un élément
+                  </Button>
+                </div>
+
+                {showPlanItemForm && (() => {
+              const rootPhases = planItems.filter((p: any) => p.type === 'phase');
+              const allActivities = planItems.filter((p: any) => p.type === 'activity');
+              const selectedParent = planItems.find((p: any) => p.id === piParentId);
+              
+              // Calcul automatique et rigoureux du WBS selon la hiérarchie standard WBS / OTP
+              const getSuggestedWbs = () => {
+                if (piWbs) return piWbs;
+                if (piType === 'phase') {
+                  return `${rootPhases.length + 1}`;
+                }
+                if (selectedParent) {
+                  const siblings = planItems.filter((p: any) => p.parentId === piParentId);
+                  return `${selectedParent.wbs}.${siblings.length + 1}`;
+                }
+                const rootItems = planItems.filter((p: any) => !p.parentId);
+                return `${rootItems.length + 1}`;
+              };
+
+              const suggestedWbs = getSuggestedWbs();
+
+              return (
+                <div className="rounded-xl border border-indigo-200 bg-indigo-50 p-5 shadow-sm space-y-4">
+                  <div className="flex items-center justify-between border-b border-indigo-200/60 pb-3">
+                    <h3 className="text-sm font-bold text-indigo-900 flex items-center gap-2">
+                      <Sparkles className="h-4 w-4 text-indigo-600" />
+                      <span>Ajouter un élément au plan WBS</span>
+                    </h3>
+                    <span className="text-xs text-indigo-600 bg-indigo-100 px-2 py-0.5 rounded font-mono font-bold">
+                      Code suggéré : {suggestedWbs}
+                    </span>
+                  </div>
+
+                  <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+                    <div>
+                      <label className="mb-1.5 block text-xs font-bold uppercase tracking-wider text-slate-700">
+                        1. Type d'élément *
+                      </label>
+                      <select
+                        value={piType}
+                        onChange={(e) => {
+                          const newType = e.target.value as PlanItem['type'];
+                          setPiType(newType);
+                          setPiWbs('');
+                          
+                          // Ajuster le parent selon le type
+                          if (newType === 'phase') {
+                            setPiParentId('');
+                          } else if (newType === 'activity' && rootPhases.length > 0) {
+                            if (!piParentId || !rootPhases.some((p: any) => p.id === piParentId)) {
+                              setPiParentId(rootPhases[0].id);
+                            }
+                          } else if (newType === 'task' && allActivities.length > 0) {
+                            if (!piParentId || !allActivities.some((a: any) => a.id === piParentId)) {
+                              setPiParentId(allActivities[0].id);
+                            }
+                          }
+
+                          if (newType === 'milestone') {
+                            const dateToUse = piEnd || piStart;
+                            setPiStart(dateToUse);
+                            setPiEnd(dateToUse);
+                          }
+                        }}
+                        className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-xs font-semibold shadow-xs"
+                      >
+                        <option value="phase">🏛️ Phase (Niveau 1 — Macro)</option>
+                        <option value="activity">📦 Activité / Lot (Niveau 2)</option>
+                        <option value="task">📋 Tâche opérationnelle (Niveau 3)</option>
+                        <option value="milestone">🚩 Jalon clé (Date cible)</option>
+                        <option value="deliverable">📄 Livrable formel</option>
+                      </select>
+                    </div>
+
+                    <div>
+                      <label className="mb-1.5 block text-xs font-bold uppercase tracking-wider text-slate-700">
+                        2. Élément parent (Rattachement)
+                      </label>
+                      {piType === 'phase' ? (
+                        <div className="w-full rounded-lg border border-slate-200 bg-slate-100 px-3 py-2 text-xs text-slate-500 font-medium">
+                          Niveau 1 (Racine du projet)
+                        </div>
+                      ) : (
+                        <select
+                          value={piParentId}
+                          onChange={(e) => {
+                            const newParentId = e.target.value;
+                            setPiParentId(newParentId);
+                            setPiWbs('');
+                            const parent = planItems.find((p: any) => p.id === newParentId);
+                            if (parent) {
+                              if (piType === 'milestone') {
+                                const milestoneDate = parent.endDate || parent.startDate || '';
+                                setPiStart(milestoneDate);
+                                setPiEnd(milestoneDate);
+                              } else {
+                                if (parent.startDate && (!piStart || piStart < parent.startDate)) {
+                                  setPiStart(parent.startDate);
+                                }
+                                if (parent.endDate && (!piEnd || piEnd > parent.endDate)) {
+                                  setPiEnd(parent.endDate);
+                                }
+                              }
+                            }
+                          }}
+                          className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-xs font-semibold shadow-xs"
+                        >
+                          {piType === 'activity' ? (
+                            rootPhases.length > 0 ? (
+                              rootPhases.map((p: any) => (
+                                <option key={p.id} value={p.id}>
+                                  Phase {p.wbs} — {p.title}
+                                </option>
+                              ))
+                            ) : (
+                              <option value="">— Aucune Phase existante (Racine) —</option>
+                            )
+                          ) : piType === 'task' ? (
+                            allActivities.length > 0 ? (
+                              allActivities.map((a: any) => (
+                                <option key={a.id} value={a.id}>
+                                  Activité {a.wbs} — {a.title}
+                                </option>
+                              ))
+                            ) : rootPhases.length > 0 ? (
+                              rootPhases.map((p: any) => (
+                                <option key={p.id} value={p.id}>
+                                  Phase {p.wbs} — {p.title}
+                                </option>
+                              ))
+                            ) : (
+                              <option value="">— Aucun parent disponible (Racine) —</option>
+                            )
+                          ) : (
+                            <>
+                              <option value="">— Aucun parent (Racine) —</option>
+                              {planItems.filter((p: any) => p.type === 'phase' || p.type === 'activity').map((p: any) => (
+                                <option key={p.id} value={p.id}>
+                                  {p.type === 'phase' ? 'Phase' : 'Activité'} {p.wbs} — {p.title}
+                                </option>
+                              ))}
+                            </>
+                          )}
+                        </select>
+                      )}
+                    </div>
+
+                    <div>
+                      <label className="mb-1.5 block text-xs font-bold uppercase tracking-wider text-slate-700">
+                        3. Code WBS (Nomenclature)
+                      </label>
+                      <Input
+                        value={piWbs || suggestedWbs}
+                        onChange={(e) => setPiWbs(e.target.value)}
+                        placeholder={suggestedWbs}
+                        className="font-mono font-bold text-xs"
+                      />
+                    </div>
+
+                    <div className="sm:col-span-3">
+                      <label className="mb-1.5 block text-xs font-bold uppercase tracking-wider text-slate-700">
+                        Titre descriptif *
+                      </label>
+                      <Input
+                        value={piTitle}
+                        onChange={(e) => setPiTitle(e.target.value)}
+                        placeholder={
+                          piType === 'phase'
+                            ? 'Ex: Phase 1 — Cadrage & Mobilisation communautaire'
+                            : piType === 'activity'
+                            ? 'Ex: Activité 1.1 — Diagnostic des besoins et cartographie'
+                            : piType === 'task'
+                            ? 'Ex: Tâche 1.1.1 — Conduire 15 entretiens individuels'
+                            : piType === 'milestone'
+                            ? 'Ex: Validation du rapport d\'étape par le comité de pilotage'
+                            : 'Ex: Document de synthèse et grille d\'analyse livrés'
+                        }
+                        className="text-xs font-medium"
+                      />
+                    </div>
+
+                    {/* Champs conditionnels selon le type : Phase/Activité = Conteneur de synthèse / Jalon = Date cible / Tâche = Durée & PERT */}
+                    {piType === 'phase' || piType === 'activity' ? (
+                      <div className="sm:col-span-3 rounded-lg border border-indigo-200 bg-indigo-50/80 p-3.5 text-xs text-indigo-900 flex items-start gap-2.5">
+                        <Layers className="h-4 w-4 text-indigo-600 shrink-0 mt-0.5" />
+                        <div>
+                          <span className="font-bold block text-indigo-950">
+                            🏛️ Conteneur WBS de synthèse ({piType === 'phase' ? 'Phase Macro' : 'Activité / Lot de travail'})
+                          </span>
+                          <span className="text-indigo-800/90 text-[11px] mt-0.5 block">
+                            Les dates de début et fin, la durée globale, le budget consolidé et l'avancement % seront calculés et agrégés automatiquement à partir des tâches enfants que vous y ajouterez.
+                          </span>
+                        </div>
+                      </div>
+                    ) : piType === 'milestone' ? (
+                      <div className="sm:col-span-3 grid grid-cols-1 sm:grid-cols-2 gap-4">
+                        <div>
+                          <label className="mb-1.5 block text-xs font-bold uppercase tracking-wider text-slate-700">
+                            Date cible du Jalon *
+                            {selectedParent?.startDate && selectedParent?.endDate && (
+                              <span className="ml-1 text-[10px] text-indigo-600 font-normal">
+                                (période parent : {selectedParent.startDate} au {selectedParent.endDate})
+                              </span>
+                            )}
+                          </label>
+                          <Input
+                            type="date"
+                            value={piEnd || piStart}
+                            min={selectedParent?.startDate || undefined}
+                            max={selectedParent?.endDate || undefined}
+                            onChange={(e) => {
+                              setPiStart(e.target.value);
+                              setPiEnd(e.target.value);
+                            }}
+                          />
+                        </div>
+                        <div className="flex items-center text-xs text-slate-500 bg-white p-3 rounded-lg border border-slate-200">
+                          <span>🚩 <strong>Jalon clé :</strong> Événement marquant ou point de contrôle (Durée = 0 jour).</span>
+                        </div>
+                      </div>
+                    ) : (
+                      <>
+                        <div>
+                          <label className="mb-1.5 block text-xs font-bold uppercase tracking-wider text-slate-700">
+                            Durée estimée (jours ouvrés) *
+                          </label>
+                          <Input
+                            type="number"
+                            min={1}
+                            value={piDuration}
+                            onChange={(e) => {
+                              const val = e.target.value;
+                              setPiDuration(val);
+                              if (piStart && parseInt(val) > 0) {
+                                const d = new Date(piStart + 'T00:00:00Z');
+                                d.setUTCDate(d.getUTCDate() + parseInt(val));
+                                setPiEnd(d.toISOString().split('T')[0]);
+                              }
+                            }}
+                            placeholder="5"
+                            className="bg-white text-xs font-bold font-mono"
+                          />
+                        </div>
+
+                        <div>
+                          <label className="mb-1.5 block text-xs font-bold uppercase tracking-wider text-slate-700">
+                            Date de début souhaitée (optionnelle)
+                          </label>
+                          <Input
+                            type="date"
+                            value={piStart}
+                            min={selectedParent?.startDate || undefined}
+                            max={selectedParent?.endDate || undefined}
+                            onChange={(e) => {
+                              const s = e.target.value;
+                              setPiStart(s);
+                              if (s && parseInt(piDuration) > 0) {
+                                const d = new Date(s + 'T00:00:00Z');
+                                d.setUTCDate(d.getUTCDate() + parseInt(piDuration));
+                                setPiEnd(d.toISOString().split('T')[0]);
+                              }
+                            }}
+                          />
+                        </div>
+
+                        <div>
+                          <label className="mb-1.5 block text-xs font-bold uppercase tracking-wider text-slate-700">
+                            Coût estimé planifié (CAD)
+                          </label>
+                          <Input
+                            type="number"
+                            value={piEstimatedCost}
+                            onChange={(e) => setPiEstimatedCost(e.target.value)}
+                            placeholder="0.00"
+                            className="bg-white text-xs"
+                          />
+                        </div>
+
+                        <div className="sm:col-span-3 flex items-center justify-between">
+                          <button
+                            type="button"
+                            onClick={() => setShowPertInputs(!showPertInputs)}
+                            className={`text-xs font-bold px-3 py-1.5 rounded-lg border transition flex items-center gap-1.5 ${
+                              showPertInputs
+                                ? 'bg-indigo-600 text-white border-indigo-700'
+                                : 'bg-white text-indigo-700 border-indigo-200 hover:bg-indigo-50'
+                            }`}
+                          >
+                            <Sparkles className="h-3.5 w-3.5" />
+                            {showPertInputs ? 'Masquer estimation PERT 3-points' : '🎯 Estimation avancée PERT à 3 points (O, M, P)'}
+                          </button>
+                          {piStart && piEnd && (
+                            <span className="text-[11px] text-slate-500 font-medium">
+                              Période calculée : <strong className="text-slate-800">{piStart} → {piEnd}</strong>
+                            </span>
+                          )}
+                        </div>
+
+                        {showPertInputs && (
+                          <div className="sm:col-span-3 rounded-lg bg-white border border-indigo-100 p-3 space-y-2">
+                            <span className="text-[11px] font-bold text-indigo-900 block">
+                              Estimation PERT probabiliste : Durée moyenne attendue Te = (O + 4M + P) / 6
+                            </span>
+                            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                              <div>
+                                <label className="mb-1 block text-[10px] font-bold text-slate-600">Durée Optimiste (O) [jours]</label>
+                                <Input
+                                  type="number"
+                                  min={1}
+                                  value={piOptimistic}
+                                  onChange={(e) => {
+                                    setPiOptimistic(e.target.value);
+                                    if (e.target.value && piMostLikely && piPessimistic) {
+                                      const te = Math.round(((parseInt(e.target.value) + 4 * parseInt(piMostLikely) + parseInt(piPessimistic)) / 6) * 10) / 10;
+                                      setPiDuration(String(Math.max(1, Math.round(te))));
+                                    }
+                                  }}
+                                  placeholder="Ex: 2"
+                                  className="text-xs"
+                                />
+                              </div>
+                              <div>
+                                <label className="mb-1 block text-[10px] font-bold text-slate-600">Durée la plus Probable (M) [jours]</label>
+                                <Input
+                                  type="number"
+                                  min={1}
+                                  value={piMostLikely}
+                                  onChange={(e) => {
+                                    setPiMostLikely(e.target.value);
+                                    if (piOptimistic && e.target.value && piPessimistic) {
+                                      const te = Math.round(((parseInt(piOptimistic) + 4 * parseInt(e.target.value) + parseInt(piPessimistic)) / 6) * 10) / 10;
+                                      setPiDuration(String(Math.max(1, Math.round(te))));
+                                    }
+                                  }}
+                                  placeholder="Ex: 5"
+                                  className="text-xs"
+                                />
+                              </div>
+                              <div>
+                                <label className="mb-1 block text-[10px] font-bold text-slate-600">Durée Pessimiste (P) [jours]</label>
+                                <Input
+                                  type="number"
+                                  min={1}
+                                  value={piPessimistic}
+                                  onChange={(e) => {
+                                    setPiPessimistic(e.target.value);
+                                    if (piOptimistic && piMostLikely && e.target.value) {
+                                      const te = Math.round(((parseInt(piOptimistic) + 4 * parseInt(piMostLikely) + parseInt(e.target.value)) / 6) * 10) / 10;
+                                      setPiDuration(String(Math.max(1, Math.round(te))));
+                                    }
+                                  }}
+                                  placeholder="Ex: 12"
+                                  className="text-xs"
+                                />
+                              </div>
+                            </div>
+                            {piOptimistic && piMostLikely && piPessimistic && (
+                              <div className="text-[11px] text-indigo-700 font-mono bg-indigo-50 p-2 rounded">
+                                Durée retenue Te : <strong>{Math.round(((parseInt(piOptimistic) + 4 * parseInt(piMostLikely) + parseInt(piPessimistic)) / 6) * 10) / 10} jours</strong> (Écart-type σ: ±{Math.round(((parseInt(piPessimistic) - parseInt(piOptimistic)) / 6) * 10) / 10} j)
+                              </div>
+                            )}
+                          </div>
+                        )}
+                      </>
+                    )}
+                  </div>
+
+                  {/* Guide Pédagogique d'Ordre et Hiérarchie */}
+                  {piType === 'activity' && rootPhases.length === 0 && (
+                    <div className="p-3 bg-amber-50 border border-amber-200 text-amber-900 rounded-lg text-xs flex items-center justify-between">
+                      <span>
+                        ⚠️ <strong>Bonne pratique :</strong> Aucune Phase n'est encore définie. Il est fortement recommandé de créer d'abord une <strong>Phase</strong> (ex: Phase 1 — Cadrage) afin de structurer vos activités sous une numérotation WBS rigoureuse (ex: 1.1, 1.2).
+                      </span>
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant="outline"
+                        onClick={() => {
+                          setPiType('phase');
+                          setPiParentId('');
+                          setPiTitle('Phase 1 — ');
+                          setPiWbs('1');
+                        }}
+                        className="text-xs ml-3 whitespace-nowrap bg-white text-amber-800 border-amber-300"
+                      >
+                        Créer une Phase d'abord
+                      </Button>
+                    </div>
+                  )}
+
+                  {piType === 'task' && allActivities.length === 0 && (
+                    <div className="p-3 bg-blue-50 border border-blue-200 text-blue-900 rounded-lg text-xs">
+                      💡 <strong>Conseil hiérarchique :</strong> Dans la gestion de projet OBNL (norme PMI/WBS), les tâches opérationnelles (ex: 1.1.1) découlent d'une <strong>Activité</strong> (ex: 1.1).
+                    </div>
+                  )}
+
+                  <div className="flex gap-2 pt-2 border-t border-indigo-200/60">
+                    <Button
+                      size="sm"
+                      onClick={() => {
+                        if (!piWbs && suggestedWbs) {
+                          setPiWbs(suggestedWbs);
+                        }
+                        if (piType === 'milestone') {
+                          const milestoneDate = piEnd || piStart;
+                          setPiStart(milestoneDate);
+                          setPiEnd(milestoneDate);
+                        }
+                        addPlanItem.mutate();
+                      }}
+                      disabled={!piTitle.trim() || addPlanItem.isPending}
+                      className="bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs"
+                    >
+                      {addPlanItem.isPending ? 'Enregistrement...' : 'Enregistrer dans le WBS'}
+                    </Button>
+                    <Button size="sm" variant="ghost" onClick={() => setShowPlanItemForm(false)} className="text-xs">
+                      Annuler
+                    </Button>
+                  </div>
+                </div>
+              );
+            })()}
+
+                planItems.length === 0 ? (
+              <div className="rounded-xl border border-dashed border-slate-200 bg-white p-10 text-center">
+                <ListTodo className="mx-auto mb-3 h-10 w-10 text-slate-300" />
+                <p className="text-sm font-medium text-slate-500">Aucun élément de plan défini</p>
+                <p className="mt-1 text-xs text-slate-400">Structurez le projet en phases (1, 2), activités (1.1, 1.2), tâches (1.1.1) et jalons.</p>
+              </div>
+            ) : (
+              <div className="overflow-hidden rounded-xl border bg-white shadow-sm">
+                <table className="w-full text-sm">
+                  <thead className="border-b bg-slate-50">
+                    <tr className="text-left text-xs font-semibold uppercase tracking-wide text-slate-500">
+                      <th className="px-4 py-3">WBS</th>
+                      <th className="px-4 py-3">Type</th>
+                      <th className="px-4 py-3">Titre de l'élément</th>
+                      <th className="px-4 py-3">Période / Date</th>
+                      <th className="w-44 px-4 py-3">Avancement</th>
+                      <th className="px-4 py-3">Statut</th>
+                      <th className="px-4 py-3 text-right">Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100">
+                    {[...planItems]
+                      .sort((a: any, b: any) => a.wbs.localeCompare(b.wbs, undefined, { numeric: true }))
+                      .map((item: any) => {
+                        const depth = Math.max(0, (item.wbs || '').split('.').length - 1);
+                        const statusCfg = STATUS_CONFIG[item.status] || STATUS_CONFIG.todo;
+                        const typeCfg = TYPE_CONFIG[item.type] || TYPE_CONFIG.task;
+                        const isMilestone = item.type === 'milestone';
+
+                        return (
+                          <tr key={item.id} className="group hover:bg-slate-50 transition-colors">
+                            <td className="px-4 py-3 font-mono text-xs font-bold text-slate-600">{item.wbs}</td>
+                            <td className="px-4 py-3">
+                              <span className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-0.5 text-xs font-medium ${typeCfg.badgeClass}`}>
+                                {typeCfg.icon}
+                                {typeCfg.label}
+                              </span>
+                            </td>
+                            <td className="px-4 py-3">
+                              <div
+                                className={`flex items-center gap-1.5 ${isMilestone ? 'text-amber-900 font-bold' : item.type === 'phase' ? 'text-indigo-950 font-bold' : 'text-slate-800 font-medium'}`}
+                                style={{ paddingLeft: `${depth * 20}px` }}
+                              >
+                                {depth > 0 && <span className="text-slate-300 font-mono">↳</span>}
+                                <span>{item.title}</span>
+                              </div>
+                            </td>
+                            <td className="px-4 py-3 text-xs text-slate-600">
+                              {isMilestone ? (
+                                <span className="inline-flex items-center gap-1 rounded bg-amber-50 px-2 py-0.5 font-medium text-amber-800 border border-amber-200">
+                                  <Flag className="h-3 w-3 text-amber-600" />
+                                  {item.endDate || item.startDate || '—'}
+                                </span>
+                              ) : item.startDate && item.endDate ? (
+                                <div className="flex flex-col gap-0.5">
+                                  <span className="flex items-center gap-1 font-medium">
+                                    <Calendar className="h-3 w-3 text-slate-400" />
+                                    {item.startDate} → {item.endDate}
+                                  </span>
+                                  <span className="text-[10px] text-slate-400 font-mono">
+                                    Durée : {item.durationDays || 1} j {item.type === 'phase' || item.type === 'activity' ? '(synthèse)' : ''}
+                                  </span>
+                                </div>
+                              ) : (
+                                <span className="text-slate-400 italic">
+                                  {item.type === 'phase' || item.type === 'activity' ? 'Calculé au roll-up' : item.startDate || 'Non planifié'}
+                                </span>
+                              )}
+                            </td>
+                            <td className="px-4 py-3">
+                              <InlineProgress item={item} projectId={id!} onSaved={invalidate} />
+                            </td>
+                            <td className="px-4 py-3">
+                              <span className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-medium ${statusCfg.color}`}>
+                                {statusCfg.icon}
+                                {statusCfg.label}
+                              </span>
+                            </td>
+                            <td className="px-4 py-3 text-right">
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  const children = planItems.filter((p: any) => p.parentId === item.id);
+                                  const confirmMsg = children.length > 0
+                                    ? `Supprimer "${item.wbs} — ${item.title}" supprimera également ses ${children.length} sous-élément(s) rattaché(s). Confirmer ?`
+                                    : `Êtes-vous sûr de vouloir supprimer l'élément "${item.wbs} — ${item.title}" ?`;
+                                  if (window.confirm(confirmMsg)) {
+                                    deletePlanItem.mutate(item.id);
+                                  }
+                                }}
+                                className="p-1.5 text-slate-400 hover:text-rose-600 rounded hover:bg-rose-50 transition-colors"
+                                title="Supprimer cet élément"
+                              >
+                                <Trash2 className="h-4 w-4" />
+                              </button>
+                            </td>
+                          </tr>
+                        );
+                      })}
+                  </tbody>
+                </table>
+              </div>
+            ))
+              </div>
+            )}
+
+            {/* Sub-tab 2: Gantt */}
+            {planningSubTab === 'gantt' && (
+              <GanttChartInteractive
+                tasks={planItems}
+                dependencies={dependencies}
+                onSelectTask={(t) => {
+                  setSelectedTask(t);
+                  setLogProgress(t.progressPct || 0);
+                  setLogIsBlocked(t.status === 'blocked');
+                }}
+              />
+            )}
+
+            {/* Sub-tab 3: PERT Network Diagram */}
+            {planningSubTab === 'pert' && (
+              <PertNetworkDiagram
+                tasks={planItems}
+                dependencies={dependencies}
+                onSelectTask={(t) => {
+                  setSelectedTask(t);
+                  setLogProgress(t.progressPct || 0);
+                  setLogIsBlocked(t.status === 'blocked');
+                }}
+              />
+            )}
+
+            {/* Sub-tab 4: Budget Prévisionnel */}
+            {planningSubTab === 'budget_plan' && (
+              <div className="space-y-6">
+                {/* Budget Summary */}
             <div className="grid grid-cols-3 gap-4">
               <div className="rounded-xl border bg-white p-5 shadow-sm text-center">
                 <p className="text-xs text-slate-500">Budget total</p>
@@ -3225,8 +3205,378 @@ export function ProjectDetailScreen() {
                 </table>
               )}
             </div>
+                {/* Budget Lines */}
+            <div className="rounded-xl border bg-white shadow-sm">
+              <div className="flex items-center justify-between border-b px-5 py-4">
+                <h2 className="font-semibold text-slate-800">Lignes budgétaires</h2>
+                <Button size="sm" onClick={() => setShowBudgetLineForm(!showBudgetLineForm)}>
+                  <Plus className="mr-1 h-4 w-4" />
+                  Ajouter une ligne
+                </Button>
+              </div>
+              {showBudgetLineForm && (
+                <div className="border-b bg-indigo-50 p-4">
+                  <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+                    <div>
+                      <label className="mb-1 block text-xs font-medium text-slate-600">Catégorie</label>
+                      <select
+                        value={blCategory}
+                        onChange={(e) => setBlCategory(e.target.value)}
+                        className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm"
+                      >
+                        {Object.entries(CATEGORY_LABELS).map(([k, v]) => (
+                          <option key={k} value={k}>{v}</option>
+                        ))}
+                      </select>
+                    </div>
+                    <div>
+                      <label className="mb-1 block text-xs font-medium text-slate-600">Description *</label>
+                      <Input value={blDescription} onChange={(e) => setBlDescription(e.target.value)} placeholder="Ex: Salaire coordonnateur..." />
+                    </div>
+                    <div>
+                      <label className="mb-1 block text-xs font-medium text-slate-600">Montant (CAD) *</label>
+                      <Input type="number" value={blAmount} onChange={(e) => setBlAmount(e.target.value)} placeholder="0.00" />
+                    </div>
+                  </div>
+                  <div className="mt-3 flex gap-2">
+                    <Button size="sm" onClick={() => addBudgetLine.mutate()} disabled={!blDescription.trim() || !blAmount || addBudgetLine.isPending}>
+                      Enregistrer
+                    </Button>
+                    <Button size="sm" variant="ghost" onClick={() => setShowBudgetLineForm(false)}>Annuler</Button>
+                  </div>
+                </div>
+              )}
+              {(!projBudget?.lines || projBudget.lines.length === 0) ? (
+                <div className="p-8 text-center text-sm text-slate-400">Aucune ligne budgétaire définie.</div>
+              ) : (
+                <table className="w-full text-sm">
+                  <thead className="border-b bg-slate-50 text-xs font-semibold uppercase text-slate-500">
+                    <tr>
+                      <th className="px-5 py-3 text-left">Catégorie</th>
+                      <th className="px-5 py-3 text-left">Description</th>
+                      <th className="px-5 py-3 text-right">Montant planifié</th>
+                      <th className="px-5 py-3 text-right">Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100">
+                    {projBudget.lines.map((line: any) => {
+                      const isEditing = editingBlId === line.id;
+                      if (isEditing) {
+                        return (
+                          <tr key={line.id} className="bg-indigo-50/50">
+                            <td className="px-5 py-2.5">
+                              <select
+                                value={editBlCategory}
+                                onChange={(e) => setEditBlCategory(e.target.value)}
+                                className="w-full rounded-lg border border-slate-300 bg-white px-2.5 py-1.5 text-xs font-medium focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500"
+                              >
+                                {Object.entries(CATEGORY_LABELS).map(([k, v]) => (
+                                  <option key={k} value={k}>{v}</option>
+                                ))}
+                              </select>
+                            </td>
+                            <td className="px-5 py-2.5">
+                              <Input
+                                value={editBlDescription}
+                                onChange={(e) => setEditBlDescription(e.target.value)}
+                                placeholder="Description"
+                                className="bg-white text-xs"
+                              />
+                            </td>
+                            <td className="px-5 py-2.5 text-right">
+                              <Input
+                                type="number"
+                                value={editBlAmount}
+                                onChange={(e) => setEditBlAmount(e.target.value)}
+                                placeholder="0.00"
+                                className="bg-white text-xs text-right font-semibold"
+                              />
+                            </td>
+                            <td className="px-5 py-2.5 text-right whitespace-nowrap">
+                              <div className="flex items-center justify-end gap-1.5">
+                                <Button
+                                  size="sm"
+                                  className="h-7 px-2.5 text-xs"
+                                  disabled={!editBlDescription.trim() || !editBlAmount || updateBudgetLine.isPending}
+                                  onClick={() => {
+                                    updateBudgetLine.mutate({
+                                      lineId: line.id,
+                                      categoryCode: editBlCategory,
+                                      description: editBlDescription.trim(),
+                                      amount: parseFloat(editBlAmount),
+                                    });
+                                  }}
+                                >
+                                  <Check className="h-3.5 w-3.5 mr-1" />
+                                  Enregistrer
+                                </Button>
+                                <Button
+                                  size="sm"
+                                  variant="ghost"
+                                  className="h-7 px-2 text-xs"
+                                  onClick={() => setEditingBlId(null)}
+                                >
+                                  Annuler
+                                </Button>
+                              </div>
+                            </td>
+                          </tr>
+                        );
+                      }
 
-            {/* Expenses */}
+                      return (
+                        <tr key={line.id} className="hover:bg-slate-50 group">
+                          <td className="px-5 py-3">
+                            <span className="rounded-full bg-slate-100 px-2 py-0.5 text-xs font-medium text-slate-600">
+                              {CATEGORY_LABELS[line.categoryCode] || line.categoryCode}
+                            </span>
+                          </td>
+                          <td className="px-5 py-3 text-slate-700 font-medium">{line.description}</td>
+                          <td className="px-5 py-3 text-right font-semibold text-slate-900">{fmt(line.amount)}</td>
+                          <td className="px-5 py-3 text-right">
+                            <div className="flex items-center justify-end gap-1 opacity-90 group-hover:opacity-100">
+                              <Button
+                                size="sm"
+                                variant="ghost"
+                                className="h-7 w-7 p-0 text-slate-400 hover:text-indigo-600 hover:bg-indigo-50"
+                                title="Modifier cette ligne budgétaire"
+                                onClick={() => {
+                                  setEditingBlId(line.id);
+                                  setEditBlCategory(line.categoryCode);
+                                  setEditBlDescription(line.description);
+                                  setEditBlAmount(line.amount);
+                                }}
+                              >
+                                <Pencil className="h-3.5 w-3.5" />
+                              </Button>
+                              <Button
+                                size="sm"
+                                variant="ghost"
+                                className="h-7 w-7 p-0 text-slate-400 hover:text-red-600 hover:bg-red-50"
+                                title="Supprimer cette ligne budgétaire"
+                                onClick={() => {
+                                  if (window.confirm(`Supprimer la ligne budgétaire "${line.description}" (${fmt(line.amount)}) ?`)) {
+                                    deleteBudgetLine.mutate(line.id);
+                                  }
+                                }}
+                              >
+                                <Trash2 className="h-3.5 w-3.5" />
+                              </Button>
+                            </div>
+                          </td>
+                        </tr>
+                      );
+                    })}
+                    <tr className="border-t-2 border-slate-200 bg-slate-50">
+                      <td colSpan={2} className="px-5 py-3 font-bold text-slate-700">Total</td>
+                      <td className="px-5 py-3 text-right font-bold text-slate-900">{fmt(totalBudget)}</td>
+                      <td className="px-5 py-3"></td>
+                    </tr>
+                  </tbody>
+                </table>
+              )}
+            </div>
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* ═══════════════════════════════════════════════════════════════ */}
+        {/* PILIER 3: EXÉCUTION & OPÉRATIONS                                */}
+        {/* ═══════════════════════════════════════════════════════════════ */}
+        {activeTab === 'execution' && (
+          <div className="space-y-6">
+            {/* Sub-tab Navigation */}
+            <div className="flex items-center gap-1.5 p-1 bg-slate-200/80 rounded-xl w-fit border border-slate-300 shadow-2xs">
+              <button
+                onClick={() => setExecutionSubTab('tasks')}
+                className={`flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg text-xs font-bold transition ${
+                  executionSubTab === 'tasks' ? 'bg-white text-indigo-700 shadow-xs' : 'text-slate-600 hover:text-slate-900'
+                }`}
+              >
+                <CheckCircle2 className="h-3.5 w-3.5" />
+                Tâches & Tableau Kanban ({totalTasks})
+              </button>
+              <button
+                onClick={() => setExecutionSubTab('expenses')}
+                className={`flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg text-xs font-bold transition ${
+                  executionSubTab === 'expenses' ? 'bg-white text-indigo-700 shadow-xs' : 'text-slate-600 hover:text-slate-900'
+                }`}
+              >
+                <DollarSign className="h-3.5 w-3.5" />
+                Dépenses Réelles & Factures ({expenses.length})
+              </button>
+              <button
+                onClick={() => setExecutionSubTab('deliverables')}
+                className={`flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg text-xs font-bold transition ${
+                  executionSubTab === 'deliverables' ? 'bg-white text-emerald-700 shadow-xs' : 'text-slate-600 hover:text-slate-900'
+                }`}
+              >
+                <PackageCheck className="h-3.5 w-3.5" />
+                Registre des Livrables ({deliverables.length})
+              </button>
+            </div>
+
+            {/* Sub-tab 1: Tâches & Kanban */}
+            {executionSubTab === 'tasks' && (
+              <div className="space-y-6">
+            <div className="flex items-center justify-between">
+              <div>
+                <h2 className="text-base font-bold text-slate-800">Centre d'Évolution des Tâches & Livrables</h2>
+                <p className="text-sm text-slate-500">
+                  Cliquez sur n'importe quelle tâche pour ouvrir son journal d'évolution, consigner des logs, signaler un blocage ou déposer un livrable.
+                </p>
+              </div>
+            </div>
+
+            {/* Kanban Columns */}
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-5">
+              {Object.entries(STATUS_CONFIG).map(([statusKey, cfg]) => {
+                const items = planItems.filter((p: any) => p.status === statusKey && (p.type === 'task' || p.type === 'milestone'));
+                return (
+                  <div key={statusKey} className="space-y-3">
+                    <div className={`flex items-center justify-between rounded-lg px-3 py-2 text-xs font-semibold ${cfg.color}`}>
+                      <span className="flex items-center gap-1.5">{cfg.icon} {cfg.label}</span>
+                      <span className="rounded-full bg-white/70 px-2 py-0.5 font-bold">{items.length}</span>
+                    </div>
+                    {items.length === 0 && (
+                      <div className="rounded-xl border border-dashed border-slate-200 p-4 text-center text-xs text-slate-300">
+                        Aucune tâche
+                      </div>
+                    )}
+                    {items.map((item: any) => {
+                      const typeCfg = TYPE_CONFIG[item.type] || TYPE_CONFIG.task;
+                      const isMilestone = item.type === 'milestone';
+                      const taskUpdates = updates.filter((u: any) => u.planItemId === item.id);
+                      const taskDeliverables = deliverables.filter((d: any) => d.planItemId === item.id);
+                      const hasBlocker = item.status === 'blocked';
+
+                      return (
+                        <div
+                          key={item.id}
+                          onClick={() => {
+                            setSelectedTask(item);
+                            setLogProgress(item.progressPct || 0);
+                            setLogIsBlocked(item.status === 'blocked');
+                          }}
+                          className={`cursor-pointer rounded-xl border bg-white p-4 shadow-sm transition hover:border-indigo-400 hover:shadow-md ${
+                            hasBlocker ? 'border-red-300 bg-red-50/30' : ''
+                          }`}
+                        >
+                          <div className="mb-2 flex items-center justify-between">
+                            <span className="font-mono text-xs font-bold text-slate-500">{item.wbs}</span>
+                            <span className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] ${typeCfg.badgeClass}`}>
+                              {typeCfg.icon}
+                              {typeCfg.label}
+                            </span>
+                          </div>
+                          <p className="text-sm font-semibold text-slate-900">{item.title}</p>
+                          
+                          {item.endDate && (
+                            <p className="mt-2 flex items-center gap-1 text-xs text-slate-500">
+                              {isMilestone ? <Flag className="h-3.5 w-3.5 text-amber-500" /> : <Calendar className="h-3.5 w-3.5 text-slate-400" />}
+                              {isMilestone ? `Jalon le : ${item.endDate}` : `Échéance : ${item.endDate}`}
+                            </p>
+                          )}
+
+                          <div className="mt-3">
+                            <ProgressBar value={item.progressPct || 0} />
+                          </div>
+
+                          {/* Mini badges for updates and deliverables */}
+                          <div className="mt-3 flex items-center gap-3 border-t border-slate-100 pt-2 text-[11px] text-slate-500">
+                            <span className="flex items-center gap-1">
+                              <MessageSquare className="h-3 w-3 text-indigo-500" />
+                              {taskUpdates.length} log{taskUpdates.length !== 1 ? 's' : ''}
+                            </span>
+                            <span className="flex items-center gap-1">
+                              <PackageCheck className="h-3 w-3 text-emerald-500" />
+                              {taskDeliverables.length} livrable{taskDeliverables.length !== 1 ? 's' : ''}
+                            </span>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                );
+              })}
+            </div>
+
+            {/* Non-task items (phases, activities, deliverables) */}
+            {planItems.filter((p: any) => p.type === 'phase' || p.type === 'activity' || p.type === 'deliverable').length > 0 && (
+              <div className="mt-8">
+                <h3 className="mb-3 text-sm font-bold text-slate-700">Phases, Activités & Livrables Globaux</h3>
+                <div className="overflow-hidden rounded-xl border bg-white shadow-sm">
+                  <table className="w-full text-sm">
+                    <thead className="border-b bg-slate-50">
+                      <tr className="text-left text-xs font-semibold uppercase text-slate-500">
+                        <th className="px-4 py-3">WBS</th>
+                        <th className="px-4 py-3">Type</th>
+                        <th className="px-4 py-3">Titre</th>
+                        <th className="px-4 py-3">Logs & Livrables</th>
+                        <th className="px-4 py-3">Avancement</th>
+                        <th className="px-4 py-3">Action</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-100">
+                      {planItems
+                        .filter((p: any) => p.type === 'phase' || p.type === 'activity' || p.type === 'deliverable')
+                        .sort((a: any, b: any) => a.wbs.localeCompare(b.wbs, undefined, { numeric: true }))
+                        .map((item: any) => {
+                          const typeCfg = TYPE_CONFIG[item.type] || TYPE_CONFIG.activity;
+                          const taskUpdates = updates.filter((u: any) => u.planItemId === item.id);
+                          const taskDeliverables = deliverables.filter((d: any) => d.planItemId === item.id);
+
+                          return (
+                            <tr key={item.id} className="group hover:bg-slate-50">
+                              <td className="px-4 py-3 font-mono text-xs font-semibold text-slate-400">{item.wbs}</td>
+                              <td className="px-4 py-3">
+                                <span className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-medium ${typeCfg.badgeClass}`}>
+                                  {typeCfg.icon}
+                                  {typeCfg.label}
+                                </span>
+                              </td>
+                              <td className="px-4 py-3 font-semibold text-slate-800">{item.title}</td>
+                              <td className="px-4 py-3 text-xs text-slate-500">
+                                <span className="mr-3 inline-flex items-center gap-1">
+                                  <MessageSquare className="h-3 w-3 text-indigo-500" /> {taskUpdates.length}
+                                </span>
+                                <span className="inline-flex items-center gap-1">
+                                  <PackageCheck className="h-3 w-3 text-emerald-500" /> {taskDeliverables.length}
+                                </span>
+                              </td>
+                              <td className="w-44 px-4 py-3">
+                                <ProgressBar value={item.progressPct || 0} />
+                              </td>
+                              <td className="px-4 py-3">
+                                <Button
+                                  size="sm"
+                                  variant="outline"
+                                  className="h-7 text-xs"
+                                  onClick={() => {
+                                    setSelectedTask(item);
+                                    setLogProgress(item.progressPct || 0);
+                                    setLogIsBlocked(item.status === 'blocked');
+                                  }}
+                                >
+                                  Ouvrir journal
+                                </Button>
+                              </td>
+                            </tr>
+                          );
+                        })}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            )}
+          </div>
+            )}
+
+            {/* Sub-tab 2: Dépenses Réelles */}
+            {executionSubTab === 'expenses' && (
+              <div className="space-y-6">
+                {/* Expenses */}
             <div className="rounded-xl border bg-white shadow-sm">
               <div className="flex items-center justify-between border-b px-5 py-4">
                 <h2 className="font-semibold text-slate-800">Dépenses</h2>
@@ -3336,14 +3686,200 @@ export function ProjectDetailScreen() {
                 </table>
               )}
             </div>
+              </div>
+            )}
+
+            {/* Sub-tab 3: Registre des Livrables */}
+            {executionSubTab === 'deliverables' && (
+              <div className="space-y-4">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <h2 className="text-base font-bold text-slate-800">Registre Général des Livrables</h2>
+                    <p className="text-sm text-slate-500">Validation formelle des livrables et preuves de réalisation</p>
+                  </div>
+                </div>
+
+                {deliverables.length === 0 ? (
+                  <div className="rounded-xl border border-dashed border-slate-200 bg-white p-10 text-center">
+                    <PackageCheck className="mx-auto mb-3 h-10 w-10 text-slate-300" />
+                    <p className="text-sm font-medium text-slate-500">Aucun livrable déposé</p>
+                    <p className="mt-1 text-xs text-slate-400">Les livrables sont déposés par les responsables de tâches dans le tiroir d'exécution.</p>
+                  </div>
+                ) : (
+                  <div className="overflow-hidden rounded-xl border bg-white shadow-sm">
+                    <table className="w-full text-sm">
+                      <thead className="border-b bg-slate-50 text-xs font-semibold uppercase text-slate-500">
+                        <tr>
+                          <th className="px-5 py-3 text-left">Livrable & Document</th>
+                          <th className="px-5 py-3 text-left">Tâche / Activité rattachée</th>
+                          <th className="px-5 py-3 text-center">Statut</th>
+                          <th className="px-5 py-3 text-left">Vérification</th>
+                          <th className="px-5 py-3 text-right">Actions</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-slate-100">
+                        {deliverables.map((deliv: any) => {
+                          const parentTask = planItems.find((p: any) => p.id === deliv.planItemId);
+                          return (
+                            <tr key={deliv.id} className="hover:bg-slate-50">
+                              <td className="px-5 py-3">
+                                <div className="font-semibold text-slate-900">{deliv.title}</div>
+                                {deliv.description && <p className="text-xs text-slate-500 mt-0.5">{deliv.description}</p>}
+                                {deliv.fileUrl && (
+                                  <a
+                                    href={deliv.fileUrl}
+                                    target="_blank"
+                                    rel="noreferrer"
+                                    className="inline-flex items-center gap-1 text-xs font-medium text-indigo-600 hover:text-indigo-800 mt-1"
+                                  >
+                                    <Paperclip className="h-3 w-3" />
+                                    Voir le fichier / lien
+                                  </a>
+                                )}
+                              </td>
+                              <td className="px-5 py-3 text-slate-700">
+                                {parentTask ? (
+                                  <button
+                                    onClick={() => setSelectedTask(parentTask)}
+                                    className="text-left text-xs font-medium text-indigo-700 hover:underline flex items-center gap-1"
+                                  >
+                                    <span className="font-mono bg-indigo-50 px-1.5 py-0.5 rounded text-[11px] font-bold text-indigo-800">{parentTask.wbs}</span>
+                                    <span>{parentTask.title}</span>
+                                  </button>
+                                ) : (
+                                  <span className="text-xs text-slate-400">Élément #{deliv.planItemId.slice(0, 8)}</span>
+                                )}
+                              </td>
+                              <td className="px-5 py-3 text-center">
+                                <span
+                                  className={`inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-xs font-semibold ${
+                                    deliv.status === 'approved'
+                                      ? 'bg-emerald-100 text-emerald-800'
+                                      : deliv.status === 'rejected'
+                                      ? 'bg-red-100 text-red-800'
+                                      : 'bg-amber-100 text-amber-800'
+                                  }`}
+                                >
+                                  {deliv.status === 'approved' && <Check className="h-3 w-3" />}
+                                  {deliv.status === 'rejected' && <X className="h-3 w-3" />}
+                                  {deliv.status === 'pending' && <Clock className="h-3 w-3" />}
+                                  {deliv.status === 'approved' ? 'Approuvé' : deliv.status === 'rejected' ? 'Rejeté' : 'En attente'}
+                                </span>
+                              </td>
+                              <td className="px-5 py-3 text-xs text-slate-500">
+                                {deliv.verifiedBy ? (
+                                  <div>
+                                    <span className="font-medium text-slate-700">{deliv.verifiedBy}</span>
+                                    {deliv.verifiedAt && <span className="block text-[11px] text-slate-400">{new Date(deliv.verifiedAt).toLocaleDateString('fr-CA')}</span>}
+                                  </div>
+                                ) : (
+                                  <span className="text-slate-400 italic">Non vérifié</span>
+                                )}
+                              </td>
+                              <td className="px-5 py-3 text-right whitespace-nowrap">
+                                <div className="flex items-center justify-end gap-1.5">
+                                  {deliv.status === 'pending' && (
+                                    <>
+                                      <Button
+                                        size="sm"
+                                        variant="outline"
+                                        onClick={() => {
+                                          if (parentTask) setSelectedTask(parentTask);
+                                          verifyDeliverableMutation.mutate({ deliverableId: deliv.id, status: 'approved' });
+                                        }}
+                                        disabled={verifyDeliverableMutation.isPending}
+                                        className="h-7 px-2 text-xs text-emerald-700 hover:bg-emerald-50 border-emerald-300"
+                                        title="Approuver le livrable"
+                                      >
+                                        <Check className="mr-1 h-3 w-3" /> Approuver
+                                      </Button>
+                                      <Button
+                                        size="sm"
+                                        variant="outline"
+                                        onClick={() => {
+                                          if (parentTask) setSelectedTask(parentTask);
+                                          verifyDeliverableMutation.mutate({ deliverableId: deliv.id, status: 'rejected' });
+                                        }}
+                                        disabled={verifyDeliverableMutation.isPending}
+                                        className="h-7 px-2 text-xs text-red-700 hover:bg-red-50 border-red-300"
+                                        title="Rejeter le livrable"
+                                      >
+                                        <X className="mr-1 h-3 w-3" /> Rejeter
+                                      </Button>
+                                    </>
+                                  )}
+                                  {parentTask && (
+                                    <Button
+                                      size="sm"
+                                      variant="ghost"
+                                      onClick={() => setSelectedTask(parentTask)}
+                                      className="h-7 px-2 text-xs text-slate-600 hover:text-indigo-600"
+                                    >
+                                      Ouvrir la tâche
+                                    </Button>
+                                  )}
+                                </div>
+                              </td>
+                            </tr>
+                          );
+                        })}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
+              </div>
+            )}
           </div>
         )}
 
         {/* ═══════════════════════════════════════════════════════════════ */}
-        {/* TAB: RAID                                                       */}
+        {/* PILIER 4: SUIVI & CONTRÔLE DE PERFORMANCE                       */}
         {/* ═══════════════════════════════════════════════════════════════ */}
-        {activeTab === 'raid' && (
-          <div className="space-y-4">
+        {activeTab === 'monitoring' && (
+          <div className="space-y-6">
+            {/* Sub-tab Navigation */}
+            <div className="flex items-center gap-1.5 p-1 bg-slate-200/80 rounded-xl w-fit border border-slate-300 shadow-2xs">
+              <button
+                onClick={() => setMonitoringSubTab('evm')}
+                className={`flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg text-xs font-bold transition ${
+                  monitoringSubTab === 'evm' ? 'bg-white text-indigo-700 shadow-xs' : 'text-slate-600 hover:text-slate-900'
+                }`}
+              >
+                <TrendingUp className="h-3.5 w-3.5" />
+                Valeur Acquise & EVM (Courbe en S)
+              </button>
+              <button
+                onClick={() => setMonitoringSubTab('raid')}
+                className={`flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg text-xs font-bold transition ${
+                  monitoringSubTab === 'raid' ? 'bg-white text-orange-700 shadow-xs' : 'text-slate-600 hover:text-slate-900'
+                }`}
+              >
+                <AlertTriangle className="h-3.5 w-3.5" />
+                Registre RAID ({raidItems.length})
+              </button>
+              <button
+                onClick={() => setMonitoringSubTab('health')}
+                className={`flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg text-xs font-bold transition ${
+                  monitoringSubTab === 'health' ? 'bg-white text-emerald-700 shadow-xs' : 'text-slate-600 hover:text-slate-900'
+                }`}
+              >
+                <BarChart3 className="h-3.5 w-3.5" />
+                Radar de Santé & Alertes de Dérives
+              </button>
+            </div>
+
+            {/* Sub-tab 1: EVM */}
+            {monitoringSubTab === 'evm' && (
+              <EarnedValueManagementView
+                tasks={planItems}
+                expenses={expenses}
+                budgetTotal={totalBudget}
+              />
+            )}
+
+            {/* Sub-tab 2: RAID */}
+            {monitoringSubTab === 'raid' && (
+              <div className="space-y-4">
             <div className="flex items-center justify-between">
               <div>
                 <h2 className="text-base font-bold text-slate-800">Registre RAID</h2>
@@ -3492,114 +4028,123 @@ export function ProjectDetailScreen() {
               </div>
             )}
           </div>
-        )}
-
-        {/* ═══════════════════════════════════════════════════════════════ */}
-        {/* TAB: FINANCEMENT                                               */}
-        {/* ═══════════════════════════════════════════════════════════════ */}
-        {activeTab === 'funding' && (
-          <div className="space-y-4">
-            <div className="flex items-center justify-between">
-              <div>
-                <h2 className="text-base font-bold text-slate-800">Sources de Financement</h2>
-                <p className="text-sm text-slate-500">Bailleurs de fonds, subventions et dons</p>
-              </div>
-              <Button size="sm" onClick={() => setShowFundingForm(!showFundingForm)}>
-                <Plus className="mr-2 h-4 w-4" />
-                Ajouter un bailleur
-              </Button>
-            </div>
-
-            {/* Funding form */}
-            {showFundingForm && (
-              <div className="rounded-xl border border-violet-200 bg-violet-50 p-5 shadow-sm">
-                <h3 className="mb-4 text-sm font-semibold text-violet-800">Nouveau bailleur de fonds</h3>
-                <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-                  <div>
-                    <label className="mb-1 block text-xs font-medium text-slate-600">Nom du bailleur *</label>
-                    <Input value={fsName} onChange={(e) => setFsName(e.target.value)} placeholder="Ex: Fondation XYZ, MSSS..." />
-                  </div>
-                  <div>
-                    <label className="mb-1 block text-xs font-medium text-slate-600">Type de financement</label>
-                    <select
-                      value={fsType}
-                      onChange={(e) => setFsType(e.target.value)}
-                      className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm"
-                    >
-                      {Object.entries(FUNDING_TYPE_LABELS).map(([k, v]) => (
-                        <option key={k} value={k}>{v}</option>
-                      ))}
-                    </select>
-                  </div>
-                  <div>
-                    <label className="mb-1 block text-xs font-medium text-slate-600">Montant (CAD) *</label>
-                    <Input type="number" value={fsAmount} onChange={(e) => setFsAmount(e.target.value)} placeholder="0.00" />
-                  </div>
-                  <div>
-                    <label className="mb-1 block text-xs font-medium text-slate-600">Date de rapport due</label>
-                    <Input type="date" value={fsDue} onChange={(e) => setFsDue(e.target.value)} />
-                  </div>
-                </div>
-                <div className="mt-4 flex gap-2">
-                  <Button size="sm" onClick={() => addFunding.mutate()} disabled={!fsName.trim() || !fsAmount || addFunding.isPending}>
-                    Enregistrer
-                  </Button>
-                  <Button size="sm" variant="ghost" onClick={() => setShowFundingForm(false)}>Annuler</Button>
-                </div>
-              </div>
             )}
 
-            {/* Total */}
-            {fundingSources.length > 0 && (
-              <div className="flex items-center justify-between rounded-xl border bg-violet-50 px-5 py-4">
-                <span className="text-sm font-semibold text-violet-800">Total financé</span>
-                <span className="text-xl font-bold text-violet-900">{fmt(totalFunding)}</span>
-              </div>
-            )}
-
-            {/* Funding cards */}
-            {fundingSources.length === 0 ? (
-              <div className="rounded-xl border border-dashed border-slate-200 bg-white p-10 text-center">
-                <HandCoins className="mx-auto mb-3 h-10 w-10 text-slate-300" />
-                <p className="text-sm font-medium text-slate-500">Aucune source de financement</p>
-                <p className="mt-1 text-xs text-slate-400">Ajoutez les bailleurs de fonds du projet.</p>
-              </div>
-            ) : (
-              <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
-                {fundingSources.map((fs: any) => (
-                  <div key={fs.id} className="relative rounded-xl border bg-white p-5 shadow-sm group">
-                    <div className="mb-3 flex items-start justify-between">
-                      <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-violet-100">
-                        <HandCoins className="h-5 w-5 text-violet-600" />
-                      </div>
-                      <div className="flex items-center gap-2">
-                        <span className="rounded-full bg-slate-100 px-2 py-0.5 text-xs font-medium text-slate-600">
-                          {FUNDING_TYPE_LABELS[fs.fundingType] || fs.fundingType}
-                        </span>
-                        <Button
-                          size="sm"
-                          variant="ghost"
-                          className="h-7 w-7 p-0 text-slate-300 hover:text-red-600 hover:bg-red-50"
-                          title="Supprimer cette source de financement"
-                          onClick={() => {
-                            if (window.confirm(`Supprimer le financement "${fs.donorName}" (${fmt(fs.amount)}) ?`)) {
-                              deleteFundingSource.mutate(fs.id);
-                            }
-                          }}
-                        >
-                          <Trash2 className="h-3.5 w-3.5" />
-                        </Button>
-                      </div>
+            {/* Sub-tab 3: Radar de Santé */}
+            {monitoringSubTab === 'health' && (
+              <div className="space-y-6">
+                {/* Health Banner */}
+                <div className="rounded-xl border bg-white p-6 shadow-sm flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
+                  <div>
+                    <div className="flex items-center gap-2">
+                      <span className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold border ${projectHealth.color}`}>
+                        <CheckCircle2 className="h-4 w-4" />
+                        {projectHealth.label}
+                      </span>
+                      <span className="text-xs text-slate-400 font-medium">• Santé calculée selon délais et blocages</span>
                     </div>
-                    <h3 className="font-semibold text-slate-800">{fs.donorName}</h3>
-                    <p className="mt-1 text-xl font-bold text-violet-700">{fmt(fs.amount, fs.currency || 'CAD')}</p>
-                    {fs.reportDueAt && (
-                      <p className="mt-2 text-xs text-slate-400">
-                        Rapport dû: <span className="font-medium text-slate-600">{fs.reportDueAt}</span>
-                      </p>
-                    )}
+                    <h2 className="mt-2 text-xl font-bold text-slate-900">Diagnostic de Santé et Dérives du Projet</h2>
+                    <p className="text-xs text-slate-500 mt-1">
+                      Suivi en continu du respect des jalons, des blocages opérationnels et de la cadence de réalisation.
+                    </p>
                   </div>
-                ))}
+                  <div className="flex items-center gap-3">
+                    <div className="rounded-lg bg-indigo-50 px-4 py-2 text-center border border-indigo-100">
+                      <span className="block text-[11px] font-bold text-indigo-700 uppercase tracking-wider">Avancement Global</span>
+                      <span className="text-xl font-extrabold text-indigo-900">{overallProgress}%</span>
+                    </div>
+                    <div className="rounded-lg bg-slate-50 px-4 py-2 text-center border border-slate-200">
+                      <span className="block text-[11px] font-bold text-slate-600 uppercase tracking-wider">Tâches Finies</span>
+                      <span className="text-xl font-extrabold text-slate-800">{completedTasks} / {totalTasks}</span>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Blocked Tasks Alert Box */}
+                {blockedTasks > 0 && (
+                  <div className="rounded-xl border border-red-300 bg-red-50/80 p-5 shadow-sm space-y-3">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-2">
+                        <Flame className="h-5 w-5 text-red-600" />
+                        <h3 className="text-sm font-bold text-red-900">
+                          {blockedTasks} Tâche{blockedTasks > 1 ? 's' : ''} actuellement bloquée{blockedTasks > 1 ? 's' : ''}
+                        </h3>
+                      </div>
+                      <span className="text-xs font-semibold text-red-700">Action requise</span>
+                    </div>
+                    <div className="divide-y divide-red-200/60 rounded-lg bg-white border border-red-200">
+                      {planItems.filter((p: any) => p.status === 'blocked').map((t: any) => {
+                        const taskUpdates = updates.filter((u: any) => u.planItemId === t.id && u.blockerReason);
+                        const latestBlocker = taskUpdates[taskUpdates.length - 1]?.blockerReason || 'Motif non précisé';
+                        const assignee = members.find((m: any) => m.id === t.assigneePartyId);
+                        return (
+                          <div key={t.id} className="p-3.5 flex items-center justify-between gap-4">
+                            <div>
+                              <div className="flex items-center gap-2">
+                                <span className="font-mono text-xs font-bold text-red-800 bg-red-100 px-1.5 py-0.5 rounded">{t.wbs}</span>
+                                <span className="font-bold text-sm text-slate-900">{t.title}</span>
+                                {assignee && (
+                                  <span className="text-xs text-slate-500">({assignee.name})</span>
+                                )}
+                              </div>
+                              <p className="text-xs text-red-700 mt-1 font-medium">
+                                🛑 <strong>Blocage :</strong> {latestBlocker}
+                              </p>
+                            </div>
+                            <Button
+                              size="sm"
+                              onClick={() => setSelectedTask(t)}
+                              className="text-xs font-semibold bg-red-600 hover:bg-red-700 text-white"
+                            >
+                              Débloquer / Intervenir
+                            </Button>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                )}
+
+                {/* Phases Health Breakdown */}
+                <div className="rounded-xl border bg-white p-5 shadow-sm space-y-4">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <h3 className="text-sm font-bold text-slate-800">Santé par Phase de Projet</h3>
+                      <p className="text-xs text-slate-500">Contrôle des délais et cadence de complétion par phase</p>
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                    {phasesWithHealth.map((ph: any) => (
+                      <div key={ph.id} className="rounded-xl border border-slate-200 bg-slate-50/50 p-4 space-y-3">
+                        <div className="flex items-start justify-between">
+                          <div>
+                            <span className="font-mono text-xs font-bold text-purple-700 bg-purple-100 px-2 py-0.5 rounded">{ph.wbs}</span>
+                            <h4 className="font-bold text-sm text-slate-900 mt-1">{ph.title}</h4>
+                          </div>
+                          <span className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-bold border ${ph.healthColor}`}>
+                            {ph.healthLabel}
+                          </span>
+                        </div>
+
+                        <div>
+                          <div className="flex justify-between text-xs mb-1">
+                            <span className="text-slate-500 font-medium">Avancement</span>
+                            <span className="font-bold text-indigo-700">{ph.progressPct || 0}%</span>
+                          </div>
+                          <ProgressBar value={ph.progressPct || 0} />
+                        </div>
+
+                        <div className="pt-2 border-t border-slate-200/80 flex items-center justify-between text-xs text-slate-500">
+                          <span>{ph.completedChildCount} / {ph.childCount} tâches achevées</span>
+                          {ph.startDate && ph.endDate && (
+                            <span className="text-[11px] text-slate-400">{ph.startDate} → {ph.endDate}</span>
+                          )}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
               </div>
             )}
           </div>
