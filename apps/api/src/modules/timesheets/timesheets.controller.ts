@@ -17,7 +17,7 @@ import {
   BatchUpsertTimesheetEntriesSchema,
 } from '@orgdashio/shared';
 
-@Controller('api/v1')
+@Controller('api/v1/timesheets')
 @UseGuards(AuthGuard)
 export class TimesheetsController {
   constructor(private readonly timesheetsService: TimesheetsService) {}
@@ -25,20 +25,20 @@ export class TimesheetsController {
   // ---------------------------------------------------------------------------
   // TIMESHEET DASHBOARD & MY-WEEK
   // ---------------------------------------------------------------------------
-  @Get('timesheets/dashboard')
+  @Get('dashboard')
   async getDashboard(@Req() req: any) {
-    const tenantId = req.user.tenantId;
+    const tenantId = req.tenantId;
     return this.timesheetsService.getDashboardMetrics(tenantId);
   }
 
-  @Get('timesheets/my-week')
+  @Get('my-week')
   async getMyWeek(@Req() req: any, @Query('date') date?: string) {
-    const tenantId = req.user.tenantId;
+    const tenantId = req.tenantId;
     const userId = req.user.id;
     return this.timesheetsService.getOrCreateWeekTimesheet(tenantId, userId, date);
   }
 
-  @Get('timesheets')
+  @Get()
   async findAllTimesheets(
     @Req() req: any,
     @Query('userId') userId?: string,
@@ -46,7 +46,7 @@ export class TimesheetsController {
     @Query('startDate') startDate?: string,
     @Query('endDate') endDate?: string
   ) {
-    const tenantId = req.user.tenantId;
+    const tenantId = req.tenantId;
     return this.timesheetsService.findAllTimesheets(tenantId, {
       userId,
       status,
@@ -55,47 +55,21 @@ export class TimesheetsController {
     });
   }
 
-  @Get('timesheets/:id')
-  async findTimesheetById(@Req() req: any, @Param('id') id: string) {
-    const tenantId = req.user.tenantId;
-    return this.timesheetsService.findTimesheetById(tenantId, id);
+  @Get('analytics/allocations')
+  async getAllAnalyticAllocations(@Req() req: any) {
+    const tenantId = req.tenantId;
+    return this.timesheetsService.getAllAnalyticAllocations(tenantId);
   }
 
-  @Post('timesheets/:id/entries')
-  async batchUpsertEntries(@Req() req: any, @Param('id') id: string, @Body() body: any) {
-    const tenantId = req.user.tenantId;
-    const userId = req.user.id;
-    const validated = BatchUpsertTimesheetEntriesSchema.parse(body);
-    return this.timesheetsService.batchUpsertEntries(tenantId, id, userId, validated);
-  }
-
-  @Post('timesheets/:id/submit')
-  async submitTimesheet(@Req() req: any, @Param('id') id: string) {
-    const tenantId = req.user.tenantId;
-    const userId = req.user.id;
-    return this.timesheetsService.submitTimesheet(tenantId, id, userId);
-  }
-
-  @Post('timesheets/:id/review')
-  async reviewTimesheet(@Req() req: any, @Param('id') id: string, @Body() body: any) {
-    const tenantId = req.user.tenantId;
-    const reviewerUserId = req.user.id;
-    const validated = UpdateTimesheetStatusSchema.parse(body);
-    return this.timesheetsService.reviewTimesheet(tenantId, id, reviewerUserId, validated);
-  }
-
-  // ---------------------------------------------------------------------------
-  // ANALYTIC ALLOCATIONS
-  // ---------------------------------------------------------------------------
-  @Get('timesheets/analytics/project/:projectId')
+  @Get('analytics/project/:projectId')
   async getProjectAnalytics(@Req() req: any, @Param('projectId') projectId: string) {
-    const tenantId = req.user.tenantId;
+    const tenantId = req.tenantId;
     return this.timesheetsService.getAnalyticAllocationByProject(tenantId, projectId);
   }
 
-  @Get('timesheets/analytics/grant/:grantId')
+  @Get('analytics/grant/:grantId')
   async getGrantAnalytics(@Req() req: any, @Param('grantId') grantId: string) {
-    const tenantId = req.user.tenantId;
+    const tenantId = req.tenantId;
     return this.timesheetsService.getAnalyticAllocationByGrant(tenantId, grantId);
   }
 
@@ -104,21 +78,53 @@ export class TimesheetsController {
   // ---------------------------------------------------------------------------
   @Get('hr-profiles')
   async findAllHrProfiles(@Req() req: any) {
-    const tenantId = req.user.tenantId;
+    const tenantId = req.tenantId;
     return this.timesheetsService.findAllHrProfiles(tenantId);
   }
 
   @Get('hr-profiles/me')
   async getMyHrProfile(@Req() req: any) {
-    const tenantId = req.user.tenantId;
+    const tenantId = req.tenantId;
     const userId = req.user.id;
     return this.timesheetsService.getUserHrProfile(tenantId, userId);
   }
 
   @Patch('hr-profiles/:userId')
   async updateUserHrProfile(@Req() req: any, @Param('userId') userId: string, @Body() body: any) {
-    const tenantId = req.user.tenantId;
+    const tenantId = req.tenantId;
     const validated = UpdateUserHrProfileSchema.parse(body);
     return this.timesheetsService.updateUserHrProfile(tenantId, userId, validated);
+  }
+
+  // ---------------------------------------------------------------------------
+  // TIMESHEET DETAILS & ACTIONS
+  // ---------------------------------------------------------------------------
+  @Get(':id')
+  async findTimesheetById(@Req() req: any, @Param('id') id: string) {
+    const tenantId = req.tenantId;
+    return this.timesheetsService.findTimesheetById(tenantId, id);
+  }
+
+  @Post(':id/entries')
+  async batchUpsertEntries(@Req() req: any, @Param('id') id: string, @Body() body: any) {
+    const tenantId = req.tenantId;
+    const userId = req.user.id;
+    const validated = BatchUpsertTimesheetEntriesSchema.parse(body);
+    return this.timesheetsService.batchUpsertEntries(tenantId, id, userId, validated);
+  }
+
+  @Post(':id/submit')
+  async submitTimesheet(@Req() req: any, @Param('id') id: string) {
+    const tenantId = req.tenantId;
+    const userId = req.user.id;
+    return this.timesheetsService.submitTimesheet(tenantId, id, userId);
+  }
+
+  @Post(':id/review')
+  async reviewTimesheet(@Req() req: any, @Param('id') id: string, @Body() body: any) {
+    const tenantId = req.tenantId;
+    const reviewerUserId = req.user.id;
+    const validated = UpdateTimesheetStatusSchema.parse(body);
+    return this.timesheetsService.reviewTimesheet(tenantId, id, reviewerUserId, validated);
   }
 }

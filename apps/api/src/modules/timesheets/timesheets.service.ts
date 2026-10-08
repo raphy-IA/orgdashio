@@ -10,6 +10,9 @@ import {
   userAccount,
   project,
   grantRecord,
+  staffProfile,
+  party,
+  orgUnit,
   CreateUserHrProfileInput,
   UpdateUserHrProfileInput,
   CreateTimesheetInput,
@@ -36,6 +39,7 @@ export class TimesheetsService {
   // ---------------------------------------------------------------------------
   async findAllHrProfiles(tenantId: string) {
     return withTenantContext(this.db, tenantId, async (tx) => {
+      // 1. Fetch memberships with user accounts and existing hr profiles
       const members = await tx
         .select({
           membership: membership,
@@ -57,22 +61,60 @@ export class TimesheetsService {
         .where(eq(membership.tenantId, tenantId))
         .orderBy(userAccount.lastName, userAccount.firstName);
 
+      // 2. Fetch staff profiles in party to enrich department and job info
+      const staffList = await tx
+        .select({
+          staff: staffProfile,
+          party: party,
+          dept: orgUnit,
+        })
+        .from(staffProfile)
+        .innerJoin(party, eq(staffProfile.partyId, party.id))
+        .leftJoin(orgUnit, eq(staffProfile.departmentId, orgUnit.id))
+        .where(eq(staffProfile.tenantId, tenantId));
+
+      const staffByUserId = new Map<string, any>();
+      const staffByEmail = new Map<string, any>();
+      for (const s of staffList) {
+        if (s.staff.userId) staffByUserId.set(s.staff.userId, s);
+        if (s.party.email) staffByEmail.set(s.party.email.toLowerCase().trim(), s);
+      }
+
       return members.map((m: any) => {
         const p = m.profile || {};
+        const staffInfo =
+          staffByUserId.get(m.user.id) ||
+          (m.user.email ? staffByEmail.get(m.user.email.toLowerCase().trim()) : null);
+
+        const jobTitle =
+          p.jobTitle || staffInfo?.staff?.jobTitle || m.user.jobTitle || 'Collaborateur';
+        const department = p.department || staffInfo?.dept?.name || 'Général';
+        const contractType =
+          p.contractType ||
+          (staffInfo?.staff?.employmentType === 'volunteer'
+            ? 'volunteer'
+            : staffInfo?.staff?.employmentType === 'intern'
+            ? 'intern'
+            : staffInfo?.staff?.employmentType === 'contractor'
+            ? 'contractor'
+            : 'full_time');
+
         return {
           id: p.id || `virtual-${m.user.id}`,
           userId: m.user.id,
           employeeNumber: p.employeeNumber || null,
-          jobTitle: p.jobTitle || m.user.jobTitle || 'Collaborateur',
-          department: p.department || 'Général',
-          contractType: p.contractType || 'full_time',
+          jobTitle,
+          department,
+          contractType,
           standardWeeklyHours: p.standardWeeklyHours ? Number(p.standardWeeklyHours) : 35,
           defaultHourlyRate: p.defaultHourlyRate ? Number(p.defaultHourlyRate) : 30,
           volunteerImputedRate: p.volunteerImputedRate ? Number(p.volunteerImputedRate) : 25,
           active: p.active !== undefined ? p.active : true,
           user: m.user,
           displayName:
-            `${m.user?.firstName || ''} ${m.user?.lastName || ''}`.trim() || m.user?.email || 'Collaborateur',
+            `${m.user?.firstName || ''} ${m.user?.lastName || ''}`.trim() ||
+            m.user?.email ||
+            'Collaborateur',
         };
       });
     });
@@ -503,6 +545,72 @@ export class TimesheetsService {
         totalCost: Math.round(totalCost * 100) / 100,
         activityBreakdown: byActivity,
         entriesCount: entries.length,
+      };
+    });
+  }
+
+  async getAllAnalyticAllocations(tenantId: string) {
+    return withTenantContext(this.db, tenantId, async (tx) => {
+      const entries = await tx
+        .select({
+          entry: timesheetEntry,
+          projectName: project.name,
+          grantTitle: grantRecord.title,
+        })
+        .from(timesheetEntry)
+        .leftJoin(project, eq(timesheetEntry.projectId, project.id))
+        .leftJoin(grantRecord, eq(timesheetEntry.grantId, grantRecord.id))
+        .where(eq(timesheetEntry.tenantId, tenantId));
+
+      const projectMap = new Map<string, { projectId: string; projectName: string; hours: number; cost: number }>();
+      const grantMap = new Map<string, { grantId: string; grantTitle: string; hours: number; cost: number }>();
+      const activityMap = new Map<string, { activityType: string; hours: number; cost: number }>();
+
+      for (const e of entries) {
+        const h = Number(e.entry.hours) || 0;
+        const c = Number(e.entry.calculatedCost) || 0;
+
+        if (e.entry.projectId) {
+          const pKey = e.entry.projectId;
+          const cur = projectMap.get(pKey) || {
+            projectId: pKey,
+            projectName: e.projectName || 'Projet non spécifié',
+            hours: 0,
+            cost: 0,
+          };
+          cur.hours += h;
+          cur.cost += c;
+          projectMap.set(pKey, cur);
+        }
+
+        if (e.entry.grantId) {
+          const gKey = e.entry.grantId;
+          const cur = grantMap.get(gKey) || {
+            grantId: gKey,
+            grantTitle: e.grantTitle || 'Fonds non spécifié',
+            hours: 0,
+            cost: 0,
+          };
+          cur.hours += h;
+          cur.cost += c;
+          grantMap.set(gKey, cur);
+        }
+
+        const act = e.entry.activityType || 'direct_program';
+        const curAct = activityMap.get(act) || {
+          activityType: act,
+          hours: 0,
+          cost: 0,
+        };
+        curAct.hours += h;
+        curAct.cost += c;
+        activityMap.set(act, curAct);
+      }
+
+      return {
+        byProject: Array.from(projectMap.values()),
+        byGrant: Array.from(grantMap.values()),
+        byActivity: Array.from(activityMap.values()),
       };
     });
   }
