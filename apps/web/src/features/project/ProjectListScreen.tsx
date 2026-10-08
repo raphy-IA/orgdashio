@@ -959,8 +959,6 @@ export function ProjectListScreen() {
                   }
                 } else if (selectedGrantId === 'internal') {
                   effectiveDonorName = 'Fonds Propres / Autofinancement';
-                } else if (selectedGrantId === 'custom') {
-                  effectiveDonorName = customDonorName.trim() || 'Autre bailleur de fonds';
                 }
 
                 createProjectMutation.mutate({
@@ -1113,7 +1111,7 @@ export function ProjectListScreen() {
                           }}
                           className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 focus:border-indigo-500 focus:outline-hidden"
                         >
-                          <option value="">-- Aucun bailleur (Non spécifié) --</option>
+                          <option value="">-- Aucun bailleur rattaché (Non spécifié) --</option>
                           {grants.length > 0 && (
                             <optgroup label="🏛️ Subventions & Bailleurs enregistrés">
                               {grants.map((g: any) => (
@@ -1123,28 +1121,22 @@ export function ProjectListScreen() {
                               ))}
                             </optgroup>
                           )}
-                          <optgroup label="💼 Autres sources de financement">
+                          <optgroup label="💼 Autofinancement">
                             <option value="internal">💼 Fonds Propres / Autofinancement interne</option>
-                            <option value="custom">➕ Saisir un autre bailleur personnalisé...</option>
                           </optgroup>
                         </select>
+                        <p className="mt-1 text-[11px] text-slate-500 flex items-center justify-between">
+                          <span>Sélectionnez un bailleur existant issu de vos dossiers de subvention.</span>
+                          <button
+                            type="button"
+                            onClick={() => navigate('/grants')}
+                            className="text-indigo-600 hover:underline font-medium"
+                          >
+                            Gérer les subventions →
+                          </button>
+                        </p>
                       </div>
                     </div>
-
-                    {selectedGrantId === 'custom' && (
-                      <div className="rounded-lg bg-slate-50 p-3 border border-slate-200">
-                        <label className="block text-xs font-medium text-slate-700 mb-1">
-                          Nom du bailleur / organisme donateur
-                        </label>
-                        <input
-                          type="text"
-                          value={customDonorName}
-                          onChange={(e) => setCustomDonorName(e.target.value)}
-                          placeholder="Ex: Fondation Grand Montréal, Ville de Montréal..."
-                          className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 focus:border-indigo-500 focus:outline-hidden"
-                        />
-                      </div>
-                    )}
 
                     {/* Description */}
                     <div>
