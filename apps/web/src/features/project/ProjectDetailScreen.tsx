@@ -4519,7 +4519,14 @@ export function ProjectDetailScreen() {
                             <div>
                               <span className="text-xs font-bold text-slate-700 block mb-2">Prédécesseurs (Requis avant) :</span>
                               {incomingDeps.length === 0 ? (
-                                <p className="text-xs text-slate-400 italic">Aucun prédécesseur direct.</p>
+                                <div className="rounded-lg border border-emerald-200 bg-emerald-50/70 p-3 text-xs text-emerald-900 space-y-1">
+                                  <div className="font-bold flex items-center gap-1.5">
+                                    🟢 Liée au Démarrage du Projet (T₀)
+                                  </div>
+                                  <p className="text-[11px] text-emerald-800 leading-tight">
+                                    Aucun prédécesseur : cette tâche démarre dès la date de début du projet ({data.project.startDate || 'T₀'}).
+                                  </p>
+                                </div>
                               ) : (
                                 <div className="space-y-2">
                                   {incomingDeps.map((dep: any) => {
@@ -4530,6 +4537,7 @@ export function ProjectDetailScreen() {
                                           <span className="font-mono font-bold text-indigo-700 bg-indigo-50 px-1.5 py-0.5 rounded">{pred?.wbs || '—'}</span>
                                           <span className="font-medium text-slate-800 truncate max-w-[150px]">{pred?.title || 'Inconnu'}</span>
                                           <span className="bg-slate-200 text-slate-700 rounded px-1 text-[10px]">{dep.type}</span>
+                                          {dep.lagDays ? <span className="text-[10px] text-slate-500 font-mono">+{dep.lagDays}j</span> : null}
                                         </div>
                                         <Button
                                           size="sm"
@@ -4549,7 +4557,14 @@ export function ProjectDetailScreen() {
                             <div>
                               <span className="text-xs font-bold text-slate-700 block mb-2">Successeurs (Dépendent de celle-ci) :</span>
                               {outgoingDeps.length === 0 ? (
-                                <p className="text-xs text-slate-400 italic">Aucun successeur immédiat.</p>
+                                <div className="rounded-lg border border-amber-200 bg-amber-50/70 p-3 text-xs text-amber-900 space-y-1">
+                                  <div className="font-bold flex items-center gap-1.5">
+                                    🏁 Liée à la Clôture du Projet (T_fin)
+                                  </div>
+                                  <p className="text-[11px] text-amber-800 leading-tight">
+                                    Aucun successeur direct : cette tâche est terminale et contribue à la date d'achèvement global du projet.
+                                  </p>
+                                </div>
                               ) : (
                                 <div className="space-y-2">
                                   {outgoingDeps.map((dep: any) => {
@@ -4560,6 +4575,7 @@ export function ProjectDetailScreen() {
                                           <span className="font-mono font-bold text-violet-700 bg-violet-50 px-1.5 py-0.5 rounded">{succ?.wbs || '—'}</span>
                                           <span className="font-medium text-slate-800 truncate max-w-[150px]">{succ?.title || 'Inconnu'}</span>
                                           <span className="bg-slate-200 text-slate-700 rounded px-1 text-[10px]">{dep.type}</span>
+                                          {dep.lagDays ? <span className="text-[10px] text-slate-500 font-mono">+{dep.lagDays}j</span> : null}
                                         </div>
                                         <Button
                                           size="sm"
