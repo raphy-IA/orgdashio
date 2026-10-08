@@ -14,6 +14,8 @@ import {
 import { GrantsService } from './grants.service';
 import { AuthGuard } from '../../common/guards/auth.guard';
 import {
+  CreateFunderSchema,
+  UpdateFunderSchema,
   CreateGrantSchema,
   UpdateGrantSchema,
   CreateGrantInstallmentSchema,
@@ -27,6 +29,35 @@ import {
 export class GrantsController {
   constructor(@Inject(GrantsService) private readonly grantsService: GrantsService) {}
 
+  // --- Funders (Bailleurs de fonds institutionnels) ---
+  @Get('funders')
+  async findAllFunders(@Req() req: any) {
+    return this.grantsService.findAllFunders(req.tenantId);
+  }
+
+  @Post('funders')
+  async createFunder(@Req() req: any, @Body() body: any) {
+    const parsed = CreateFunderSchema.parse(body);
+    return this.grantsService.createFunder(req.tenantId, parsed);
+  }
+
+  @Get('funders/:id')
+  async findOneFunder(@Req() req: any, @Param('id') id: string) {
+    return this.grantsService.findOneFunder(req.tenantId, id);
+  }
+
+  @Patch('funders/:id')
+  async updateFunder(@Req() req: any, @Param('id') id: string, @Body() body: any) {
+    const parsed = UpdateFunderSchema.parse(body);
+    return this.grantsService.updateFunder(req.tenantId, id, parsed);
+  }
+
+  @Delete('funders/:id')
+  async deleteFunder(@Req() req: any, @Param('id') id: string) {
+    return this.grantsService.deleteFunder(req.tenantId, id);
+  }
+
+  // --- Grants (Dossiers de subventions) ---
   @Post()
   async createGrant(@Req() req: any, @Body() body: any) {
     const parsed = CreateGrantSchema.parse(body);

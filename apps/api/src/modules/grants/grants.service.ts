@@ -1,13 +1,16 @@
-import { Injectable, Inject, NotFoundException } from '@nestjs/common';
+import { Injectable, Inject, NotFoundException, BadRequestException } from '@nestjs/common';
 import { DRIZZLE_DB } from '../../common/database/database.module';
 import {
   DbClient,
   withTenantContext,
+  funderOrganization,
   grantRecord,
   grantInstallment,
   grantDeliverable,
   project,
   userAccount,
+  CreateFunderInput,
+  UpdateFunderInput,
   CreateGrantInput,
   UpdateGrantInput,
   CreateGrantInstallmentInput,
@@ -26,16 +29,172 @@ import {
 export class GrantsService {
   constructor(@Inject(DRIZZLE_DB) private readonly db: DbClient) {}
 
+  // --- Funder Organizations CRUD (Bailleurs de fonds) ---
+  async findAllFunders(tenantId: string) {
+    return withTenantContext(this.db, tenantId, async (tx) => {
+      const fundersList = await tx
+        .select()
+        .from(funderOrganization)
+        .where(eq(funderOrganization.tenantId, tenantId))
+        .orderBy(desc(funderOrganization.createdAt));
+
+      const allGrants = await tx
+        .select()
+        .from(grantRecord)
+        .where(eq(grantRecord.tenantId, tenantId));
+
+      return fundersList.map((funder: any) => {
+        const funderGrants = allGrants.filter(
+          (g: any) =>
+            g.funderId === funder.id ||
+            g.funderName.trim().toLowerCase() === funder.name.trim().toLowerCase()
+        );
+        const activeGrants = funderGrants.filter(
+          (g: any) => g.status === 'approved' || g.status === 'submitted'
+        );
+        const totalAwarded = funderGrants
+          .filter((g: any) => g.status === 'approved')
+          .reduce((sum: number, g: any) => sum + (parseFloat(g.awardedAmount as any) || 0), 0);
+        const totalRequested = funderGrants.reduce(
+          (sum: number, g: any) => sum + (parseFloat(g.requestedAmount as any) || 0),
+          0
+        );
+
+        return {
+          ...funder,
+          stats: {
+            totalGrantsCount: funderGrants.length,
+            activeGrantsCount: activeGrants.length,
+            totalAwardedAmount: totalAwarded,
+            totalRequestedAmount: totalRequested,
+          },
+          grants: funderGrants.map((g: any) => ({
+            id: g.id,
+            code: g.code,
+            title: g.title,
+            status: g.status,
+            awardedAmount: g.awardedAmount,
+            requestedAmount: g.requestedAmount,
+            startDate: g.startDate,
+            endDate: g.endDate,
+          })),
+        };
+      });
+    });
+  }
+
+  async findOneFunder(tenantId: string, id: string) {
+    return withTenantContext(this.db, tenantId, async (tx) => {
+      const [funder] = await tx
+        .select()
+        .from(funderOrganization)
+        .where(and(eq(funderOrganization.tenantId, tenantId), eq(funderOrganization.id, id)));
+
+      if (!funder) {
+        throw new NotFoundException('Bailleur de fonds non trouvé');
+      }
+
+      const funderGrants = await tx
+        .select()
+        .from(grantRecord)
+        .where(and(eq(grantRecord.tenantId, tenantId), eq(grantRecord.funderId, id)));
+
+      return {
+        ...funder,
+        grants: funderGrants,
+      };
+    });
+  }
+
+  async createFunder(tenantId: string, input: CreateFunderInput) {
+    return withTenantContext(this.db, tenantId, async (tx) => {
+      const [existing] = await tx
+        .select()
+        .from(funderOrganization)
+        .where(and(eq(funderOrganization.tenantId, tenantId), eq(funderOrganization.code, input.code)));
+
+      if (existing) {
+        throw new BadRequestException(`Un bailleur avec le code "${input.code}" existe déjà.`);
+      }
+
+      const [newFunder] = await tx
+        .insert(funderOrganization)
+        .values({
+          tenantId,
+          code: input.code.trim().toUpperCase(),
+          name: input.name.trim(),
+          type: input.type,
+          contactPerson: input.contactPerson?.trim() || null,
+          contactEmail: input.contactEmail?.trim() || null,
+          contactPhone: input.contactPhone?.trim() || null,
+          website: input.website?.trim() || null,
+          address: input.address?.trim() || null,
+          city: input.city?.trim() || null,
+          stateProvince: input.stateProvince || 'QC',
+          postalCode: input.postalCode?.trim() || null,
+          country: input.country || 'Canada',
+          notes: input.notes?.trim() || null,
+        })
+        .returning();
+
+      return newFunder;
+    });
+  }
+
+  async updateFunder(tenantId: string, id: string, input: UpdateFunderInput) {
+    return withTenantContext(this.db, tenantId, async (tx) => {
+      const [updated] = await tx
+        .update(funderOrganization)
+        .set({
+          ...input,
+          updatedAt: new Date(),
+        })
+        .where(and(eq(funderOrganization.tenantId, tenantId), eq(funderOrganization.id, id)))
+        .returning();
+
+      if (!updated) {
+        throw new NotFoundException('Bailleur de fonds non trouvé');
+      }
+      return updated;
+    });
+  }
+
+  async deleteFunder(tenantId: string, id: string) {
+    return withTenantContext(this.db, tenantId, async (tx) => {
+      await tx
+        .delete(funderOrganization)
+        .where(and(eq(funderOrganization.tenantId, tenantId), eq(funderOrganization.id, id)));
+      return { success: true };
+    });
+  }
+
+  // --- Grant Records CRUD ---
   async createGrant(tenantId: string, input: CreateGrantInput) {
     return withTenantContext(this.db, tenantId, async (tx) => {
+      let resolvedFunderId = input.funderId || null;
+      let resolvedFunderName = input.funderName;
+      let resolvedFunderType = input.funderType;
+
+      if (resolvedFunderId) {
+        const [funder] = await tx
+          .select()
+          .from(funderOrganization)
+          .where(and(eq(funderOrganization.tenantId, tenantId), eq(funderOrganization.id, resolvedFunderId)));
+        if (funder) {
+          resolvedFunderName = funder.name;
+          resolvedFunderType = funder.type as any;
+        }
+      }
+
       const [newGrant] = await tx
         .insert(grantRecord)
         .values({
           tenantId,
+          funderId: resolvedFunderId,
           code: input.code,
           title: input.title,
-          funderName: input.funderName,
-          funderType: input.funderType,
+          funderName: resolvedFunderName,
+          funderType: resolvedFunderType,
           programName: input.programName,
           projectId: input.projectId,
           status: input.status,

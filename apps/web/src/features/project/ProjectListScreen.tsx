@@ -141,6 +141,16 @@ export function ProjectListScreen() {
     },
   });
 
+  // Fetch Funders (for funder selector)
+  const { data: funders = [] } = useQuery({
+    queryKey: ['funders'],
+    queryFn: async () => {
+      const res = await fetch('/api/v1/grants/funders');
+      if (!res.ok) return [];
+      return res.json();
+    },
+  });
+
   // Fetch All Projects (with computed real metrics)
   const { data: projects = [], isLoading: isLoadingProjects } = useQuery({
     queryKey: ['projects'],
@@ -178,6 +188,7 @@ export function ProjectListScreen() {
       name: string;
       programId?: string | null;
       grantId?: string | null;
+      funderId?: string | null;
       status?: string;
       description?: string | null;
       startDate?: string | null;
@@ -950,12 +961,20 @@ export function ProjectListScreen() {
 
                 let effectiveDonorName: string | null = null;
                 let effectiveGrantId: string | null = null;
+                let effectiveFunderId: string | null = null;
 
-                if (selectedGrantId.startsWith('grant:')) {
+                if (selectedGrantId.startsWith('funder:')) {
+                  effectiveFunderId = selectedGrantId.replace('funder:', '');
+                  const f = (funders as any[]).find((item: any) => item.id === effectiveFunderId);
+                  if (f) {
+                    effectiveDonorName = f.name;
+                  }
+                } else if (selectedGrantId.startsWith('grant:')) {
                   effectiveGrantId = selectedGrantId.replace('grant:', '');
                   const g = (grants as any[]).find((item: any) => item.id === effectiveGrantId);
                   if (g) {
                     effectiveDonorName = g.funderName;
+                    effectiveFunderId = g.funderId || null;
                   }
                 } else if (selectedGrantId === 'internal') {
                   effectiveDonorName = 'Fonds Propres / Autofinancement';
@@ -966,6 +985,7 @@ export function ProjectListScreen() {
                   name: name.trim(),
                   programId: programId ? programId : null,
                   grantId: effectiveGrantId,
+                  funderId: effectiveFunderId,
                   status,
                   description: description.trim() || null,
                   startDate: startDate || null,
@@ -1088,7 +1108,7 @@ export function ProjectListScreen() {
                       </div>
                       <div>
                         <label className="block text-xs font-medium text-slate-700 mb-1">
-                          Bailleur / Subvention rattachée
+                          Bailleur / Financement rattaché
                         </label>
                         <select
                           value={selectedGrantId}
@@ -1112,11 +1132,20 @@ export function ProjectListScreen() {
                           className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 focus:border-indigo-500 focus:outline-hidden"
                         >
                           <option value="">-- Aucun bailleur rattaché (Non spécifié) --</option>
+                          {funders.length > 0 && (
+                            <optgroup label="🏛️ Bailleurs de Fonds Institutionnels">
+                              {funders.map((f: any) => (
+                                <option key={f.id} value={`funder:${f.id}`}>
+                                  🏛️ {f.name} ({f.code}) — {f.type}
+                                </option>
+                              ))}
+                            </optgroup>
+                          )}
                           {grants.length > 0 && (
-                            <optgroup label="🏛️ Subventions & Bailleurs enregistrés">
+                            <optgroup label="📄 Dossiers de Subvention Obtenus / Déposés">
                               {grants.map((g: any) => (
                                 <option key={g.id} value={`grant:${g.id}`}>
-                                  {g.funderName} — {g.title} ({g.awardedAmount ? `${formatCurrency(g.awardedAmount)} CAD` : 'En demande'})
+                                  📄 {g.funderName} — {g.title} ({g.awardedAmount ? `${formatCurrency(g.awardedAmount)} CAD` : 'En demande'})
                                 </option>
                               ))}
                             </optgroup>
@@ -1126,13 +1155,13 @@ export function ProjectListScreen() {
                           </optgroup>
                         </select>
                         <p className="mt-1 text-[11px] text-slate-500 flex items-center justify-between">
-                          <span>Sélectionnez un bailleur existant issu de vos dossiers de subvention.</span>
+                          <span>Bailleur partenaire ou convention spécifique.</span>
                           <button
                             type="button"
                             onClick={() => navigate('/grants')}
                             className="text-indigo-600 hover:underline font-medium"
                           >
-                            Gérer les subventions →
+                            Gérer les bailleurs & subventions →
                           </button>
                         </p>
                       </div>

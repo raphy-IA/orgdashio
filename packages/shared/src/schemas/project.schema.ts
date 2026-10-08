@@ -27,6 +27,7 @@ export type AddProjectToProgramInput = z.infer<typeof AddProjectToProgramSchema>
 
 export const CreateProjectSchema = z.object({
   programId: z.string().uuid().optional().nullable(),
+  funderId: z.string().uuid().optional().nullable(),
   grantId: z.string().uuid().optional().nullable(),
   code: z
     .string()

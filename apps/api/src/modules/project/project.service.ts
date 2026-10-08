@@ -11,6 +11,7 @@ import {
   program,
   project,
   programProject,
+  funderOrganization,
   grantRecord,
   fundingSource,
   resultNode,
@@ -320,6 +321,15 @@ export class ProjectService {
             effectiveAmount = targetGrant.awardedAmount;
           }
         }
+      } else if (input.funderId) {
+        const [targetFunder] = await tx
+          .select()
+          .from(funderOrganization)
+          .where(and(eq(funderOrganization.tenantId, tenantId), eq(funderOrganization.id, input.funderId)));
+
+        if (targetFunder && !effectiveDonor) {
+          effectiveDonor = targetFunder.name;
+        }
       }
 
       // Add initial funding source if specified or linked to a grant/funder
@@ -332,8 +342,8 @@ export class ProjectService {
           amount: effectiveAmount || '0',
           currency: 'CAD',
           notes: input.grantId
-            ? 'Financement rattaché à la subvention / bailleur de fonds'
-            : 'Budget initial alloué à la création du projet',
+            ? 'Financement rattaché au dossier de subvention'
+            : (input.funderId ? 'Financement rattaché au bailleur de fonds partenaire' : 'Budget initial alloué à la création du projet'),
         });
       }
 

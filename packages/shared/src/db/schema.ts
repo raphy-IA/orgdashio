@@ -862,17 +862,56 @@ export const fundingSource = pgTable(
   })
 );
 
+// Module GRN: Funder Organizations / Bailleurs de Fonds Institutionnels (GRN-00)
+export const funderOrganization = pgTable(
+  'funder_organization',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    tenantId: uuid('tenant_id')
+      .notNull()
+      .references(() => tenantRegistry.id, { onDelete: 'cascade' }),
+    code: text('code').notNull(),
+    name: text('name').notNull(),
+    type: text('type', {
+      enum: ['federal', 'provincial', 'municipal', 'foundation', 'corporate', 'multilateral', 'other'],
+    })
+      .notNull()
+      .default('foundation'),
+    contactPerson: text('contact_person'),
+    contactEmail: text('contact_email'),
+    contactPhone: text('contact_phone'),
+    website: text('website'),
+    address: text('address'),
+    city: text('city'),
+    stateProvince: text('state_province').default('QC'),
+    postalCode: text('postal_code'),
+    country: text('country').default('Canada'),
+    notes: text('notes'),
+    createdAt: timestamp('created_at', { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+    updatedAt: timestamp('updated_at', { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (table) => ({
+    tenantIdIdUk: unique().on(table.tenantId, table.id),
+    tenantIdCodeUk: unique().on(table.tenantId, table.code),
+  })
+);
+
 // Module GRN: Grants & Funding Applications (GRN-01)
 export const grantRecord = pgTable(
   'grant_record',
   {
     id: uuid('id').primaryKey().defaultRandom(),
     tenantId: uuid('tenant_id').notNull(),
+    funderId: uuid('funder_id'),
     code: text('code').notNull(),
     title: text('title').notNull(),
     funderName: text('funder_name').notNull(),
     funderType: text('funder_type', {
-      enum: ['federal', 'provincial', 'municipal', 'foundation', 'corporate', 'other'],
+      enum: ['federal', 'provincial', 'municipal', 'foundation', 'corporate', 'multilateral', 'other'],
     }).notNull().default('foundation'),
     programName: text('program_name'),
     projectId: uuid('project_id'),
@@ -893,6 +932,10 @@ export const grantRecord = pgTable(
     updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
   },
   (table) => ({
+    funderFk: foreignKey({
+      columns: [table.tenantId, table.funderId],
+      foreignColumns: [funderOrganization.tenantId, funderOrganization.id],
+    }).onDelete('set null'),
     projectFk: foreignKey({
       columns: [table.tenantId, table.projectId],
       foreignColumns: [project.tenantId, project.id],

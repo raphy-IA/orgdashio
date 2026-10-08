@@ -1,12 +1,47 @@
 import { z } from 'zod';
 
+export const FunderTypeEnum = z.enum([
+  'federal',
+  'provincial',
+  'municipal',
+  'foundation',
+  'corporate',
+  'multilateral',
+  'other',
+]);
+
+export const CreateFunderSchema = z.object({
+  code: z
+    .string()
+    .min(2, 'Le code bailleur est requis (ex: BM, EDSC, CENTRAIDE)')
+    .max(20, 'Le code ne peut dépasser 20 caractères')
+    .regex(/^[A-Z0-9_-]+$/i, 'Le code doit contenir des lettres, chiffres ou tirets'),
+  name: z.string().min(2, 'Le nom du bailleur est requis (ex: Banque Mondiale, Fondation McConnell)'),
+  type: FunderTypeEnum.default('foundation'),
+  contactPerson: z.string().optional().nullable(),
+  contactEmail: z.string().email('Email invalide').optional().nullable().or(z.literal('')),
+  contactPhone: z.string().optional().nullable(),
+  website: z.string().optional().nullable(),
+  address: z.string().optional().nullable(),
+  city: z.string().optional().nullable(),
+  stateProvince: z.string().default('QC'),
+  postalCode: z.string().optional().nullable(),
+  country: z.string().default('Canada'),
+  notes: z.string().optional().nullable(),
+});
+
+export type CreateFunderInput = z.infer<typeof CreateFunderSchema>;
+export const UpdateFunderSchema = CreateFunderSchema.partial();
+export type UpdateFunderInput = z.infer<typeof UpdateFunderSchema>;
+
 export const CreateGrantSchema = z.object({
+  funderId: z.string().uuid().optional().nullable(),
   code: z.string().min(2, 'Le code de subvention est requis (ex. SUBV-2026-001)'),
   title: z.string().min(2, 'Le titre du projet subventionné est requis'),
   funderName: z.string().min(2, 'Le nom du bailleur de fonds est requis'),
-  funderType: z.enum(['federal', 'provincial', 'municipal', 'foundation', 'corporate', 'other']).default('foundation'),
+  funderType: FunderTypeEnum.default('foundation'),
   programName: z.string().optional(),
-  projectId: z.string().uuid().optional(),
+  projectId: z.string().uuid().optional().nullable(),
   status: z.enum(['prospect', 'drafting', 'submitted', 'approved', 'rejected', 'closed']).default('prospect'),
   requestedAmount: z.number().min(0, 'Le montant demandé doit être positif'),
   awardedAmount: z.number().min(0).optional(),
@@ -23,9 +58,10 @@ export const CreateGrantSchema = z.object({
 export type CreateGrantInput = z.infer<typeof CreateGrantSchema>;
 
 export const UpdateGrantSchema = z.object({
+  funderId: z.string().uuid().nullable().optional(),
   title: z.string().min(2).optional(),
   funderName: z.string().min(2).optional(),
-  funderType: z.enum(['federal', 'provincial', 'municipal', 'foundation', 'corporate', 'other']).optional(),
+  funderType: FunderTypeEnum.optional(),
   programName: z.string().optional(),
   projectId: z.string().uuid().nullable().optional(),
   status: z.enum(['prospect', 'drafting', 'submitted', 'approved', 'rejected', 'closed']).optional(),
