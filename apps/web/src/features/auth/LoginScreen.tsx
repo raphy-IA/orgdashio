@@ -3,9 +3,12 @@ import { useTranslation } from 'react-i18next';
 import { useNavigate, Link } from 'react-router-dom';
 import { Button, Input } from '@orgdashio/ui';
 
+import { useAuth } from './AuthContext';
+
 export function LoginScreen() {
   const { t, i18n } = useTranslation();
   const navigate = useNavigate();
+  const { refetchAuth } = useAuth();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
@@ -27,6 +30,8 @@ export function LoginScreen() {
       if (!res.ok) {
         throw new Error(data.message || 'Identifiants invalides');
       }
+
+      await refetchAuth();
 
       if (data.user?.isPlatformAdmin) {
         navigate('/platform/dashboard');

@@ -1,4 +1,7 @@
 import { Routes, Route, Navigate } from 'react-router-dom';
+import { AuthProvider } from './features/auth/AuthContext';
+import { ProtectedRoute, PlatformAdminRoute, PublicOnlyRoute } from './features/auth/ProtectedRoute';
+
 import { LoginScreen } from './features/auth/LoginScreen';
 import { RegisterTenantScreen } from './features/auth/RegisterTenantScreen';
 import { ProjectListScreen } from './features/project/ProjectListScreen';
@@ -30,37 +33,237 @@ import { TimesheetScreen } from './features/timesheets/TimesheetScreen';
 
 export default function App() {
   return (
-    <Routes>
-      <Route path="/login" element={<LoginScreen />} />
-      <Route path="/register" element={<RegisterTenantScreen />} />
-      <Route path="/onboarding" element={<OnboardingWizardScreen />} />
-      <Route path="/dashboard" element={<TenantDashboardScreen />} />
-      <Route path="/projects" element={<ProjectListScreen />} />
-      <Route path="/projects/:id" element={<ProjectDetailScreen />} />
-      <Route path="/people" element={<PeopleListScreen />} />
-      <Route path="/people/:id" element={<PersonDetailScreen />} />
-      <Route path="/training" element={<TrainingCatalogScreen />} />
-      <Route path="/training/sessions/:id" element={<TrainingSessionDetailScreen />} />
-      <Route path="/public/register/:sessionId" element={<PublicRegistrationScreen />} />
-      <Route path="/cases" element={<CaseListScreen />} />
-      <Route path="/cases/:id" element={<CaseDetailScreen />} />
-      <Route path="/indicators" element={<IndicatorListScreen />} />
-      <Route path="/dashboard/impact" element={<ImpactDashboardScreen />} />
-      <Route path="/grants" element={<GrantListScreen />} />
-      <Route path="/grants/:id" element={<GrantDetailScreen />} />
-      <Route path="/donations" element={<DonationListScreen />} />
-      <Route path="/timesheets" element={<TimesheetScreen />} />
-      <Route path="/billing" element={<BillingScreen />} />
-      <Route path="/settings/billing" element={<BillingScreen />} />
-      <Route path="/settings/profile" element={<UserProfileSettingsScreen />} />
-      <Route path="/settings/organization" element={<OrganizationSettingsScreen />} />
-      <Route path="/settings/privacy" element={<PrivacySettingsScreen />} />
-      <Route path="/settings/team" element={<TeamInvitationsScreen />} />
-      <Route path="/invite/accept" element={<AcceptInvitationScreen />} />
-      <Route path="/settings/audit" element={<AuditLogScreen />} />
-      <Route path="/platform/dashboard" element={<PlatformDashboardScreen />} />
-      <Route path="/platform/tenants" element={<PlatformConsoleScreen />} />
-      <Route path="*" element={<Navigate to="/login" replace />} />
-    </Routes>
+    <AuthProvider>
+      <Routes>
+        {/* Public-only routes (redirects to dashboard if already authenticated) */}
+        <Route
+          path="/login"
+          element={
+            <PublicOnlyRoute>
+              <LoginScreen />
+            </PublicOnlyRoute>
+          }
+        />
+        <Route
+          path="/register"
+          element={
+            <PublicOnlyRoute>
+              <RegisterTenantScreen />
+            </PublicOnlyRoute>
+          }
+        />
+
+        {/* Public open utility routes */}
+        <Route path="/public/register/:sessionId" element={<PublicRegistrationScreen />} />
+        <Route path="/invite/accept" element={<AcceptInvitationScreen />} />
+
+        {/* Protected Tenant Workspace routes */}
+        <Route
+          path="/dashboard"
+          element={
+            <ProtectedRoute>
+              <TenantDashboardScreen />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/onboarding"
+          element={
+            <ProtectedRoute>
+              <OnboardingWizardScreen />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/projects"
+          element={
+            <ProtectedRoute>
+              <ProjectListScreen />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/projects/:id"
+          element={
+            <ProtectedRoute>
+              <ProjectDetailScreen />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/people"
+          element={
+            <ProtectedRoute>
+              <PeopleListScreen />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/people/:id"
+          element={
+            <ProtectedRoute>
+              <PersonDetailScreen />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/training"
+          element={
+            <ProtectedRoute>
+              <TrainingCatalogScreen />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/training/sessions/:id"
+          element={
+            <ProtectedRoute>
+              <TrainingSessionDetailScreen />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/cases"
+          element={
+            <ProtectedRoute>
+              <CaseListScreen />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/cases/:id"
+          element={
+            <ProtectedRoute>
+              <CaseDetailScreen />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/indicators"
+          element={
+            <ProtectedRoute>
+              <IndicatorListScreen />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/dashboard/impact"
+          element={
+            <ProtectedRoute>
+              <ImpactDashboardScreen />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/grants"
+          element={
+            <ProtectedRoute>
+              <GrantListScreen />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/grants/:id"
+          element={
+            <ProtectedRoute>
+              <GrantDetailScreen />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/donations"
+          element={
+            <ProtectedRoute>
+              <DonationListScreen />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/timesheets"
+          element={
+            <ProtectedRoute>
+              <TimesheetScreen />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/billing"
+          element={
+            <ProtectedRoute>
+              <BillingScreen />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/settings/billing"
+          element={
+            <ProtectedRoute>
+              <BillingScreen />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/settings/profile"
+          element={
+            <ProtectedRoute>
+              <UserProfileSettingsScreen />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/settings/organization"
+          element={
+            <ProtectedRoute>
+              <OrganizationSettingsScreen />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/settings/privacy"
+          element={
+            <ProtectedRoute>
+              <PrivacySettingsScreen />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/settings/team"
+          element={
+            <ProtectedRoute>
+              <TeamInvitationsScreen />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/settings/audit"
+          element={
+            <ProtectedRoute>
+              <AuditLogScreen />
+            </ProtectedRoute>
+          }
+        />
+
+        {/* SuperAdmin SaaS Platform Console routes */}
+        <Route
+          path="/platform/dashboard"
+          element={
+            <PlatformAdminRoute>
+              <PlatformDashboardScreen />
+            </PlatformAdminRoute>
+          }
+        />
+        <Route
+          path="/platform/tenants"
+          element={
+            <PlatformAdminRoute>
+              <PlatformConsoleScreen />
+            </PlatformAdminRoute>
+          }
+        />
+
+        {/* Catch-all fallback */}
+        <Route path="*" element={<Navigate to="/login" replace />} />
+      </Routes>
+    </AuthProvider>
   );
 }

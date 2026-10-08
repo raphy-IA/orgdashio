@@ -535,6 +535,19 @@ export class AuthService {
     }));
   }
 
+  async revokeSession(sessionToken: string) {
+    const tokenHash = crypto
+      .createHash('sha256')
+      .update(sessionToken)
+      .digest('hex');
+
+    await this.db
+      .delete(userSession)
+      .where(eq(userSession.tokenHash, tokenHash));
+
+    return { success: true };
+  }
+
   async revokeOtherSessions(userId: string, currentSessionToken: string) {
     const currentTokenHash = crypto
       .createHash('sha256')

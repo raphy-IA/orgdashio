@@ -26,6 +26,8 @@ import {
   Clock,
 } from 'lucide-react';
 
+import { useAuth } from '../features/auth/AuthContext';
+
 export function Navbar() {
   const { t, i18n } = useTranslation();
   const navigate = useNavigate();
@@ -33,18 +35,7 @@ export function Navbar() {
   const [profileDropdownOpen, setProfileDropdownOpen] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
 
-  const { data: meData } = useQuery({
-    queryKey: ['authMe'],
-    queryFn: async () => {
-      const res = await fetch('/api/v1/auth/me');
-      if (!res.ok) return null;
-      return res.json();
-    },
-    retry: false,
-  });
-
-  const tenant = meData?.tenant;
-  const user = meData?.user;
+  const { user, tenant, logout } = useAuth();
 
   const tenantName = tenant?.name || 'Mon Organisme';
   const tenantLogoUrl = tenant?.logoUrl;
@@ -60,8 +51,7 @@ export function Navbar() {
   const userRole = user?.roles?.[0]?.name || (user?.isPlatformAdmin ? 'SuperAdmin' : 'Utilisateur');
 
   const handleLogout = async () => {
-    await fetch('/api/v1/auth/logout', { method: 'POST' });
-    navigate('/login');
+    await logout();
   };
 
   // Close dropdown on outside click

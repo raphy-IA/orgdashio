@@ -3,12 +3,13 @@ import { useNavigate, Link } from 'react-router-dom';
 import { Button, Badge } from '@orgdashio/ui';
 import { ShieldCheck, Building, Server, LogOut, ArrowLeft } from 'lucide-react';
 
+import { useAuth } from '../features/auth/AuthContext';
+
 export function PlatformNavbar() {
-  const navigate = useNavigate();
+  const { logout } = useAuth();
 
   const handleLogout = async () => {
-    await fetch('/api/v1/auth/logout', { method: 'POST' });
-    navigate('/login');
+    await logout();
   };
 
   return (

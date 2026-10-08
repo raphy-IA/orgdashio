@@ -128,7 +128,11 @@ export class AuthController {
 
   @Post('logout')
   @HttpCode(HttpStatus.OK)
-  async logout(@Res({ passthrough: true }) res: Response) {
+  async logout(@Req() req: Request, @Res({ passthrough: true }) res: Response) {
+    const sessionToken = req.cookies?.['orgdashio_session'];
+    if (sessionToken) {
+      await this.authService.revokeSession(sessionToken);
+    }
     res.clearCookie('orgdashio_session', { path: '/' });
     return { success: true };
   }
