@@ -14,6 +14,7 @@ import { IndicatorsModule } from './modules/indicators/indicators.module';
 import { BillingModule } from './modules/billing/billing.module';
 import { GrantsModule } from './modules/grants/grants.module';
 import { DonationsModule } from './modules/donations/donations.module';
+import { TimesheetsModule } from './modules/timesheets/timesheets.module';
 
 @Module({
   imports: [
@@ -32,6 +33,7 @@ import { DonationsModule } from './modules/donations/donations.module';
     BillingModule,
     GrantsModule,
     DonationsModule,
+    TimesheetsModule,
   ],
 })
 export class AppModule {}

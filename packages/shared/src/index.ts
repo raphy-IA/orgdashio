@@ -12,3 +12,4 @@ export * from './schemas/indicators.schema';
 export * from './schemas/billing.schema';
 export * from './schemas/grants.schema';
 export * from './schemas/donations.schema';
+export * from './schemas/timesheets.schema';

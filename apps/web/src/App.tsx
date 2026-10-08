@@ -26,6 +26,7 @@ import { BillingScreen } from './features/billing/BillingScreen';
 import { GrantListScreen } from './features/grants/GrantListScreen';
 import { GrantDetailScreen } from './features/grants/GrantDetailScreen';
 import { DonationListScreen } from './features/donations/DonationListScreen';
+import { TimesheetScreen } from './features/timesheets/TimesheetScreen';
 
 export default function App() {
   return (
@@ -48,6 +49,7 @@ export default function App() {
       <Route path="/grants" element={<GrantListScreen />} />
       <Route path="/grants/:id" element={<GrantDetailScreen />} />
       <Route path="/donations" element={<DonationListScreen />} />
+      <Route path="/timesheets" element={<TimesheetScreen />} />
       <Route path="/billing" element={<BillingScreen />} />
       <Route path="/settings/billing" element={<BillingScreen />} />
       <Route path="/settings/profile" element={<UserProfileSettingsScreen />} />

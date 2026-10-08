@@ -1656,3 +1656,105 @@ export const indicatorObservation = pgTable(
     tenantIdIdUk: unique().on(table.tenantId, table.id),
   })
 );
+
+// Module TMS: User HR Profile & Hourly Rates (TMS-03)
+export const userHrProfile = pgTable(
+  'user_hr_profile',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    tenantId: uuid('tenant_id').notNull(),
+    userId: uuid('user_id').notNull().references(() => userAccount.id, { onDelete: 'cascade' }),
+    employeeNumber: text('employee_number'),
+    jobTitle: text('job_title'),
+    department: text('department'),
+    contractType: text('contract_type', {
+      enum: ['full_time', 'part_time', 'contractor', 'volunteer', 'intern'],
+    }).notNull().default('full_time'),
+    standardWeeklyHours: numeric('standard_weekly_hours', { precision: 6, scale: 2 }).notNull().default('35.00'),
+    defaultHourlyRate: numeric('default_hourly_rate', { precision: 10, scale: 2 }).notNull().default('30.00'),
+    volunteerImputedRate: numeric('volunteer_imputed_rate', { precision: 10, scale: 2 }).notNull().default('25.00'),
+    active: boolean('active').notNull().default(true),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => ({
+    tenantIdIdUk: unique().on(table.tenantId, table.id),
+    tenantIdUserIdUk: unique().on(table.tenantId, table.userId),
+  })
+);
+
+// Module TMS: Timesheet Periods (TMS-01)
+export const timesheet = pgTable(
+  'timesheet',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    tenantId: uuid('tenant_id').notNull(),
+    userId: uuid('user_id').notNull().references(() => userAccount.id, { onDelete: 'cascade' }),
+    periodStartDate: date('period_start_date').notNull(),
+    periodEndDate: date('period_end_date').notNull(),
+    status: text('status', { enum: ['draft', 'submitted', 'approved', 'rejected'] })
+      .notNull()
+      .default('draft'),
+    totalHours: numeric('total_hours', { precision: 10, scale: 2 }).notNull().default('0'),
+    totalCost: numeric('total_cost', { precision: 19, scale: 4 }).notNull().default('0'),
+    submittedAt: timestamp('submitted_at', { withTimezone: true }),
+    reviewedByUserId: uuid('reviewed_by_user_id').references(() => userAccount.id, { onDelete: 'set null' }),
+    reviewedAt: timestamp('reviewed_at', { withTimezone: true }),
+    reviewNotes: text('review_notes'),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => ({
+    tenantIdIdUk: unique().on(table.tenantId, table.id),
+    tenantIdUserPeriodUk: unique().on(table.tenantId, table.userId, table.periodStartDate),
+  })
+);
+
+// Module TMS: Timesheet Entries & Analytic Allocation (TMS-02)
+export const timesheetEntry = pgTable(
+  'timesheet_entry',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    tenantId: uuid('tenant_id').notNull(),
+    timesheetId: uuid('timesheet_id').notNull(),
+    projectId: uuid('project_id'),
+    grantId: uuid('grant_id'),
+    planItemId: uuid('plan_item_id'),
+    activityType: text('activity_type', {
+      enum: [
+        'direct_program',
+        'management_admin',
+        'fundraising',
+        'training_delivery',
+        'case_work',
+        'statutory_holiday',
+        'pto_vacation',
+        'sick_leave',
+        'other',
+      ],
+    }).notNull().default('direct_program'),
+    entryDate: date('entry_date').notNull(),
+    hours: numeric('hours', { precision: 6, scale: 2 }).notNull(),
+    hourlyRate: numeric('hourly_rate', { precision: 10, scale: 2 }).notNull().default('0'),
+    calculatedCost: numeric('calculated_cost', { precision: 19, scale: 4 }).notNull().default('0'),
+    description: text('description'),
+    isBillable: boolean('is_billable').notNull().default(true),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => ({
+    timesheetFk: foreignKey({
+      columns: [table.tenantId, table.timesheetId],
+      foreignColumns: [timesheet.tenantId, timesheet.id],
+    }).onDelete('cascade'),
+    projectFk: foreignKey({
+      columns: [table.tenantId, table.projectId],
+      foreignColumns: [project.tenantId, project.id],
+    }).onDelete('set null'),
+    grantFk: foreignKey({
+      columns: [table.tenantId, table.grantId],
+      foreignColumns: [grantRecord.tenantId, grantRecord.id],
+    }).onDelete('set null'),
+    tenantIdIdUk: unique().on(table.tenantId, table.id),
+  })
+);
