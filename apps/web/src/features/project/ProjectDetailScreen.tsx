@@ -600,6 +600,60 @@ export function ProjectDetailScreen() {
     },
   });
 
+  const deletePlanItem = useMutation({
+    mutationFn: async (itemId: string) => {
+      const res = await fetch(`/api/v1/projects/${id}/plan-items/${itemId}`, {
+        method: 'DELETE',
+      });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error(err.message || 'Erreur lors de la suppression');
+      }
+      return res.json();
+    },
+    onSuccess: () => {
+      invalidate();
+      setSelectedTask(null);
+    },
+    onError: (err: any) => alert(err.message),
+  });
+
+  const deleteResultNode = useMutation({
+    mutationFn: async (nodeId: string) => {
+      const res = await fetch(`/api/v1/projects/${id}/result-nodes/${nodeId}`, {
+        method: 'DELETE',
+      });
+      if (!res.ok) throw new Error('Erreur lors de la suppression');
+      return res.json();
+    },
+    onSuccess: () => invalidate(),
+    onError: (err: any) => alert(err.message),
+  });
+
+  const deleteFundingSource = useMutation({
+    mutationFn: async (sourceId: string) => {
+      const res = await fetch(`/api/v1/projects/${id}/funding-sources/${sourceId}`, {
+        method: 'DELETE',
+      });
+      if (!res.ok) throw new Error('Erreur lors de la suppression');
+      return res.json();
+    },
+    onSuccess: () => invalidate(),
+    onError: (err: any) => alert(err.message),
+  });
+
+  const deleteRaidItem = useMutation({
+    mutationFn: async (itemId: string) => {
+      const res = await fetch(`/api/v1/projects/${id}/raid-items/${itemId}`, {
+        method: 'DELETE',
+      });
+      if (!res.ok) throw new Error('Erreur lors de la suppression');
+      return res.json();
+    },
+    onSuccess: () => invalidate(),
+    onError: (err: any) => alert(err.message),
+  });
+
   const approveExpense = useMutation({
     mutationFn: async (expenseId: string) => {
       const res = await fetch(`/api/v1/projects/${id}/expenses/${expenseId}/approve`, { method: 'PATCH' });
@@ -1323,13 +1377,27 @@ export function ProjectDetailScreen() {
                       {nodes.map((node: any) => (
                         <div
                           key={node.id}
-                          className={`mb-2 rounded-lg border bg-white p-4 shadow-sm`}
+                          className={`mb-2 rounded-lg border bg-white p-4 shadow-sm flex items-start justify-between gap-4`}
                           style={{ marginLeft: `${cfg.indent * 24}px` }}
                         >
-                          <p className="font-medium text-slate-800">{node.title}</p>
-                          {node.description && (
-                            <p className="mt-1 text-sm text-slate-500">{node.description}</p>
-                          )}
+                          <div>
+                            <p className="font-medium text-slate-800">{node.title}</p>
+                            {node.description && (
+                              <p className="mt-1 text-sm text-slate-500">{node.description}</p>
+                            )}
+                          </div>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              if (window.confirm(`Supprimer le nœud de résultat "${node.title}" ?`)) {
+                                deleteResultNode.mutate(node.id);
+                              }
+                            }}
+                            className="text-slate-400 hover:text-rose-600 p-1.5 rounded hover:bg-rose-50 transition-colors flex-shrink-0"
+                            title="Supprimer ce nœud"
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </button>
                         </div>
                       ))}
                     </div>
@@ -1358,119 +1426,194 @@ export function ProjectDetailScreen() {
 
             {/* Add Plan Item Form */}
             {showPlanItemForm && (() => {
+              const rootPhases = planItems.filter((p: any) => p.type === 'phase');
+              const allActivities = planItems.filter((p: any) => p.type === 'activity');
               const selectedParent = planItems.find((p: any) => p.id === piParentId);
               
-              // Calcul automatique du WBS suggéré
+              // Calcul automatique et rigoureux du WBS selon la hiérarchie standard WBS / OTP
               const getSuggestedWbs = () => {
                 if (piWbs) return piWbs;
-                if (!piParentId) {
-                  const rootItems = planItems.filter((p: any) => !p.parentId);
-                  return `${rootItems.length + 1}`;
+                if (piType === 'phase') {
+                  return `${rootPhases.length + 1}`;
                 }
-                const siblings = planItems.filter((p: any) => p.parentId === piParentId);
-                return selectedParent ? `${selectedParent.wbs}.${siblings.length + 1}` : '';
+                if (selectedParent) {
+                  const siblings = planItems.filter((p: any) => p.parentId === piParentId);
+                  return `${selectedParent.wbs}.${siblings.length + 1}`;
+                }
+                const rootItems = planItems.filter((p: any) => !p.parentId);
+                return `${rootItems.length + 1}`;
               };
 
               const suggestedWbs = getSuggestedWbs();
 
               return (
-                <div className="rounded-xl border border-indigo-200 bg-indigo-50 p-5 shadow-sm">
-                  <h3 className="mb-4 text-sm font-semibold text-indigo-800">Nouvel élément de plan</h3>
-                  <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+                <div className="rounded-xl border border-indigo-200 bg-indigo-50 p-5 shadow-sm space-y-4">
+                  <div className="flex items-center justify-between border-b border-indigo-200/60 pb-3">
+                    <h3 className="text-sm font-bold text-indigo-900 flex items-center gap-2">
+                      <Sparkles className="h-4 w-4 text-indigo-600" />
+                      <span>Ajouter un élément au plan WBS</span>
+                    </h3>
+                    <span className="text-xs text-indigo-600 bg-indigo-100 px-2 py-0.5 rounded font-mono font-bold">
+                      Code suggéré : {suggestedWbs}
+                    </span>
+                  </div>
+
+                  <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
                     <div>
-                      <label className="mb-1 block text-xs font-medium text-slate-600">Type</label>
+                      <label className="mb-1.5 block text-xs font-bold uppercase tracking-wider text-slate-700">
+                        1. Type d'élément *
+                      </label>
                       <select
                         value={piType}
                         onChange={(e) => {
                           const newType = e.target.value as PlanItem['type'];
                           setPiType(newType);
+                          setPiWbs('');
+                          
+                          // Ajuster le parent selon le type
+                          if (newType === 'phase') {
+                            setPiParentId('');
+                          } else if (newType === 'activity' && rootPhases.length > 0) {
+                            if (!piParentId || !rootPhases.some((p: any) => p.id === piParentId)) {
+                              setPiParentId(rootPhases[0].id);
+                            }
+                          } else if (newType === 'task' && allActivities.length > 0) {
+                            if (!piParentId || !allActivities.some((a: any) => a.id === piParentId)) {
+                              setPiParentId(allActivities[0].id);
+                            }
+                          }
+
                           if (newType === 'milestone') {
-                            // Jalon : date unique (aligner date début et fin si une date existe)
                             const dateToUse = piEnd || piStart;
                             setPiStart(dateToUse);
                             setPiEnd(dateToUse);
                           }
                         }}
-                        className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm"
+                        className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-xs font-semibold shadow-xs"
                       >
-                        {Object.entries(TYPE_CONFIG).map(([k, v]) => (
-                          <option key={k} value={k}>{v.label}</option>
-                        ))}
+                        <option value="phase">🏛️ Phase (Niveau 1 — Macro)</option>
+                        <option value="activity">📦 Activité / Lot (Niveau 2)</option>
+                        <option value="task">📋 Tâche opérationnelle (Niveau 3)</option>
+                        <option value="milestone">🚩 Jalon clé (Date cible)</option>
+                        <option value="deliverable">📄 Livrable formel</option>
                       </select>
                     </div>
+
                     <div>
-                      <label className="mb-1 block text-xs font-medium text-slate-600">Élément parent</label>
-                      <select
-                        value={piParentId}
-                        onChange={(e) => {
-                          const newParentId = e.target.value;
-                          setPiParentId(newParentId);
-                          // Auto-remplir le WBS suggéré
-                          const parent = planItems.find((p: any) => p.id === newParentId);
-                          if (parent) {
-                            const siblings = planItems.filter((p: any) => p.parentId === newParentId);
-                            setPiWbs(`${parent.wbs}.${siblings.length + 1}`);
-                            // Pré-remplir / adapter les dates
-                            if (piType === 'milestone') {
-                              const milestoneDate = parent.endDate || parent.startDate || '';
-                              setPiStart(milestoneDate);
-                              setPiEnd(milestoneDate);
-                            } else {
-                              if (parent.startDate && (!piStart || piStart < parent.startDate)) {
-                                setPiStart(parent.startDate);
-                              }
-                              if (parent.endDate && (!piEnd || piEnd > parent.endDate)) {
-                                setPiEnd(parent.endDate);
+                      <label className="mb-1.5 block text-xs font-bold uppercase tracking-wider text-slate-700">
+                        2. Élément parent (Rattachement)
+                      </label>
+                      {piType === 'phase' ? (
+                        <div className="w-full rounded-lg border border-slate-200 bg-slate-100 px-3 py-2 text-xs text-slate-500 font-medium">
+                          Niveau 1 (Racine du projet)
+                        </div>
+                      ) : (
+                        <select
+                          value={piParentId}
+                          onChange={(e) => {
+                            const newParentId = e.target.value;
+                            setPiParentId(newParentId);
+                            setPiWbs('');
+                            const parent = planItems.find((p: any) => p.id === newParentId);
+                            if (parent) {
+                              if (piType === 'milestone') {
+                                const milestoneDate = parent.endDate || parent.startDate || '';
+                                setPiStart(milestoneDate);
+                                setPiEnd(milestoneDate);
+                              } else {
+                                if (parent.startDate && (!piStart || piStart < parent.startDate)) {
+                                  setPiStart(parent.startDate);
+                                }
+                                if (parent.endDate && (!piEnd || piEnd > parent.endDate)) {
+                                  setPiEnd(parent.endDate);
+                                }
                               }
                             }
-                          } else {
-                            const rootItems = planItems.filter((p: any) => !p.parentId);
-                            setPiWbs(`${rootItems.length + 1}`);
-                          }
-                        }}
-                        className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm"
-                      >
-                        <option value="">— Aucun (Racine - Phase / Projet) —</option>
-                        {planItems.filter((p: any) => p.type === 'phase' || p.type === 'activity').map((p: any) => (
-                          <option key={p.id} value={p.id}>
-                            {p.wbs} — {p.title} {p.startDate && p.endDate ? `(${p.startDate} au ${p.endDate})` : ''}
-                          </option>
-                        ))}
-                      </select>
+                          }}
+                          className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-xs font-semibold shadow-xs"
+                        >
+                          {piType === 'activity' ? (
+                            rootPhases.length > 0 ? (
+                              rootPhases.map((p: any) => (
+                                <option key={p.id} value={p.id}>
+                                  Phase {p.wbs} — {p.title}
+                                </option>
+                              ))
+                            ) : (
+                              <option value="">— Aucune Phase existante (Racine) —</option>
+                            )
+                          ) : piType === 'task' ? (
+                            allActivities.length > 0 ? (
+                              allActivities.map((a: any) => (
+                                <option key={a.id} value={a.id}>
+                                  Activité {a.wbs} — {a.title}
+                                </option>
+                              ))
+                            ) : rootPhases.length > 0 ? (
+                              rootPhases.map((p: any) => (
+                                <option key={p.id} value={p.id}>
+                                  Phase {p.wbs} — {p.title}
+                                </option>
+                              ))
+                            ) : (
+                              <option value="">— Aucun parent disponible (Racine) —</option>
+                            )
+                          ) : (
+                            <>
+                              <option value="">— Aucun parent (Racine) —</option>
+                              {planItems.filter((p: any) => p.type === 'phase' || p.type === 'activity').map((p: any) => (
+                                <option key={p.id} value={p.id}>
+                                  {p.type === 'phase' ? 'Phase' : 'Activité'} {p.wbs} — {p.title}
+                                </option>
+                              ))}
+                            </>
+                          )}
+                        </select>
+                      )}
                     </div>
+
                     <div>
-                      <label className="mb-1 block text-xs font-medium text-slate-600">
-                        Code WBS (automatique ou manuel)
+                      <label className="mb-1.5 block text-xs font-bold uppercase tracking-wider text-slate-700">
+                        3. Code WBS (Nomenclature)
                       </label>
                       <Input
                         value={piWbs || suggestedWbs}
                         onChange={(e) => setPiWbs(e.target.value)}
-                        placeholder={suggestedWbs || '1.1'}
+                        placeholder={suggestedWbs}
+                        className="font-mono font-bold text-xs"
                       />
                     </div>
+
                     <div className="sm:col-span-3">
-                      <label className="mb-1 block text-xs font-medium text-slate-600">Titre *</label>
+                      <label className="mb-1.5 block text-xs font-bold uppercase tracking-wider text-slate-700">
+                        Titre descriptif *
+                      </label>
                       <Input
                         value={piTitle}
                         onChange={(e) => setPiTitle(e.target.value)}
                         placeholder={
-                          piType === 'milestone'
-                            ? 'Ex: Validation finale du rapport, Livraison des équipements...'
-                            : piType === 'phase'
-                              ? 'Ex: Phase 1 — Cadrage et préparation...'
-                              : 'Ex: Réaliser les entretiens avec les bénéficiaires...'
+                          piType === 'phase'
+                            ? 'Ex: Phase 1 — Cadrage & Mobilisation communautaire'
+                            : piType === 'activity'
+                            ? 'Ex: Activité 1.1 — Diagnostic des besoins et cartographie'
+                            : piType === 'task'
+                            ? 'Ex: Tâche 1.1.1 — Conduire 15 entretiens individuels'
+                            : piType === 'milestone'
+                            ? 'Ex: Validation du rapport d\'étape par le comité de pilotage'
+                            : 'Ex: Document de synthèse et grille d\'analyse livrés'
                         }
+                        className="text-xs font-medium"
                       />
                     </div>
 
                     {/* Dates conditionnelles : Jalon = date unique / Autres = période début-fin */}
                     {piType === 'milestone' ? (
                       <div className="sm:col-span-3">
-                        <label className="mb-1 block text-xs font-medium text-slate-600">
+                        <label className="mb-1.5 block text-xs font-bold uppercase tracking-wider text-slate-700">
                           Date cible du Jalon *
                           {selectedParent?.startDate && selectedParent?.endDate && (
-                            <span className="ml-1 text-[10px] text-indigo-600">
-                              (doit être entre le {selectedParent.startDate} et le {selectedParent.endDate})
+                            <span className="ml-1 text-[10px] text-indigo-600 font-normal">
+                              (intervalle parent : {selectedParent.startDate} au {selectedParent.endDate})
                             </span>
                           )}
                         </label>
@@ -1488,10 +1631,10 @@ export function ProjectDetailScreen() {
                     ) : (
                       <>
                         <div>
-                          <label className="mb-1 block text-xs font-medium text-slate-600">
+                          <label className="mb-1.5 block text-xs font-bold uppercase tracking-wider text-slate-700">
                             Date de début
                             {selectedParent?.startDate && (
-                              <span className="ml-1 text-[10px] text-indigo-600">(min: {selectedParent.startDate})</span>
+                              <span className="ml-1 text-[10px] text-indigo-600 font-normal">(min: {selectedParent.startDate})</span>
                             )}
                           </label>
                           <Input
@@ -1503,10 +1646,10 @@ export function ProjectDetailScreen() {
                           />
                         </div>
                         <div>
-                          <label className="mb-1 block text-xs font-medium text-slate-600">
+                          <label className="mb-1.5 block text-xs font-bold uppercase tracking-wider text-slate-700">
                             Date de fin
                             {selectedParent?.endDate && (
-                              <span className="ml-1 text-[10px] text-indigo-600">(max: {selectedParent.endDate})</span>
+                              <span className="ml-1 text-[10px] text-indigo-600 font-normal">(max: {selectedParent.endDate})</span>
                             )}
                           </label>
                           <Input
@@ -1521,18 +1664,36 @@ export function ProjectDetailScreen() {
                     )}
                   </div>
 
-                  {selectedParent && (
-                    <div className="mt-3 rounded-lg bg-indigo-100/60 p-2.5 text-xs text-indigo-900">
-                      <strong>Intervalle du parent ({selectedParent.wbs}) :</strong>{' '}
-                      {selectedParent.startDate && selectedParent.endDate
-                        ? `${selectedParent.startDate} au ${selectedParent.endDate}`
-                        : selectedParent.startDate
-                          ? `À partir du ${selectedParent.startDate}`
-                          : 'Aucune date limite définie sur le parent'}
+                  {/* Guide Pédagogique d'Ordre et Hiérarchie */}
+                  {piType === 'activity' && rootPhases.length === 0 && (
+                    <div className="p-3 bg-amber-50 border border-amber-200 text-amber-900 rounded-lg text-xs flex items-center justify-between">
+                      <span>
+                        ⚠️ <strong>Bonne pratique :</strong> Aucune Phase n'est encore définie. Il est fortement recommandé de créer d'abord une <strong>Phase</strong> (ex: Phase 1 — Cadrage) afin de structurer vos activités sous une numérotation WBS rigoureuse (ex: 1.1, 1.2).
+                      </span>
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant="outline"
+                        onClick={() => {
+                          setPiType('phase');
+                          setPiParentId('');
+                          setPiTitle('Phase 1 — ');
+                          setPiWbs('1');
+                        }}
+                        className="text-xs ml-3 whitespace-nowrap bg-white text-amber-800 border-amber-300"
+                      >
+                        Créer une Phase d'abord
+                      </Button>
                     </div>
                   )}
 
-                  <div className="mt-4 flex gap-2">
+                  {piType === 'task' && allActivities.length === 0 && (
+                    <div className="p-3 bg-blue-50 border border-blue-200 text-blue-900 rounded-lg text-xs">
+                      💡 <strong>Conseil hiérarchique :</strong> Dans la gestion de projet OBNL (norme PMI/WBS), les tâches opérationnelles (ex: 1.1.1) découlent d'une <strong>Activité</strong> (ex: 1.1).
+                    </div>
+                  )}
+
+                  <div className="flex gap-2 pt-2 border-t border-indigo-200/60">
                     <Button
                       size="sm"
                       onClick={() => {
@@ -1540,7 +1701,6 @@ export function ProjectDetailScreen() {
                           setPiWbs(suggestedWbs);
                         }
                         if (piType === 'milestone') {
-                          // Assurer que les deux dates correspondent pour un jalon
                           const milestoneDate = piEnd || piStart;
                           setPiStart(milestoneDate);
                           setPiEnd(milestoneDate);
@@ -1548,10 +1708,11 @@ export function ProjectDetailScreen() {
                         addPlanItem.mutate();
                       }}
                       disabled={!piTitle.trim() || addPlanItem.isPending}
+                      className="bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs"
                     >
-                      Enregistrer
+                      {addPlanItem.isPending ? 'Enregistrement...' : 'Enregistrer dans le WBS'}
                     </Button>
-                    <Button size="sm" variant="ghost" onClick={() => setShowPlanItemForm(false)}>
+                    <Button size="sm" variant="ghost" onClick={() => setShowPlanItemForm(false)} className="text-xs">
                       Annuler
                     </Button>
                   </div>
@@ -1564,7 +1725,7 @@ export function ProjectDetailScreen() {
               <div className="rounded-xl border border-dashed border-slate-200 bg-white p-10 text-center">
                 <ListTodo className="mx-auto mb-3 h-10 w-10 text-slate-300" />
                 <p className="text-sm font-medium text-slate-500">Aucun élément de plan défini</p>
-                <p className="mt-1 text-xs text-slate-400">Structurez le projet en phases, activités, tâches et jalons.</p>
+                <p className="mt-1 text-xs text-slate-400">Structurez le projet en phases (1, 2), activités (1.1, 1.2), tâches (1.1.1) et jalons.</p>
               </div>
             ) : (
               <div className="overflow-hidden rounded-xl border bg-white shadow-sm">
@@ -1573,24 +1734,25 @@ export function ProjectDetailScreen() {
                     <tr className="text-left text-xs font-semibold uppercase tracking-wide text-slate-500">
                       <th className="px-4 py-3">WBS</th>
                       <th className="px-4 py-3">Type</th>
-                      <th className="px-4 py-3">Titre</th>
+                      <th className="px-4 py-3">Titre de l'élément</th>
                       <th className="px-4 py-3">Période / Date</th>
                       <th className="w-44 px-4 py-3">Avancement</th>
                       <th className="px-4 py-3">Statut</th>
+                      <th className="px-4 py-3 text-right">Actions</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-100">
                     {[...planItems]
                       .sort((a: any, b: any) => a.wbs.localeCompare(b.wbs, undefined, { numeric: true }))
                       .map((item: any) => {
-                        const depth = item.parentId ? 1 : 0;
+                        const depth = Math.max(0, (item.wbs || '').split('.').length - 1);
                         const statusCfg = STATUS_CONFIG[item.status] || STATUS_CONFIG.todo;
                         const typeCfg = TYPE_CONFIG[item.type] || TYPE_CONFIG.task;
                         const isMilestone = item.type === 'milestone';
 
                         return (
-                          <tr key={item.id} className="group hover:bg-slate-50">
-                            <td className="px-4 py-3 font-mono text-xs font-medium text-slate-500">{item.wbs}</td>
+                          <tr key={item.id} className="group hover:bg-slate-50 transition-colors">
+                            <td className="px-4 py-3 font-mono text-xs font-bold text-slate-600">{item.wbs}</td>
                             <td className="px-4 py-3">
                               <span className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-0.5 text-xs font-medium ${typeCfg.badgeClass}`}>
                                 {typeCfg.icon}
@@ -1598,13 +1760,13 @@ export function ProjectDetailScreen() {
                               </span>
                             </td>
                             <td className="px-4 py-3">
-                              <span
-                                className={`font-medium ${isMilestone ? 'text-amber-900 font-semibold' : 'text-slate-800'}`}
-                                style={{ paddingLeft: `${depth * 16}px` }}
+                              <div
+                                className={`flex items-center gap-1.5 ${isMilestone ? 'text-amber-900 font-bold' : item.type === 'phase' ? 'text-indigo-950 font-bold' : 'text-slate-800 font-medium'}`}
+                                style={{ paddingLeft: `${depth * 20}px` }}
                               >
-                                {depth > 0 && <span className="mr-1 text-slate-300">↳</span>}
-                                {item.title}
-                              </span>
+                                {depth > 0 && <span className="text-slate-300 font-mono">↳</span>}
+                                <span>{item.title}</span>
+                              </div>
                             </td>
                             <td className="px-4 py-3 text-xs text-slate-600">
                               {isMilestone ? (
@@ -1629,6 +1791,24 @@ export function ProjectDetailScreen() {
                                 {statusCfg.icon}
                                 {statusCfg.label}
                               </span>
+                            </td>
+                            <td className="px-4 py-3 text-right">
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  const children = planItems.filter((p: any) => p.parentId === item.id);
+                                  const confirmMsg = children.length > 0
+                                    ? `Supprimer "${item.wbs} — ${item.title}" supprimera également ses ${children.length} sous-élément(s) rattaché(s). Confirmer ?`
+                                    : `Êtes-vous sûr de vouloir supprimer l'élément "${item.wbs} — ${item.title}" ?`;
+                                  if (window.confirm(confirmMsg)) {
+                                    deletePlanItem.mutate(item.id);
+                                  }
+                                }}
+                                className="p-1.5 text-slate-400 hover:text-rose-600 rounded hover:bg-rose-50 transition-colors"
+                                title="Supprimer cet élément"
+                              >
+                                <Trash2 className="h-4 w-4" />
+                              </button>
                             </td>
                           </tr>
                         );
@@ -2720,6 +2900,7 @@ export function ProjectDetailScreen() {
                             <th className="px-5 py-2 text-left">Description</th>
                             <th className="px-5 py-2 text-center">Sévérité</th>
                             <th className="px-5 py-2 text-left">Responsable</th>
+                            <th className="px-5 py-2 text-right">Actions</th>
                           </tr>
                         </thead>
                         <tbody className="divide-y divide-slate-100">
@@ -2733,6 +2914,21 @@ export function ProjectDetailScreen() {
                                   <SeverityBadge probability={item.probability} impact={item.impact} />
                                 </td>
                                 <td className="px-5 py-3 text-slate-600">{item.ownerName || '—'}</td>
+                                <td className="px-5 py-3 text-right">
+                                  <Button
+                                    size="sm"
+                                    variant="ghost"
+                                    className="h-7 w-7 p-0 text-slate-400 hover:text-red-600 hover:bg-red-50"
+                                    title="Supprimer cet élément RAID"
+                                    onClick={() => {
+                                      if (window.confirm(`Supprimer l'élément "${item.title}" ?`)) {
+                                        deleteRaidItem.mutate(item.id);
+                                      }
+                                    }}
+                                  >
+                                    <Trash2 className="h-3.5 w-3.5" />
+                                  </Button>
+                                </td>
                               </tr>
                             ))}
                         </tbody>
@@ -2818,14 +3014,29 @@ export function ProjectDetailScreen() {
             ) : (
               <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
                 {fundingSources.map((fs: any) => (
-                  <div key={fs.id} className="rounded-xl border bg-white p-5 shadow-sm">
+                  <div key={fs.id} className="relative rounded-xl border bg-white p-5 shadow-sm group">
                     <div className="mb-3 flex items-start justify-between">
                       <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-violet-100">
                         <HandCoins className="h-5 w-5 text-violet-600" />
                       </div>
-                      <span className="rounded-full bg-slate-100 px-2 py-0.5 text-xs font-medium text-slate-600">
-                        {FUNDING_TYPE_LABELS[fs.fundingType] || fs.fundingType}
-                      </span>
+                      <div className="flex items-center gap-2">
+                        <span className="rounded-full bg-slate-100 px-2 py-0.5 text-xs font-medium text-slate-600">
+                          {FUNDING_TYPE_LABELS[fs.fundingType] || fs.fundingType}
+                        </span>
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          className="h-7 w-7 p-0 text-slate-300 hover:text-red-600 hover:bg-red-50"
+                          title="Supprimer cette source de financement"
+                          onClick={() => {
+                            if (window.confirm(`Supprimer le financement "${fs.donorName}" (${fmt(fs.amount)}) ?`)) {
+                              deleteFundingSource.mutate(fs.id);
+                            }
+                          }}
+                        >
+                          <Trash2 className="h-3.5 w-3.5" />
+                        </Button>
+                      </div>
                     </div>
                     <h3 className="font-semibold text-slate-800">{fs.donorName}</h3>
                     <p className="mt-1 text-xl font-bold text-violet-700">{fmt(fs.amount, fs.currency || 'CAD')}</p>

@@ -3,6 +3,7 @@ import {
   Get,
   Post,
   Patch,
+  Delete,
   Param,
   Body,
   UseGuards,
@@ -169,6 +170,33 @@ export class ProjectController {
     return this.projectService.updatePlanItem(req.tenantId, id, itemId, parsed);
   }
 
+  @Delete(':id/plan-items/:itemId')
+  async deletePlanItem(
+    @Req() req: any,
+    @Param('id') id: string,
+    @Param('itemId') itemId: string,
+  ) {
+    return this.projectService.deletePlanItem(req.tenantId, id, itemId);
+  }
+
+  @Delete(':id/result-nodes/:nodeId')
+  async deleteResultNode(
+    @Req() req: any,
+    @Param('id') id: string,
+    @Param('nodeId') nodeId: string,
+  ) {
+    return this.projectService.deleteResultNode(req.tenantId, id, nodeId);
+  }
+
+  @Delete(':id/funding-sources/:sourceId')
+  async deleteFundingSource(
+    @Req() req: any,
+    @Param('id') id: string,
+    @Param('sourceId') sourceId: string,
+  ) {
+    return this.projectService.deleteFundingSource(req.tenantId, id, sourceId);
+  }
+
   @Patch(':id/raid-items/:itemId')
   async updateRaidItem(
     @Req() req: any,
@@ -178,6 +206,15 @@ export class ProjectController {
   ) {
     const parsed = UpdateRaidItemSchema.parse(body);
     return this.projectService.updateRaidItem(req.tenantId, id, itemId, parsed);
+  }
+
+  @Delete(':id/raid-items/:itemId')
+  async deleteRaidItem(
+    @Req() req: any,
+    @Param('id') id: string,
+    @Param('itemId') itemId: string,
+  ) {
+    return this.projectService.deleteRaidItem(req.tenantId, id, itemId);
   }
 
   // --- Project Members & Stakeholders ---

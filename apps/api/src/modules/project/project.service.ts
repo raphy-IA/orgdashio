@@ -43,7 +43,7 @@ import {
   CreatePlanItemDeliverableInput,
   VerifyDeliverableInput,
 } from '@orgdashio/shared';
-import { eq, and } from 'drizzle-orm';
+import { eq, and, inArray, or } from 'drizzle-orm';
 import { detectDependencyCycle } from './utils/dependency-graph.util';
 import { validateExpenseApproval } from './services/expense-workflow.service';
 import { generateAccountingCsv, ExpenseExportRow } from './services/csv-export.util';
@@ -453,12 +453,25 @@ export class ProjectService {
   async addPlanItem(tenantId: string, projectId: string, input: CreatePlanItemInput) {
     return withTenantContext(this.db, tenantId, async (tx) => {
       let parent: any = null;
-      if (input.parentId) {
+      let effectiveParentId: string | null | undefined = input.parentId;
+
+      // Une phase est obligatoirement un élément racine (niveau 1)
+      if (input.type === 'phase') {
+        effectiveParentId = undefined;
+      }
+
+      if (effectiveParentId) {
         const [foundParent] = await tx
           .select()
           .from(planItem)
-          .where(and(eq(planItem.id, input.parentId), eq(planItem.tenantId, tenantId), eq(planItem.projectId, projectId)));
-        
+          .where(
+            and(
+              eq(planItem.id, effectiveParentId),
+              eq(planItem.tenantId, tenantId),
+              eq(planItem.projectId, projectId)
+            )
+          );
+
         if (!foundParent) {
           throw new NotFoundException('Élément parent introuvable');
         }
@@ -486,22 +499,46 @@ export class ProjectService {
         throw new BadRequestException('La date de début ne peut pas être postérieure à la date de fin');
       }
 
-      // Auto-génération intelligente du WBS si non fourni ou si généré automatiquement
+      // Auto-génération stricte et intelligente du code WBS
       let finalWbs = input.wbs?.trim();
       if (!finalWbs) {
-        const siblings = await tx
-          .select()
-          .from(planItem)
-          .where(
-            and(
-              eq(planItem.tenantId, tenantId),
-              eq(planItem.projectId, projectId),
-              input.parentId ? eq(planItem.parentId, input.parentId) : eq(planItem.parentId, null as any)
-            )
-          );
-        
-        const nextIndex = siblings.length + 1;
-        finalWbs = parent ? `${parent.wbs}.${nextIndex}` : `${nextIndex}`;
+        if (input.type === 'phase') {
+          const rootPhases = await tx
+            .select()
+            .from(planItem)
+            .where(
+              and(
+                eq(planItem.tenantId, tenantId),
+                eq(planItem.projectId, projectId),
+                eq(planItem.type, 'phase')
+              )
+            );
+          finalWbs = `${rootPhases.length + 1}`;
+        } else if (parent) {
+          const siblings = await tx
+            .select()
+            .from(planItem)
+            .where(
+              and(
+                eq(planItem.tenantId, tenantId),
+                eq(planItem.projectId, projectId),
+                eq(planItem.parentId, effectiveParentId as string)
+              )
+            );
+          finalWbs = `${parent.wbs}.${siblings.length + 1}`;
+        } else {
+          const rootItems = await tx
+            .select()
+            .from(planItem)
+            .where(
+              and(
+                eq(planItem.tenantId, tenantId),
+                eq(planItem.projectId, projectId),
+                eq(planItem.parentId, null as any)
+              )
+            );
+          finalWbs = `${rootItems.length + 1}`;
+        }
       }
 
       const [res] = await tx
@@ -509,7 +546,7 @@ export class ProjectService {
         .values({
           tenantId,
           projectId,
-          parentId: input.parentId,
+          parentId: effectiveParentId,
           resultNodeId: input.resultNodeId,
           type: input.type,
           wbs: finalWbs,
@@ -523,6 +560,192 @@ export class ProjectService {
 
       await this.recalculateWbsAndProjectRollup(tx, tenantId, projectId);
       return res;
+    });
+  }
+
+  async deletePlanItem(tenantId: string, projectId: string, itemId: string) {
+    return withTenantContext(this.db, tenantId, async (tx) => {
+      // 1. Verify item exists
+      const [targetItem] = await tx
+        .select()
+        .from(planItem)
+        .where(
+          and(
+            eq(planItem.id, itemId),
+            eq(planItem.tenantId, tenantId),
+            eq(planItem.projectId, projectId)
+          )
+        );
+
+      if (!targetItem) throw new NotFoundException('Élément de plan introuvable');
+
+      // 2. Find all recursive descendant IDs
+      const allItems = await tx
+        .select()
+        .from(planItem)
+        .where(and(eq(planItem.tenantId, tenantId), eq(planItem.projectId, projectId)));
+
+      const childrenMap = new Map<string, string[]>();
+      allItems.forEach((i: any) => {
+        if (i.parentId) {
+          if (!childrenMap.has(i.parentId)) childrenMap.set(i.parentId, []);
+          childrenMap.get(i.parentId)!.push(i.id);
+        }
+      });
+
+      const idsToDelete: string[] = [];
+      const collectIds = (id: string) => {
+        idsToDelete.push(id);
+        const children = childrenMap.get(id) || [];
+        for (const childId of children) {
+          collectIds(childId);
+        }
+      };
+      collectIds(itemId);
+
+      if (idsToDelete.length > 0) {
+        // 3. Clean up related records
+        await tx
+          .delete(planDependency)
+          .where(
+            and(
+              eq(planDependency.tenantId, tenantId),
+              or(
+                inArray(planDependency.predecessorId, idsToDelete),
+                inArray(planDependency.successorId, idsToDelete)
+              )
+            )
+          );
+
+        await tx
+          .delete(planItemRaci)
+          .where(
+            and(
+              eq(planItemRaci.tenantId, tenantId),
+              eq(planItemRaci.projectId, projectId),
+              inArray(planItemRaci.planItemId, idsToDelete)
+            )
+          );
+
+        await tx
+          .delete(planItemUpdate)
+          .where(
+            and(
+              eq(planItemUpdate.tenantId, tenantId),
+              inArray(planItemUpdate.planItemId, idsToDelete)
+            )
+          );
+
+        await tx
+          .delete(planItemDeliverable)
+          .where(
+            and(
+              eq(planItemDeliverable.tenantId, tenantId),
+              inArray(planItemDeliverable.planItemId, idsToDelete)
+            )
+          );
+
+        // 4. Delete the plan items
+        await tx
+          .delete(planItem)
+          .where(
+            and(
+              eq(planItem.tenantId, tenantId),
+              eq(planItem.projectId, projectId),
+              inArray(planItem.id, idsToDelete)
+            )
+          );
+      }
+
+      // 5. Recalculate rollup for project
+      await this.recalculateWbsAndProjectRollup(tx, tenantId, projectId);
+
+      return { success: true, deletedIds: idsToDelete };
+    });
+  }
+
+  async deleteResultNode(tenantId: string, projectId: string, nodeId: string) {
+    return withTenantContext(this.db, tenantId, async (tx) => {
+      const allNodes = await tx
+        .select()
+        .from(resultNode)
+        .where(and(eq(resultNode.tenantId, tenantId), eq(resultNode.projectId, projectId)));
+
+      const childrenMap = new Map<string, string[]>();
+      allNodes.forEach((n: any) => {
+        if (n.parentId) {
+          if (!childrenMap.has(n.parentId)) childrenMap.set(n.parentId, []);
+          childrenMap.get(n.parentId)!.push(n.id);
+        }
+      });
+
+      const idsToDelete: string[] = [];
+      const collectIds = (id: string) => {
+        idsToDelete.push(id);
+        const children = childrenMap.get(id) || [];
+        for (const childId of children) {
+          collectIds(childId);
+        }
+      };
+      collectIds(nodeId);
+
+      // Unlink plan items pointing to these result nodes
+      await tx
+        .update(planItem)
+        .set({ resultNodeId: null })
+        .where(
+          and(
+            eq(planItem.tenantId, tenantId),
+            eq(planItem.projectId, projectId),
+            inArray(planItem.resultNodeId, idsToDelete)
+          )
+        );
+
+      await tx
+        .delete(resultNode)
+        .where(
+          and(
+            eq(resultNode.tenantId, tenantId),
+            eq(resultNode.projectId, projectId),
+            inArray(resultNode.id, idsToDelete)
+          )
+        );
+
+      return { success: true, deletedCount: idsToDelete.length };
+    });
+  }
+
+  async deleteFundingSource(tenantId: string, projectId: string, sourceId: string) {
+    return withTenantContext(this.db, tenantId, async (tx) => {
+      const [deleted] = await tx
+        .delete(fundingSource)
+        .where(
+          and(
+            eq(fundingSource.id, sourceId),
+            eq(fundingSource.tenantId, tenantId),
+            eq(fundingSource.projectId, projectId)
+          )
+        )
+        .returning();
+      if (!deleted) throw new NotFoundException('Source de financement non trouvée');
+      return { success: true };
+    });
+  }
+
+  async deleteRaidItem(tenantId: string, projectId: string, itemId: string) {
+    return withTenantContext(this.db, tenantId, async (tx) => {
+      const [deleted] = await tx
+        .delete(raidItem)
+        .where(
+          and(
+            eq(raidItem.id, itemId),
+            eq(raidItem.tenantId, tenantId),
+            eq(raidItem.projectId, projectId)
+          )
+        )
+        .returning();
+      if (!deleted) throw new NotFoundException('Élément RAID non trouvé');
+      return { success: true };
     });
   }
 
