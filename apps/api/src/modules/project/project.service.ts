@@ -11,6 +11,7 @@ import {
   program,
   project,
   programProject,
+  grantRecord,
   fundingSource,
   resultNode,
   planItem,
@@ -295,16 +296,44 @@ export class ProjectService {
         });
       }
 
-      // Add initial funding source if specified
-      if (input.initialBudget && Number(input.initialBudget) > 0) {
+      let effectiveDonor = input.donorName?.trim() || null;
+      let effectiveAmount =
+        input.initialBudget && Number(input.initialBudget) > 0 ? input.initialBudget.toString() : null;
+
+      // Link to grant if grantId provided
+      if (input.grantId) {
+        const [targetGrant] = await tx
+          .select()
+          .from(grantRecord)
+          .where(and(eq(grantRecord.tenantId, tenantId), eq(grantRecord.id, input.grantId)));
+
+        if (targetGrant) {
+          await tx
+            .update(grantRecord)
+            .set({ projectId: res.id, updatedAt: new Date() })
+            .where(and(eq(grantRecord.tenantId, tenantId), eq(grantRecord.id, input.grantId)));
+
+          if (!effectiveDonor) {
+            effectiveDonor = targetGrant.funderName;
+          }
+          if (!effectiveAmount && targetGrant.awardedAmount && Number(targetGrant.awardedAmount) > 0) {
+            effectiveAmount = targetGrant.awardedAmount;
+          }
+        }
+      }
+
+      // Add initial funding source if specified or linked to a grant/funder
+      if (effectiveDonor || (effectiveAmount && Number(effectiveAmount) > 0)) {
         await tx.insert(fundingSource).values({
           tenantId,
           projectId: res.id,
-          donorName: input.donorName?.trim() || 'Fonds Propres / Budget Initial',
-          fundingType: 'unrestricted',
-          amount: input.initialBudget.toString(),
+          donorName: effectiveDonor || 'Fonds Propres / Budget Initial',
+          fundingType: input.grantId ? 'grant' : 'unrestricted',
+          amount: effectiveAmount || '0',
           currency: 'CAD',
-          notes: 'Budget initial alloué à la création du projet',
+          notes: input.grantId
+            ? 'Financement rattaché à la subvention / bailleur de fonds'
+            : 'Budget initial alloué à la création du projet',
         });
       }
 

@@ -46,7 +46,8 @@ export function ProjectListScreen() {
   const [startDate, setStartDate] = useState('');
   const [endDate, setEndDate] = useState('');
   const [initialBudget, setInitialBudget] = useState('');
-  const [donorName, setDonorName] = useState('');
+  const [selectedGrantId, setSelectedGrantId] = useState('');
+  const [customDonorName, setCustomDonorName] = useState('');
   const [showAdvanced, setShowAdvanced] = useState(false);
   const [openAfterCreate, setOpenAfterCreate] = useState(true);
   const [projectError, setProjectError] = useState('');
@@ -60,7 +61,8 @@ export function ProjectListScreen() {
     setStartDate('');
     setEndDate('');
     setInitialBudget('');
-    setDonorName('');
+    setSelectedGrantId('');
+    setCustomDonorName('');
     setShowAdvanced(false);
     setProjectError('');
   };
@@ -129,6 +131,16 @@ export function ProjectListScreen() {
     },
   });
 
+  // Fetch Grants / Bailleurs (for funder selector)
+  const { data: grants = [] } = useQuery({
+    queryKey: ['grants'],
+    queryFn: async () => {
+      const res = await fetch('/api/v1/grants');
+      if (!res.ok) return [];
+      return res.json();
+    },
+  });
+
   // Fetch All Projects (with computed real metrics)
   const { data: projects = [], isLoading: isLoadingProjects } = useQuery({
     queryKey: ['projects'],
@@ -165,6 +177,7 @@ export function ProjectListScreen() {
       code: string;
       name: string;
       programId?: string | null;
+      grantId?: string | null;
       status?: string;
       description?: string | null;
       startDate?: string | null;
@@ -934,16 +947,33 @@ export function ProjectListScreen() {
                   setProjectError('Le nom du projet est requis.');
                   return;
                 }
+
+                let effectiveDonorName: string | null = null;
+                let effectiveGrantId: string | null = null;
+
+                if (selectedGrantId.startsWith('grant:')) {
+                  effectiveGrantId = selectedGrantId.replace('grant:', '');
+                  const g = (grants as any[]).find((item: any) => item.id === effectiveGrantId);
+                  if (g) {
+                    effectiveDonorName = g.funderName;
+                  }
+                } else if (selectedGrantId === 'internal') {
+                  effectiveDonorName = 'Fonds Propres / Autofinancement';
+                } else if (selectedGrantId === 'custom') {
+                  effectiveDonorName = customDonorName.trim() || 'Autre bailleur de fonds';
+                }
+
                 createProjectMutation.mutate({
                   code: code.trim().toUpperCase(),
                   name: name.trim(),
                   programId: programId ? programId : null,
+                  grantId: effectiveGrantId,
                   status,
                   description: description.trim() || null,
                   startDate: startDate || null,
                   endDate: endDate || null,
                   initialBudget: initialBudget ? parseFloat(initialBudget) : null,
-                  donorName: donorName.trim() || null,
+                  donorName: effectiveDonorName,
                 });
               }}
               className="space-y-4"
@@ -1012,7 +1042,7 @@ export function ProjectListScreen() {
                 >
                   <span className="flex items-center space-x-2">
                     <Sparkles className="h-4 w-4 text-indigo-600" />
-                    <span>Options de cadrage initial (Dates, Budget & Objectifs)</span>
+                    <span>Options de cadrage initial (Dates, Budget & Bailleur)</span>
                   </span>
                   <ChevronDown
                     className={`h-4 w-4 text-slate-500 transition-transform ${showAdvanced ? 'rotate-180' : ''}`}
@@ -1044,7 +1074,7 @@ export function ProjectListScreen() {
                       </div>
                     </div>
 
-                    {/* Initial Budget & Donor */}
+                    {/* Initial Budget & Funder Selector */}
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                       <div>
                         <label className="block text-xs font-medium text-slate-700 mb-1">Budget cible initial ($ CAD)</label>
@@ -1059,16 +1089,62 @@ export function ProjectListScreen() {
                         />
                       </div>
                       <div>
-                        <label className="block text-xs font-medium text-slate-700 mb-1">Bailleur / Source de fonds</label>
+                        <label className="block text-xs font-medium text-slate-700 mb-1">
+                          Bailleur / Subvention rattachée
+                        </label>
+                        <select
+                          value={selectedGrantId}
+                          onChange={(e) => {
+                            const val = e.target.value;
+                            setSelectedGrantId(val);
+                            if (val.startsWith('grant:')) {
+                              const gId = val.replace('grant:', '');
+                              const g = (grants as any[]).find((item: any) => item.id === gId);
+                              if (g) {
+                                if (!initialBudget && (g.awardedAmount || g.requestedAmount)) {
+                                  setInitialBudget(
+                                    Math.round(parseFloat(g.awardedAmount || g.requestedAmount)).toString()
+                                  );
+                                }
+                                if (!startDate && g.startDate) setStartDate(g.startDate);
+                                if (!endDate && g.endDate) setEndDate(g.endDate);
+                              }
+                            }
+                          }}
+                          className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 focus:border-indigo-500 focus:outline-hidden"
+                        >
+                          <option value="">-- Aucun bailleur (Non spécifié) --</option>
+                          {grants.length > 0 && (
+                            <optgroup label="🏛️ Subventions & Bailleurs enregistrés">
+                              {grants.map((g: any) => (
+                                <option key={g.id} value={`grant:${g.id}`}>
+                                  {g.funderName} — {g.title} ({g.awardedAmount ? `${formatCurrency(g.awardedAmount)} CAD` : 'En demande'})
+                                </option>
+                              ))}
+                            </optgroup>
+                          )}
+                          <optgroup label="💼 Autres sources de financement">
+                            <option value="internal">💼 Fonds Propres / Autofinancement interne</option>
+                            <option value="custom">➕ Saisir un autre bailleur personnalisé...</option>
+                          </optgroup>
+                        </select>
+                      </div>
+                    </div>
+
+                    {selectedGrantId === 'custom' && (
+                      <div className="rounded-lg bg-slate-50 p-3 border border-slate-200">
+                        <label className="block text-xs font-medium text-slate-700 mb-1">
+                          Nom du bailleur / organisme donateur
+                        </label>
                         <input
                           type="text"
-                          value={donorName}
-                          onChange={(e) => setDonorName(e.target.value)}
-                          placeholder="Ex: Fondation Grand Montréal"
+                          value={customDonorName}
+                          onChange={(e) => setCustomDonorName(e.target.value)}
+                          placeholder="Ex: Fondation Grand Montréal, Ville de Montréal..."
                           className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 focus:border-indigo-500 focus:outline-hidden"
                         />
                       </div>
-                    </div>
+                    )}
 
                     {/* Description */}
                     <div>
