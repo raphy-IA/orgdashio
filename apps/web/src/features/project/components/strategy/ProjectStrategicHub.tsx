@@ -7,6 +7,7 @@ import {
   Sparkles,
   Layers,
   ChevronRight,
+  CheckCircle2,
 } from 'lucide-react';
 import { ProjectCharterView } from './ProjectCharterView';
 import { ProjectLogframeView } from './ProjectLogframeView';
@@ -69,7 +70,7 @@ export function ProjectStrategicHub({
       label: 'Charte & Note de Cadrage',
       icon: FileSpreadsheet,
       badge: 'PMI Standard',
-      badgeCls: 'bg-emerald-100 text-emerald-800 border-emerald-200',
+      badgeCls: 'bg-emerald-50 text-emerald-700 border-emerald-200',
     },
     {
       id: 'logframe' as const,
@@ -77,93 +78,99 @@ export function ProjectStrategicHub({
       icon: Target,
       count: resultNodes?.length || 0,
       badge: `${resultNodes?.length || 0} niveaux`,
-      badgeCls: 'bg-blue-100 text-blue-800 border-blue-200',
+      badgeCls: 'bg-blue-50 text-blue-700 border-blue-200',
     },
     {
       id: 'funding' as const,
       label: 'Bailleurs & Financements',
       icon: HandCoins,
       count: fundingSources?.length || 0,
-      badge: budget > 0 ? `${fundingRate}% couvert` : `${fundingSources?.length || 0} bails`,
-      badgeCls: fundingRate >= 100 ? 'bg-emerald-100 text-emerald-800 border-emerald-200' : 'bg-amber-100 text-amber-800 border-amber-200',
+      badge: budget > 0 ? `${fundingRate}% couvert` : `${fundingSources?.length || 0} source(s)`,
+      badgeCls: fundingRate >= 100 ? 'bg-emerald-50 text-emerald-700 border-emerald-200' : 'bg-amber-50 text-amber-700 border-amber-200',
     },
     {
       id: 'team' as const,
       label: 'Gouvernance & Matrice RACI 2D',
       icon: ShieldCheck,
       count: members?.length || 0,
-      badge: `${members?.length || 0} acteurs`,
-      badgeCls: 'bg-purple-100 text-purple-800 border-purple-200',
+      badge: `${members?.length || 0} membres`,
+      badgeCls: 'bg-purple-50 text-purple-700 border-purple-200',
     },
   ];
 
   return (
     <div className="space-y-6">
-      {/* Strategic Hub Header Banner */}
-      <div className="bg-gradient-to-r from-slate-900 via-indigo-950 to-slate-900 rounded-2xl p-6 text-white shadow-xl border border-indigo-800/40 relative overflow-hidden">
-        <div className="absolute top-0 right-0 -mr-16 -mt-16 w-64 h-64 bg-indigo-500/10 rounded-full blur-3xl pointer-events-none" />
-        <div className="absolute bottom-0 left-1/3 -mb-16 w-64 h-64 bg-emerald-500/10 rounded-full blur-3xl pointer-events-none" />
-        
-        <div className="relative z-10 flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+      {/* Strategic Hub Header Banner - Light, Crisp & Modern */}
+      <div className="bg-white rounded-2xl p-5 sm:p-6 border border-slate-200/80 shadow-xs relative">
+        <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-5">
           <div>
             <div className="flex items-center gap-2 mb-2">
-              <span className="px-2.5 py-0.5 rounded-full text-xs font-semibold bg-indigo-500/20 text-indigo-300 border border-indigo-400/30 flex items-center gap-1">
-                <Sparkles className="h-3 w-3" /> Pilier 1 · Cadrage & Stratégie
+              <span className="px-2.5 py-0.5 rounded-full text-xs font-semibold bg-indigo-50 text-indigo-700 border border-indigo-200/60 flex items-center gap-1.5">
+                <Sparkles className="h-3.5 w-3.5 text-indigo-600" /> Pilier 1 · Cadrage & Stratégie
               </span>
-              <span className="text-xs text-slate-400">Standard GAR / RBM & PMI PMBOK</span>
+              <span className="text-xs text-slate-400 font-medium">Standard GAR / RBM & PMI PMBOK</span>
             </div>
-            <h1 className="text-2xl font-bold text-white tracking-tight flex items-center gap-2">
+            <h1 className="text-xl sm:text-2xl font-bold text-slate-900 tracking-tight flex items-center gap-2">
               Orientation Stratégique & Cadre de Référence
             </h1>
-            <p className="text-sm text-slate-300 max-w-2xl mt-1">
+            <p className="text-xs sm:text-sm text-slate-500 max-w-2xl mt-1 leading-relaxed">
               Structurez les fondations du projet : note de cadrage officielle, chaîne des résultats (Impact &rarr; Outcomes &rarr; Outputs), conventions de bailleurs et gouvernance RACI 2D.
             </p>
           </div>
 
           {/* Key KPIs Pill Strip */}
-          <div className="flex flex-wrap items-center gap-3">
-            <div className="bg-white/10 backdrop-blur-md rounded-xl p-3 border border-white/10 text-center min-w-[100px]">
-              <div className="text-xs text-slate-400 font-medium">Cadre Logique</div>
-              <div className="text-lg font-bold text-blue-300">{resultNodes?.length || 0} <span className="text-xs font-normal text-slate-400">noeuds</span></div>
+          <div className="flex flex-wrap items-center gap-2.5 sm:gap-3">
+            <div className="bg-slate-50 rounded-xl p-3 border border-slate-200/80 text-center min-w-[105px] shadow-2xs">
+              <div className="text-[11px] text-slate-500 font-medium">Cadre Logique</div>
+              <div className="text-lg font-bold text-blue-700">
+                {resultNodes?.length || 0} <span className="text-[11px] font-normal text-slate-400">nœuds</span>
+              </div>
             </div>
-            <div className="bg-white/10 backdrop-blur-md rounded-xl p-3 border border-white/10 text-center min-w-[100px]">
-              <div className="text-xs text-slate-400 font-medium">Couverture Budget</div>
-              <div className="text-lg font-bold text-emerald-300">{fundingRate}%</div>
+            <div className="bg-slate-50 rounded-xl p-3 border border-slate-200/80 text-center min-w-[105px] shadow-2xs">
+              <div className="text-[11px] text-slate-500 font-medium">Couverture Budget</div>
+              <div className="text-lg font-bold text-emerald-700">
+                {fundingRate}%
+              </div>
             </div>
-            <div className="bg-white/10 backdrop-blur-md rounded-xl p-3 border border-white/10 text-center min-w-[100px]">
-              <div className="text-xs text-slate-400 font-medium">Équipe & RACI</div>
-              <div className="text-lg font-bold text-purple-300">{members?.length || 0} <span className="text-xs font-normal text-slate-400">membres</span></div>
+            <div className="bg-slate-50 rounded-xl p-3 border border-slate-200/80 text-center min-w-[105px] shadow-2xs">
+              <div className="text-[11px] text-slate-500 font-medium">Équipe & RACI</div>
+              <div className="text-lg font-bold text-purple-700">
+                {members?.length || 0} <span className="text-[11px] font-normal text-slate-400">membres</span>
+              </div>
             </div>
           </div>
         </div>
 
-        {/* Sub Navigation Tabs */}
-        <div className="flex items-center gap-2 overflow-x-auto pt-5 mt-5 border-t border-slate-700/60 no-scrollbar">
-          {subTabs.map((tab) => {
-            const Icon = tab.icon;
-            const isActive = activeSubTab === tab.id;
-            return (
-              <button
-                key={tab.id}
-                onClick={() => setActiveSubTab(tab.id)}
-                className={`flex items-center gap-2.5 px-4 py-2.5 rounded-xl font-medium text-xs sm:text-sm whitespace-nowrap transition-all duration-200 ${
-                  isActive
-                    ? 'bg-white text-slate-900 shadow-lg shadow-black/20 font-semibold'
-                    : 'text-slate-300 hover:text-white hover:bg-white/10'
-                }`}
-              >
-                <Icon className={`h-4 w-4 ${isActive ? 'text-indigo-600' : 'text-slate-400'}`} />
-                <span>{tab.label}</span>
-                {tab.badge && (
-                  <span className={`text-[10px] px-2 py-0.5 rounded-full font-bold border ${
-                    isActive ? tab.badgeCls : 'bg-white/10 text-slate-300 border-white/10'
-                  }`}>
-                    {tab.badge}
-                  </span>
-                )}
-              </button>
-            );
-          })}
+        {/* Sub Navigation Tabs - Wrap naturally with no scrollbar */}
+        <div className="flex flex-wrap items-center gap-2 pt-4 mt-5 border-t border-slate-100">
+          <div className="flex flex-wrap items-center gap-1.5 rounded-xl bg-slate-100/90 p-1 border border-slate-200 shadow-2xs">
+            {subTabs.map((tab) => {
+              const Icon = tab.icon;
+              const isActive = activeSubTab === tab.id;
+              return (
+                <button
+                  key={tab.id}
+                  type="button"
+                  onClick={() => setActiveSubTab(tab.id)}
+                  className={`flex items-center gap-2 px-3.5 py-2 rounded-lg text-xs sm:text-sm font-semibold transition-all duration-150 ${
+                    isActive
+                      ? 'bg-white text-indigo-700 shadow-xs'
+                      : 'text-slate-600 hover:text-slate-900 hover:bg-slate-200/60'
+                  }`}
+                >
+                  <Icon className={`h-4 w-4 ${isActive ? 'text-indigo-600' : 'text-slate-500'}`} />
+                  <span>{tab.label}</span>
+                  {tab.badge && (
+                    <span className={`text-[10px] px-2 py-0.5 rounded-full font-bold border ${
+                      isActive ? tab.badgeCls : 'bg-slate-200/70 text-slate-600 border-slate-300/60'
+                    }`}>
+                      {tab.badge}
+                    </span>
+                  )}
+                </button>
+              );
+            })}
+          </div>
         </div>
       </div>
 

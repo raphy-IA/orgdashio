@@ -86,31 +86,32 @@ export function ProjectCharterView({
         <div className="flex items-center gap-2">
           <Button
             size="sm"
+            variant="outline"
             onClick={() => window.print()}
-            className="text-xs font-bold bg-indigo-600 hover:bg-indigo-700 text-white flex items-center gap-1.5"
+            className="text-xs font-semibold bg-white hover:bg-slate-50 text-slate-700 border-slate-300 flex items-center gap-1.5 shadow-2xs"
           >
-            <Printer className="h-3.5 w-3.5" />
+            <Printer className="h-3.5 w-3.5 text-slate-500" />
             Imprimer la Charte
           </Button>
         </div>
       </div>
 
       {/* ── Charter Document Paper Layout ── */}
-      <div className="rounded-2xl border border-slate-300 bg-white p-8 shadow-sm space-y-8 text-slate-900 print:border-none print:shadow-none print:p-0">
+      <div className="rounded-2xl border border-slate-200 bg-white p-6 sm:p-8 shadow-xs space-y-8 text-slate-900 print:border-none print:shadow-none print:p-0">
         {/* Document Header */}
-        <div className="border-b-2 border-slate-900 pb-6 flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4">
+        <div className="border-b border-slate-200 pb-6 flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4">
           <div className="space-y-2">
             <div className="flex items-center gap-2">
-              <span className="font-mono text-xs font-black bg-slate-900 text-white px-2.5 py-1 rounded">
+              <span className="font-mono text-xs font-bold bg-slate-100 text-slate-700 border border-slate-300 px-2.5 py-0.5 rounded">
                 CHARTE : {project.code}
               </span>
-              <span className="text-xs font-bold uppercase tracking-wider text-indigo-700 bg-indigo-50 px-2.5 py-0.5 rounded border border-indigo-200">
+              <span className="text-xs font-semibold uppercase tracking-wider text-indigo-700 bg-indigo-50 px-2.5 py-0.5 rounded border border-indigo-200/80">
                 Note de Cadrage Officielle
               </span>
             </div>
-            <h1 className="text-2xl font-black text-slate-900">{project.name}</h1>
+            <h1 className="text-xl sm:text-2xl font-bold text-slate-900">{project.name}</h1>
             <p className="text-xs text-slate-500">
-              Statut actuel : <strong className="uppercase text-slate-800">{project.status}</strong> • Émis par la direction de projet
+              Statut actuel : <strong className="uppercase text-slate-700">{project.status}</strong> • Émis par la direction de projet
             </p>
           </div>
 
