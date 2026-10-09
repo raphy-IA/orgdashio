@@ -675,6 +675,40 @@ export function ProjectDetailScreen() {
   const addDependencyMutation = useMutation({
     mutationFn: async () => {
       if (!selectedTask || !depPredId) return;
+
+      if (depPredId === 'PROJECT_START') {
+        const baseStart = data?.project?.startDate || new Date().toISOString().split('T')[0];
+        const lag = parseInt(depLag) || 0;
+        const d = new Date(baseStart + 'T00:00:00Z');
+        d.setUTCDate(d.getUTCDate() + lag);
+        const targetStartDate = d.toISOString().split('T')[0];
+
+        let dur = parseInt(taskDuration) || selectedTask.durationDays || 1;
+        if (selectedTask.type === 'milestone') dur = 0;
+        const dEnd = new Date(targetStartDate + 'T00:00:00Z');
+        dEnd.setUTCDate(dEnd.getUTCDate() + dur);
+        const targetEndDate = dEnd.toISOString().split('T')[0];
+
+        const res = await fetch(`/api/v1/projects/${id}/plan-items/${selectedTask.id}`, {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            startDate: targetStartDate,
+            endDate: targetEndDate,
+            durationDays: dur,
+          }),
+        });
+        if (!res.ok) {
+          const err = await res.json().catch(() => ({}));
+          throw new Error(err.message || 'Erreur lors de la mise à jour du décalage de démarrage');
+        }
+        await fetch(`/api/v1/projects/${id}/sync-pert-schedule`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+        });
+        return res.json();
+      }
+
       const res = await fetch(`/api/v1/projects/${id}/dependencies`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -691,9 +725,13 @@ export function ProjectDetailScreen() {
       }
       return res.json();
     },
-    onSuccess: () => {
+    onSuccess: (updated) => {
       invalidate();
+      if (updated && updated.id) {
+        setSelectedTask(updated);
+      }
       setDepPredId('');
+      setDepLag('0');
       setShowAddDepForm(false);
     },
     onError: (err: any) => alert(err.message),
@@ -4550,6 +4588,9 @@ export function ProjectDetailScreen() {
                                     className="w-full rounded-lg border border-slate-200 bg-white px-2.5 py-2 text-xs font-medium text-slate-700"
                                   >
                                     <option value="">— Sélectionner une tâche —</option>
+                                    <option value="PROJECT_START" className="font-bold text-emerald-800 bg-emerald-50">
+                                      🟢 Démarrage du Projet (T₀ : {data?.project?.startDate || 'Date initiale'})
+                                    </option>
                                     {availablePredecessors.map((p: any) => (
                                       <option key={p.id} value={p.id}>
                                         {p.wbs} — {p.title}
@@ -4601,16 +4642,37 @@ export function ProjectDetailScreen() {
                           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                             <div>
                               <span className="text-xs font-bold text-slate-700 block mb-2">Prédécesseurs (Requis avant) :</span>
-                              {incomingDeps.length === 0 ? (
-                                <div className="rounded-lg border border-emerald-200 bg-emerald-50/70 p-3 text-xs text-emerald-900 space-y-1">
-                                  <div className="font-bold flex items-center gap-1.5">
-                                    🟢 Liée au Démarrage du Projet (T₀)
+                              {incomingDeps.length === 0 ? (() => {
+                                const pStart = data?.project?.startDate;
+                                const tStart = selectedTask.startDate;
+                                let offsetDays = 0;
+                                if (pStart && tStart && tStart >= pStart) {
+                                  const s = new Date(pStart + 'T00:00:00Z').getTime();
+                                  const e = new Date(tStart + 'T00:00:00Z').getTime();
+                                  offsetDays = Math.max(0, Math.round((e - s) / (1000 * 60 * 60 * 24)));
+                                }
+                                return (
+                                  <div className="rounded-lg border border-emerald-200 bg-emerald-50/70 p-3 text-xs text-emerald-900 space-y-1.5">
+                                    <div className="flex items-center justify-between">
+                                      <span className="font-bold flex items-center gap-1.5">
+                                        🟢 Liée au Démarrage du Projet (T₀)
+                                      </span>
+                                      <span className="text-[11px] font-mono text-emerald-800 bg-white px-2 py-0.5 rounded border border-emerald-200">
+                                        T₀ : {pStart || 'Non définie'}
+                                      </span>
+                                    </div>
+                                    <p className="text-[11px] text-emerald-800 leading-tight">
+                                      {offsetDays > 0 ? (
+                                        <span>
+                                          Décalage configuré : <strong>+{offsetDays} jour{offsetDays > 1 ? 's' : ''}</strong> après le début du projet (Démarre le <strong>{tStart}</strong>).
+                                        </span>
+                                      ) : (
+                                        <span>Aucun prédécesseur : cette tâche démarre dès le premier jour du projet ({pStart || 'T₀'}).</span>
+                                      )}
+                                    </p>
                                   </div>
-                                  <p className="text-[11px] text-emerald-800 leading-tight">
-                                    Aucun prédécesseur : cette tâche démarre dès la date de début du projet ({data.project.startDate || 'T₀'}).
-                                  </p>
-                                </div>
-                              ) : (
+                                );
+                              })() : (
                                 <div className="space-y-2">
                                   {incomingDeps.map((dep: any) => {
                                     const pred = planItems.find((p: any) => p.id === dep.predecessorId);
