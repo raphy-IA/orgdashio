@@ -57,6 +57,7 @@ import { EarnedValueManagementView } from './components/EarnedValueManagementVie
 import { BudgetPlanningView } from './components/BudgetPlanningView';
 import { TaskExecutionHub } from './components/TaskExecutionHub';
 import { ProjectMonitoringHub } from './components/ProjectMonitoringHub';
+import { ProjectOverviewView } from './components/ProjectOverviewView';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 type TabKey = 'overview' | 'strategy' | 'planning' | 'execution' | 'monitoring';
@@ -1632,237 +1633,28 @@ export function ProjectDetailScreen() {
         {/* TAB: VUE D'ENSEMBLE                                            */}
         {/* ═══════════════════════════════════════════════════════════════ */}
         {activeTab === 'overview' && (
-          <div className="space-y-6">
-            {/* KPI Cards */}
-            <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
-              <div className="rounded-xl border bg-white p-5 shadow-sm">
-                <div className="flex items-start justify-between">
-                  <div>
-                    <p className="text-xs font-medium text-slate-500">Budget planifié</p>
-                    <p className="mt-1 text-2xl font-bold text-slate-900">{fmt(totalBudget)}</p>
-                  </div>
-                  <div className="rounded-lg bg-indigo-50 p-2">
-                    <DollarSign className="h-5 w-5 text-indigo-600" />
-                  </div>
-                </div>
-              </div>
-              <div className="rounded-xl border bg-white p-5 shadow-sm">
-                <div className="flex items-start justify-between">
-                  <div>
-                    <p className="text-xs font-medium text-slate-500">Dépenses approuvées</p>
-                    <p className="mt-1 text-2xl font-bold text-slate-900">{fmt(totalApprovedExpenses)}</p>
-                    {totalPendingExpenses > 0 && (
-                      <p className="mt-0.5 text-xs text-amber-600">+{fmt(totalPendingExpenses)} en attente</p>
-                    )}
-                  </div>
-                  <div className="rounded-lg bg-amber-50 p-2">
-                    <TrendingUp className="h-5 w-5 text-amber-600" />
-                  </div>
-                </div>
-              </div>
-              <div className="rounded-xl border bg-white p-5 shadow-sm">
-                <div className="flex items-start justify-between">
-                  <div>
-                    <p className="text-xs font-medium text-slate-500">Solde disponible</p>
-                    <p className={`mt-1 text-2xl font-bold ${remaining >= 0 ? 'text-emerald-600' : 'text-red-600'}`}>
-                      {fmt(remaining)}
-                    </p>
-                  </div>
-                  <div className={`rounded-lg p-2 ${remaining >= 0 ? 'bg-emerald-50' : 'bg-red-50'}`}>
-                    <BarChart3 className={`h-5 w-5 ${remaining >= 0 ? 'text-emerald-600' : 'text-red-600'}`} />
-                  </div>
-                </div>
-              </div>
-              <div className="rounded-xl border bg-white p-5 shadow-sm">
-                <div className="flex items-start justify-between">
-                  <div>
-                    <p className="text-xs font-medium text-slate-500">Financement total</p>
-                    <p className="mt-1 text-2xl font-bold text-slate-900">{fmt(totalFunding)}</p>
-                    <p className="mt-0.5 text-xs text-slate-400">{fundingSources.length} bailleur{fundingSources.length !== 1 ? 's' : ''}</p>
-                  </div>
-                  <div className="rounded-lg bg-violet-50 p-2">
-                    <HandCoins className="h-5 w-5 text-violet-600" />
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            {/* Évolution & Progression WBS */}
-            <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
-              {/* Carte Avancement Global du Projet */}
-              <div className="rounded-xl border bg-white p-5 shadow-sm space-y-4">
-                <div className="flex items-center justify-between">
-                  <h2 className="text-sm font-bold text-slate-800">Avancement Global du Projet</h2>
-                  <span className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-semibold border ${projectHealth.color}`}>
-                    {projectHealth.label}
-                  </span>
-                </div>
-
-                <div>
-                  <div className="mb-1 flex justify-between text-sm">
-                    <span className="text-xs font-medium text-slate-500">Complétion WBS pondérée</span>
-                    <span className="font-extrabold text-indigo-700 text-base">{overallProgress}%</span>
-                  </div>
-                  <div className="h-3.5 w-full overflow-hidden rounded-full bg-slate-100 border border-slate-200">
-                    <div
-                      className="h-3.5 rounded-full bg-gradient-to-r from-indigo-500 via-indigo-600 to-emerald-500 transition-all duration-500"
-                      style={{ width: `${overallProgress}%` }}
-                    />
-                  </div>
-                  <p className="mt-1.5 text-[11px] text-slate-400">
-                    Calculé en temps réel à partir de la durée et du statut de chaque tâche racine.
-                  </p>
-                </div>
-
-                <div className="grid grid-cols-2 gap-2 pt-2 border-t border-slate-100">
-                  {Object.entries(STATUS_CONFIG).map(([key, cfg]) => {
-                    const count = planItems.filter((p: any) => p.status === key).length;
-                    return (
-                      <div key={key} className="flex items-center justify-between rounded-lg bg-slate-50 px-2.5 py-1.5 text-xs">
-                        <span className={`flex items-center gap-1 rounded-full px-1.5 py-0.5 text-[10px] font-medium ${cfg.color}`}>
-                          {cfg.icon}
-                          {cfg.label}
-                        </span>
-                        <span className="font-bold text-slate-800">{count}</span>
-                      </div>
-                    );
-                  })}
-                </div>
-              </div>
-
-              {/* Évolution des Phases & Santé Calendrier */}
-              <div className="rounded-xl border bg-white p-5 shadow-sm lg:col-span-2 space-y-4">
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-2">
-                    <Layers className="h-4 w-4 text-indigo-600" />
-                    <h2 className="text-sm font-bold text-slate-800">Évolution des Phases & Calendrier (WBS)</h2>
-                  </div>
-                  <span className="text-xs font-mono text-slate-400">
-                    {phasesWithHealth.length} phase{phasesWithHealth.length > 1 ? 's' : ''}
-                  </span>
-                </div>
-
-                {phasesWithHealth.length === 0 ? (
-                  <div className="py-8 text-center text-xs text-slate-400">
-                    Aucune phase définie. Ajoutez des phases dans l'onglet « Planification » pour structurer le WBS.
-                  </div>
-                ) : (
-                  <div className="space-y-3">
-                    {phasesWithHealth.map((phase: any) => {
-                      const phaseProgress = phase.progressPct || 0;
-                      return (
-                        <div
-                          key={phase.id}
-                          className="rounded-lg border border-slate-200 bg-slate-50/70 p-3.5 space-y-2 hover:border-slate-300 transition"
-                        >
-                          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1">
-                            <div className="flex items-center gap-2">
-                              <span className="rounded bg-indigo-100 px-1.5 py-0.5 font-mono text-[11px] font-bold text-indigo-800 shrink-0">
-                                {phase.wbs}
-                              </span>
-                              <span className="font-bold text-slate-800 text-xs sm:text-sm">{phase.title}</span>
-                            </div>
-                            <div className="flex items-center gap-2">
-                              <span
-                                className={`inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-semibold border ${phase.healthColor}`}
-                              >
-                                {phase.healthLabel}
-                              </span>
-                              <span className="text-xs font-bold text-indigo-700 font-mono w-10 text-right">
-                                {phaseProgress}%
-                              </span>
-                            </div>
-                          </div>
-
-                          {/* Progress bar */}
-                          <div className="h-2 w-full overflow-hidden rounded-full bg-slate-200">
-                            <div
-                              className={`h-2 rounded-full transition-all duration-500 ${
-                                phaseProgress === 100
-                                  ? 'bg-emerald-500'
-                                  : phase.health === 'delayed'
-                                  ? 'bg-red-500'
-                                  : phase.health === 'at_risk'
-                                  ? 'bg-amber-500'
-                                  : 'bg-indigo-600'
-                              }`}
-                              style={{ width: `${phaseProgress}%` }}
-                            />
-                          </div>
-
-                          <div className="flex flex-wrap items-center justify-between gap-2 text-[11px] text-slate-500">
-                            <div className="flex items-center gap-3">
-                              <span className="flex items-center gap-1">
-                                <Calendar className="h-3 w-3 text-slate-400" />
-                                {phase.startDate ? new Date(phase.startDate).toLocaleDateString('fr-CA') : '—'} au{' '}
-                                {phase.endDate ? new Date(phase.endDate).toLocaleDateString('fr-CA') : '—'}
-                              </span>
-                              {phase.durationDays && (
-                                <span className="font-mono text-slate-400">({phase.durationDays} jours)</span>
-                              )}
-                            </div>
-                            <div className="flex items-center gap-1 font-medium">
-                              <CheckCircle2 className="h-3 w-3 text-emerald-600" />
-                              <span>
-                                {phase.completedChildCount} / {phase.childCount} tâche{phase.childCount > 1 ? 's' : ''} terminée{phase.childCount > 1 ? 's' : ''}
-                              </span>
-                            </div>
-                          </div>
-                        </div>
-                      );
-                    })}
-                  </div>
-                )}
-              </div>
-            </div>
-
-            {/* RAID & Financements */}
-            <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
-              {/* RAID summary */}
-              <div className="rounded-xl border bg-white p-5 shadow-sm">
-                <h2 className="mb-4 text-sm font-semibold text-slate-700">Registre RAID — Synthèse</h2>
-                {raidItems.length === 0 ? (
-                  <p className="text-sm text-slate-400">Aucun élément RAID enregistré.</p>
-                ) : (
-                  <div className="space-y-2">
-                    {Object.entries(RAID_TYPE_CONFIG).map(([type, cfg]) => {
-                      const items = raidItems.filter((r: any) => r.type === type);
-                      if (items.length === 0) return null;
-                      const high = items.filter((r: any) => (r.probability || 1) * (r.impact || 1) >= 9);
-                      return (
-                        <div key={type} className="flex items-center justify-between rounded-lg bg-slate-50 px-3 py-2 text-sm">
-                          <span className={`rounded-full px-2 py-0.5 text-xs font-semibold ${cfg.color}`}>{cfg.label}</span>
-                          <div className="flex items-center gap-3">
-                            <span className="text-slate-600">{items.length} total</span>
-                            {high.length > 0 && (
-                              <span className="font-semibold text-red-600">{high.length} élevé{high.length > 1 ? 's' : ''}</span>
-                            )}
-                          </div>
-                        </div>
-                      );
-                    })}
-                  </div>
-                )}
-              </div>
-
-              {/* Funding sources mini list */}
-              <div className="rounded-xl border bg-white p-5 shadow-sm">
-                <h2 className="mb-4 text-sm font-semibold text-slate-700">Sources de financement</h2>
-                {fundingSources.length === 0 ? (
-                  <p className="text-sm text-slate-400">Aucune source de financement enregistrée.</p>
-                ) : (
-                  <div className="space-y-2">
-                    {fundingSources.map((fs: any) => (
-                      <div key={fs.id} className="flex items-center justify-between rounded-lg bg-slate-50 px-3 py-2 text-sm">
-                        <span className="text-slate-700 font-medium">{fs.donorName}</span>
-                        <span className="font-semibold text-indigo-700">{fmt(fs.amount, fs.currency)}</span>
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </div>
-            </div>
-          </div>
+          <ProjectOverviewView
+            project={proj}
+            planItems={planItems}
+            expenses={expenses}
+            members={members}
+            deliverables={deliverables}
+            updates={updates}
+            raidItems={raidItems}
+            fundingSources={fundingSources}
+            resultNodes={resultNodes}
+            dependencies={dependencies}
+            budget={projBudget}
+            onNavigateTab={(tab, subTab) => {
+              setActiveTab(tab);
+              if (subTab) {
+                if (tab === 'strategy') setStrategySubTab(subTab as any);
+                if (tab === 'planning') setPlanningSubTab(subTab as any);
+                if (tab === 'monitoring') setMonitoringSubTab(subTab as any);
+              }
+            }}
+            onSelectTask={(task) => setSelectedTask(task)}
+          />
         )}
 
         {/* ═══════════════════════════════════════════════════════════════ */}
