@@ -45,6 +45,8 @@ import {
   Split,
   Link2,
   RefreshCw,
+  Coins,
+  Calculator,
 } from 'lucide-react';
 import { Navbar } from '../../components/Navbar';
 import { PertNetworkDiagram } from './components/PertNetworkDiagram';
@@ -489,6 +491,15 @@ export function ProjectDetailScreen() {
   const [taskMostLikely, setTaskMostLikely] = useState('');
   const [taskPessimistic, setTaskPessimistic] = useState('');
   const [showTaskPertEdit, setShowTaskPertEdit] = useState(false);
+
+  // Detailed Task Cost Estimator (inside drawer)
+  const [showTaskCostCalc, setShowTaskCostCalc] = useState(false);
+  const [costLaborRate, setCostLaborRate] = useState('0');
+  const [costLaborDays, setCostLaborDays] = useState('1');
+  const [costLaborChargesPct, setCostLaborChargesPct] = useState('0');
+  const [costMaterial, setCostMaterial] = useState('0');
+  const [costSubcontracting, setCostSubcontracting] = useState('0');
+  const [costOther, setCostOther] = useState('0');
 
   useEffect(() => {
     if (selectedTask) {
@@ -4151,15 +4162,159 @@ export function ProjectDetailScreen() {
                             </div>
                           </div>
 
-                          <div className="pt-1">
+                          <div className="flex flex-wrap items-center gap-3 pt-1">
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setShowTaskCostCalc(!showTaskCostCalc);
+                                if (!showTaskCostCalc && (!costLaborDays || costLaborDays === '0')) {
+                                  setCostLaborDays(taskDuration || '1');
+                                }
+                              }}
+                              className="text-xs font-semibold text-violet-600 hover:text-violet-800 flex items-center gap-1.5 transition"
+                            >
+                              <span>🧮 {showTaskCostCalc ? 'Masquer le calculateur de coût' : 'Calculer le coût unitaire détaillé (RH, Matériel, Prestations)'}</span>
+                            </button>
                             <button
                               type="button"
                               onClick={() => setShowTaskPertEdit(!showTaskPertEdit)}
                               className="text-xs font-semibold text-indigo-600 hover:text-indigo-800 flex items-center gap-1.5 transition"
                             >
-                              <span>🎯 {showTaskPertEdit ? 'Masquer l\'estimation PERT 3-Points' : 'Estimer la durée par PERT 3-Points (Optimiste / Probable / Pessimiste)'}</span>
+                              <span>🎯 {showTaskPertEdit ? 'Masquer l\'estimation PERT 3-Points' : 'Estimer la durée PERT 3-Points'}</span>
                             </button>
                           </div>
+
+                          {showTaskCostCalc && (
+                            <div className="rounded-xl border border-violet-200 bg-violet-50/60 p-4 space-y-3 mt-2">
+                              <div className="flex items-center justify-between border-b border-violet-200/80 pb-2">
+                                <span className="text-xs font-bold text-violet-900 flex items-center gap-1.5">
+                                  <Coins className="h-3.5 w-3.5 text-violet-600" />
+                                  Calculateur Prévisionnel de Coût de Tâche (Bottom-Up)
+                                </span>
+                                <span className="text-[11px] font-mono font-bold text-violet-800 bg-violet-100 px-2 py-0.5 rounded">
+                                  Total estimé : {fmt(
+                                    (parseFloat(costLaborRate) || 0) * (parseFloat(costLaborDays) || 0) * (1 + (parseFloat(costLaborChargesPct) || 0) / 100) +
+                                    (parseFloat(costMaterial) || 0) +
+                                    (parseFloat(costSubcontracting) || 0) +
+                                    (parseFloat(costOther) || 0)
+                                  )}
+                                </span>
+                              </div>
+
+                              {/* Section 1 : Main d'oeuvre / RH */}
+                              <div className="space-y-1.5">
+                                <span className="text-[11px] font-bold text-slate-700 uppercase tracking-wide">1. Main d'œuvre / Ressources Humaines</span>
+                                <div className="grid grid-cols-3 gap-2">
+                                  <div>
+                                    <label className="mb-1 block text-[10px] font-semibold text-slate-600">Jours-Homme</label>
+                                    <Input
+                                      type="number"
+                                      min="0"
+                                      step="0.5"
+                                      value={costLaborDays}
+                                      onChange={(e) => setCostLaborDays(e.target.value)}
+                                      placeholder="Jours"
+                                      className="bg-white text-xs font-mono"
+                                    />
+                                  </div>
+                                  <div>
+                                    <label className="mb-1 block text-[10px] font-semibold text-slate-600">Taux journalier ($/j)</label>
+                                    <Input
+                                      type="number"
+                                      min="0"
+                                      step="10"
+                                      value={costLaborRate}
+                                      onChange={(e) => setCostLaborRate(e.target.value)}
+                                      placeholder="Ex: 350"
+                                      className="bg-white text-xs font-mono font-bold"
+                                    />
+                                  </div>
+                                  <div>
+                                    <label className="mb-1 block text-[10px] font-semibold text-slate-600">Charges / Frais (%)</label>
+                                    <Input
+                                      type="number"
+                                      min="0"
+                                      step="1"
+                                      value={costLaborChargesPct}
+                                      onChange={(e) => setCostLaborChargesPct(e.target.value)}
+                                      placeholder="0%"
+                                      className="bg-white text-xs font-mono"
+                                    />
+                                  </div>
+                                </div>
+                                <div className="text-[10px] text-slate-500 font-mono text-right">
+                                  Sous-total RH : {fmt((parseFloat(costLaborRate) || 0) * (parseFloat(costLaborDays) || 0) * (1 + (parseFloat(costLaborChargesPct) || 0) / 100))}
+                                </div>
+                              </div>
+
+                              {/* Section 2 : Achats, Matériel & Sous-traitance */}
+                              <div className="space-y-1.5 pt-1 border-t border-violet-200/60">
+                                <span className="text-[11px] font-bold text-slate-700 uppercase tracking-wide">2. Matériel, Prestations & Imprévus</span>
+                                <div className="grid grid-cols-3 gap-2">
+                                  <div>
+                                    <label className="mb-1 block text-[10px] font-semibold text-slate-600">Matériel & Fournitures ($)</label>
+                                    <Input
+                                      type="number"
+                                      min="0"
+                                      value={costMaterial}
+                                      onChange={(e) => setCostMaterial(e.target.value)}
+                                      placeholder="0.00"
+                                      className="bg-white text-xs font-mono"
+                                    />
+                                  </div>
+                                  <div>
+                                    <label className="mb-1 block text-[10px] font-semibold text-slate-600">Sous-traitance & Services ($)</label>
+                                    <Input
+                                      type="number"
+                                      min="0"
+                                      value={costSubcontracting}
+                                      onChange={(e) => setCostSubcontracting(e.target.value)}
+                                      placeholder="0.00"
+                                      className="bg-white text-xs font-mono"
+                                    />
+                                  </div>
+                                  <div>
+                                    <label className="mb-1 block text-[10px] font-semibold text-slate-600">Autres frais / Contingence ($)</label>
+                                    <Input
+                                      type="number"
+                                      min="0"
+                                      value={costOther}
+                                      onChange={(e) => setCostOther(e.target.value)}
+                                      placeholder="0.00"
+                                      className="bg-white text-xs font-mono"
+                                    />
+                                  </div>
+                                </div>
+                              </div>
+
+                              <div className="pt-2 flex items-center justify-between">
+                                <span className="text-[10px] text-slate-500 italic">
+                                  Cliquez pour affecter ce montant au Coût Planifié (PV)
+                                </span>
+                                <Button
+                                  type="button"
+                                  size="sm"
+                                  onClick={() => {
+                                    const total =
+                                      (parseFloat(costLaborRate) || 0) * (parseFloat(costLaborDays) || 0) * (1 + (parseFloat(costLaborChargesPct) || 0) / 100) +
+                                      (parseFloat(costMaterial) || 0) +
+                                      (parseFloat(costSubcontracting) || 0) +
+                                      (parseFloat(costOther) || 0);
+                                    setTaskCost(String(Math.round(total * 100) / 100));
+                                  }}
+                                  className="text-xs bg-violet-600 hover:bg-violet-700 text-white font-bold"
+                                >
+                                  <Check className="mr-1 h-3.5 w-3.5" />
+                                  Appliquer au coût PV ({fmt(
+                                    (parseFloat(costLaborRate) || 0) * (parseFloat(costLaborDays) || 0) * (1 + (parseFloat(costLaborChargesPct) || 0) / 100) +
+                                    (parseFloat(costMaterial) || 0) +
+                                    (parseFloat(costSubcontracting) || 0) +
+                                    (parseFloat(costOther) || 0)
+                                  )})
+                                </Button>
+                              </div>
+                            </div>
+                          )}
 
                           {showTaskPertEdit && (
                             <div className="rounded-xl border border-indigo-100 bg-indigo-50/50 p-4 space-y-2 mt-2">

@@ -22,6 +22,9 @@ import {
   FileSpreadsheet,
   Coins,
   Wallet,
+  Calculator,
+  Maximize2,
+  Minimize2,
 } from 'lucide-react';
 import { Button, Input } from '@orgdashio/ui';
 
@@ -71,8 +74,14 @@ export function BudgetPlanningView({
   onDeleteBudgetLine,
   isUpdating = false,
 }: BudgetPlanningViewProps) {
-  // Local states
+  // Navigation tabs
   const [activeViewTab, setActiveViewTab] = useState<'cbs' | 'scurve' | 'lines' | 'analytics'>('cbs');
+
+  // S-Curve Settings
+  const [sCurveGranularity, setSCurveGranularity] = useState<'day' | 'week' | 'month'>('week');
+  const [sCurveScaleMode, setSCurveScaleMode] = useState<'wbs_pv' | 'budget_bac'>('wbs_pv');
+
+  // Inline Quick Edit in CBS
   const [editingCostTaskId, setEditingCostTaskId] = useState<string | null>(null);
   const [editCostVal, setEditCostVal] = useState<string>('');
   const [isSavingCost, setIsSavingCost] = useState(false);
@@ -90,7 +99,7 @@ export function BudgetPlanningView({
   const [editBlDescription, setEditBlDescription] = useState('');
   const [editBlAmount, setEditBlAmount] = useState('');
 
-  // Search & Filter in CBS
+  // Search in CBS
   const [cbsFilter, setCbsFilter] = useState('');
 
   // Currency Formatter
@@ -103,7 +112,6 @@ export function BudgetPlanningView({
   }, [projBudget]);
 
   const totalWbsEstimatedCost = useMemo(() => {
-    // Only sum non-container items (tasks, milestones, deliverables) to avoid double counting roll-ups
     return planItems
       .filter((i: any) => i.type !== 'phase' && i.type !== 'activity')
       .reduce((acc: number, i: any) => acc + (parseFloat(i.estimatedCost) || 0), 0);
@@ -123,7 +131,6 @@ export function BudgetPlanningView({
   const phaseBreakdown = useMemo(() => {
     const phases = planItems.filter((i: any) => i.type === 'phase');
     return phases.map((phase: any) => {
-      // Find all items under this phase (wbs starting with phase.wbs + '.')
       const childTasks = planItems.filter(
         (i: any) => i.type !== 'phase' && i.type !== 'activity' && (i.wbs === phase.wbs || (i.wbs || '').startsWith(phase.wbs + '.'))
       );
@@ -140,53 +147,106 @@ export function BudgetPlanningView({
     });
   }, [planItems, totalWbsEstimatedCost]);
 
-  // Cash Flow & S-Curve Temporal Calculations (Monthly Planned Value)
+  // ── High Precision S-Curve Time Series (Day, Week, Month) ──
   const cashFlowTimeSeries = useMemo(() => {
-    const monthlyMap: Record<string, number> = {};
+    const activeTasks = planItems.filter(
+      (i: any) => i.type !== 'phase' && i.type !== 'activity' && (parseFloat(i.estimatedCost) || 0) > 0
+    );
 
-    planItems
-      .filter((i: any) => i.type !== 'phase' && i.type !== 'activity' && (parseFloat(i.estimatedCost) || 0) > 0)
-      .forEach((item: any) => {
-        const cost = parseFloat(item.estimatedCost) || 0;
-        const startStr = item.startDate || projectStartDate || new Date().toISOString().split('T')[0];
-        const endStr = item.endDate || startStr;
+    if (activeTasks.length === 0) return [];
 
-        const sDate = new Date(startStr + 'T00:00:00Z');
-        const eDate = new Date(endStr + 'T00:00:00Z');
+    // 1. Calculate Daily Cost Map
+    const dailyCostMap: Record<string, number> = {};
+    let minDateStr = '';
+    let maxDateStr = '';
 
-        // Total duration in days
-        const diffTime = Math.max(1, Math.round((eDate.getTime() - sDate.getTime()) / (1000 * 60 * 60 * 24)) + 1);
-        const dailyCost = cost / diffTime;
+    activeTasks.forEach((item: any) => {
+      const cost = parseFloat(item.estimatedCost) || 0;
+      const startStr = item.startDate || projectStartDate || new Date().toISOString().split('T')[0];
+      const endStr = item.endDate || startStr;
 
-        // Distribute day by day into month buckets
-        const curr = new Date(sDate);
-        while (curr <= eDate) {
-          const monthKey = `${curr.getUTCFullYear()}-${String(curr.getUTCMonth() + 1).padStart(2, '0')}`;
-          monthlyMap[monthKey] = (monthlyMap[monthKey] || 0) + dailyCost;
-          curr.setUTCDate(curr.getUTCDate() + 1);
-        }
-      });
+      if (!minDateStr || startStr < minDateStr) minDateStr = startStr;
+      if (!maxDateStr || endStr > maxDateStr) maxDateStr = endStr;
 
-    const sortedMonths = Object.keys(monthlyMap).sort();
+      const sDate = new Date(startStr + 'T00:00:00Z');
+      const eDate = new Date(endStr + 'T00:00:00Z');
+
+      const daysCount = Math.max(1, Math.round((eDate.getTime() - sDate.getTime()) / (1000 * 60 * 60 * 24)) + 1);
+      const costPerDay = cost / daysCount;
+
+      const curr = new Date(sDate);
+      while (curr <= eDate) {
+        const dKey = curr.toISOString().split('T')[0];
+        dailyCostMap[dKey] = (dailyCostMap[dKey] || 0) + costPerDay;
+        curr.setUTCDate(curr.getUTCDate() + 1);
+      }
+    });
+
+    if (!minDateStr || !maxDateStr) return [];
+
+    // Helper: get ISO Week number
+    const getWeekKey = (d: Date) => {
+      const target = new Date(d.valueOf());
+      const dayNr = (d.getUTCDay() + 6) % 7;
+      target.setUTCDate(target.getUTCDate() - dayNr + 3);
+      const firstThursday = target.valueOf();
+      target.setUTCMonth(0, 1);
+      if (target.getUTCDay() !== 4) {
+        target.setUTCMonth(0, 1 + ((4 - target.getUTCDay() + 7) % 7));
+      }
+      const weekNum = 1 + Math.ceil((firstThursday - target.valueOf()) / 604800000);
+      return `${d.getUTCFullYear()}-W${String(weekNum).padStart(2, '0')}`;
+    };
+
+    // 2. Aggregate by chosen granularity
+    const bucketMap: Record<string, { label: string; cost: number; dateRef: Date }> = {};
+
+    const startDate = new Date(minDateStr + 'T00:00:00Z');
+    const endDate = new Date(maxDateStr + 'T00:00:00Z');
+
+    const cur = new Date(startDate);
+    while (cur <= endDate) {
+      const dKey = cur.toISOString().split('T')[0];
+      const dayCost = dailyCostMap[dKey] || 0;
+
+      let bKey = '';
+      let bLabel = '';
+
+      if (sCurveGranularity === 'day') {
+        bKey = dKey;
+        bLabel = `${cur.getUTCDate()}/${cur.getUTCMonth() + 1}`;
+      } else if (sCurveGranularity === 'week') {
+        bKey = getWeekKey(cur);
+        bLabel = `S${bKey.split('-W')[1]} (${cur.getUTCDate()}/${cur.getUTCMonth() + 1})`;
+      } else {
+        // Month
+        bKey = `${cur.getUTCFullYear()}-${String(cur.getUTCMonth() + 1).padStart(2, '0')}`;
+        bLabel = cur.toLocaleDateString('fr-FR', { month: 'short', year: 'numeric' });
+      }
+
+      if (!bucketMap[bKey]) {
+        bucketMap[bKey] = { label: bLabel, cost: 0, dateRef: new Date(cur) };
+      }
+      bucketMap[bKey].cost += dayCost;
+
+      cur.setUTCDate(cur.getUTCDate() + 1);
+    }
+
+    const sortedBucketKeys = Object.keys(bucketMap).sort();
     let cumulative = 0;
 
-    return sortedMonths.map((month) => {
-      const monthlyCost = monthlyMap[month];
-      cumulative += monthlyCost;
-      const [year, m] = month.split('-');
-      const monthLabel = new Date(parseInt(year), parseInt(m) - 1, 1).toLocaleDateString('fr-FR', {
-        month: 'short',
-        year: 'numeric',
-      });
+    return sortedBucketKeys.map((key) => {
+      const b = bucketMap[key];
+      cumulative += b.cost;
       return {
-        monthKey: month,
-        monthLabel,
-        monthlyCost: Math.round(monthlyCost),
+        key,
+        label: b.label,
+        periodCost: Math.round(b.cost),
         cumulativeCost: Math.round(cumulative),
         pctOfTotal: totalWbsEstimatedCost > 0 ? Math.round((cumulative / totalWbsEstimatedCost) * 100) : 0,
       };
     });
-  }, [planItems, projectStartDate, totalWbsEstimatedCost]);
+  }, [planItems, projectStartDate, sCurveGranularity, totalWbsEstimatedCost]);
 
   // Quick Inline Cost Save Handler
   const handleSaveInlineCost = async (taskId: string) => {
@@ -247,13 +307,14 @@ export function BudgetPlanningView({
     document.body.removeChild(link);
   };
 
-  // S-Curve SVG Dimensions
+  // S-Curve SVG Geometry
   const sCurveWidth = 720;
   const sCurveHeight = 220;
   const sCurvePadding = 45;
 
-  const maxCumulative = Math.max(totalWbsEstimatedCost * 1.05, totalBudget * 1.05, 1000);
-  const maxMonthly = Math.max(...cashFlowTimeSeries.map((c) => c.monthlyCost), 500);
+  const maxChartY = sCurveScaleMode === 'wbs_pv'
+    ? Math.max(totalWbsEstimatedCost * 1.15, 100)
+    : Math.max(totalBudget * 1.1, totalWbsEstimatedCost * 1.1, 1000);
 
   const getSvgX = (index: number, total: number) => {
     if (total <= 1) return sCurveWidth / 2;
@@ -266,41 +327,41 @@ export function BudgetPlanningView({
 
   const sCurvePath = cashFlowTimeSeries.length > 0
     ? cashFlowTimeSeries
-        .map((p, idx) => `${getSvgX(idx, cashFlowTimeSeries.length)},${getSvgY(p.cumulativeCost, maxCumulative)}`)
+        .map((p, idx) => `${getSvgX(idx, cashFlowTimeSeries.length)},${getSvgY(p.cumulativeCost, maxChartY)}`)
         .join(' ')
     : '';
 
   return (
     <div className="space-y-6">
-      {/* ── TOP KPI BAR & ALLOCATION GAUGE ── */}
+      {/* ── 1. BARRE KPI FINANCIERS & JAUGE D'ENGAGEMENT (TOP) ── */}
       <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
-        <div className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
+        <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm hover:shadow-md transition">
           <div className="flex items-center justify-between">
-            <span className="text-xs font-semibold uppercase tracking-wider text-slate-500">Budget Alloué (BAC)</span>
+            <span className="text-xs font-bold uppercase tracking-wider text-slate-500">1. Budget Alloué (BAC)</span>
             <Wallet className="h-4 w-4 text-indigo-600" />
           </div>
           <p className="mt-2 text-2xl font-black text-slate-900">{fmt(totalBudget)}</p>
           <div className="mt-1 flex items-center justify-between text-xs text-slate-500">
             <span>{projBudget?.lines?.length || 0} enveloppe(s)</span>
-            <span className="font-medium text-indigo-600">Top-Down</span>
+            <span className="font-semibold text-indigo-600 bg-indigo-50 px-1.5 py-0.5 rounded text-[10px]">Top-Down</span>
           </div>
         </div>
 
-        <div className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
+        <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm hover:shadow-md transition">
           <div className="flex items-center justify-between">
-            <span className="text-xs font-semibold uppercase tracking-wider text-slate-500">Coûts Planifiés WBS (PV)</span>
+            <span className="text-xs font-bold uppercase tracking-wider text-slate-500">2. Coûts Planifiés WBS (PV)</span>
             <Coins className="h-4 w-4 text-violet-600" />
           </div>
           <p className="mt-2 text-2xl font-black text-violet-700">{fmt(totalWbsEstimatedCost)}</p>
           <div className="mt-1 flex items-center justify-between text-xs text-slate-500">
             <span>{planItems.filter((i: any) => i.type !== 'phase' && i.type !== 'activity').length} tâche(s) chiffrée(s)</span>
-            <span className="font-medium text-violet-600">Bottom-Up</span>
+            <span className="font-semibold text-violet-600 bg-violet-50 px-1.5 py-0.5 rounded text-[10px]">Bottom-Up</span>
           </div>
         </div>
 
-        <div className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
+        <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm hover:shadow-md transition">
           <div className="flex items-center justify-between">
-            <span className="text-xs font-semibold uppercase tracking-wider text-slate-500">Engagement Budgétaire</span>
+            <span className="text-xs font-bold uppercase tracking-wider text-slate-500">3. Jauge d'Engagement</span>
             <Sparkles className="h-4 w-4 text-amber-600" />
           </div>
           <div className="mt-2 flex items-baseline gap-2">
@@ -315,7 +376,7 @@ export function BudgetPlanningView({
             >
               {budgetAllocationPct}%
             </span>
-            <span className="text-xs text-slate-500">du budget total</span>
+            <span className="text-xs text-slate-500">du budget alloué</span>
           </div>
           <div className="mt-2 h-2 w-full overflow-hidden rounded-full bg-slate-100">
             <div
@@ -331,9 +392,9 @@ export function BudgetPlanningView({
           </div>
         </div>
 
-        <div className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
+        <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm hover:shadow-md transition">
           <div className="flex items-center justify-between">
-            <span className="text-xs font-semibold uppercase tracking-wider text-slate-500">Réserve / Marge Non Allouée</span>
+            <span className="text-xs font-bold uppercase tracking-wider text-slate-500">4. Marge / Réserve Restante</span>
             <ShieldCheck className="h-4 w-4 text-teal-600" />
           </div>
           <p
@@ -344,7 +405,7 @@ export function BudgetPlanningView({
             {fmt(unallocatedBudget)}
           </p>
           <div className="mt-1 flex items-center justify-between text-xs text-slate-500">
-            <span>{unallocatedBudget >= 0 ? 'Marge de prévoyance' : 'Dépassement de budget'}</span>
+            <span>{unallocatedBudget >= 0 ? 'Disponible imprévus' : 'Dépassement'}</span>
             <span className={`font-bold ${unallocatedBudget >= 0 ? 'text-teal-600' : 'text-rose-600'}`}>
               {totalBudget > 0 ? `${Math.round((unallocatedBudget / totalBudget) * 100)}%` : '—'}
             </span>
@@ -352,7 +413,7 @@ export function BudgetPlanningView({
         </div>
       </div>
 
-      {/* ── NAVIGATION & TOOLBAR ── */}
+      {/* ── 2. NAVIGATION ENTRE VUES BUDGÉTAIRES ── */}
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between border-b border-slate-200 pb-3">
         <div className="flex items-center gap-2">
           <button
@@ -411,7 +472,7 @@ export function BudgetPlanningView({
             variant="outline"
             onClick={handleExportCsv}
             className="text-xs h-8 bg-white border-slate-200 hover:bg-slate-50 font-semibold text-slate-700"
-            title="Exporter le plan budgétaire au format CSV"
+            title="Exporter la ventilation budgétaire au format CSV"
           >
             <Download className="h-3.5 w-3.5 mr-1.5 text-slate-500" />
             Exporter CSV
@@ -429,7 +490,7 @@ export function BudgetPlanningView({
                 Ventilation & Planification des Coûts par Structure WBS (CBS)
               </h2>
               <p className="text-xs text-slate-500 mt-0.5">
-                Saisie directe et consolidation automatique des coûts prévisionnels ($PV$) sur chaque tâche
+                Consultez, modifiez ou calculez le coût détaillé de chaque tâche (cliquez sur une ligne ou sur le bouton Calculer)
               </p>
             </div>
             <div className="flex items-center gap-3">
@@ -495,7 +556,7 @@ export function BudgetPlanningView({
                           className={`hover:bg-indigo-50/40 cursor-pointer transition-colors ${
                             isContainer ? 'bg-slate-50/40 font-semibold' : ''
                           }`}
-                          title="Cliquer pour voir la fiche détaillée de l'élément"
+                          title="Cliquer pour ouvrir le modal et calculer les coûts"
                         >
                           <td className="px-5 py-3 font-mono text-xs font-bold text-slate-600">{item.wbs}</td>
                           <td className="px-5 py-3">
@@ -576,7 +637,7 @@ export function BudgetPlanningView({
                                 </button>
                               </div>
                             ) : (
-                              <div className="group/edit inline-flex items-center gap-1.5">
+                              <div className="inline-flex items-center gap-2">
                                 <span className="font-mono font-bold text-slate-800 text-sm">{fmt(cost)}</span>
                                 <button
                                   type="button"
@@ -585,10 +646,10 @@ export function BudgetPlanningView({
                                     setEditingCostTaskId(item.id);
                                     setEditCostVal(String(cost));
                                   }}
-                                  className="opacity-0 group-hover/edit:opacity-100 p-1 text-slate-400 hover:text-indigo-600 transition-opacity"
-                                  title="Modifier le coût directement"
+                                  className="p-1 rounded text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 transition"
+                                  title="Saisie directe du coût"
                                 >
-                                  <Pencil className="h-3 w-3" />
+                                  <Pencil className="h-3.5 w-3.5" />
                                 </button>
                               </div>
                             )}
@@ -615,17 +676,34 @@ export function BudgetPlanningView({
                             )}
                           </td>
                           <td className="px-5 py-3 text-right">
-                            <Button
-                              size="sm"
-                              variant="ghost"
-                              onClick={(e: any) => {
-                                e.stopPropagation();
-                                onSelectTask(item);
-                              }}
-                              className="h-7 px-2 text-xs text-indigo-600 hover:text-indigo-800 hover:bg-indigo-50 font-semibold"
-                            >
-                              Détails
-                            </Button>
+                            <div className="flex items-center justify-end gap-1.5">
+                              {!isContainer && !isMilestone && (
+                                <Button
+                                  size="sm"
+                                  variant="outline"
+                                  onClick={(e: any) => {
+                                    e.stopPropagation();
+                                    onSelectTask(item);
+                                  }}
+                                  className="h-7 px-2 text-xs text-violet-700 bg-violet-50 hover:bg-violet-100 border-violet-200 font-bold"
+                                  title="Ouvrir le calculateur détaillé de coût"
+                                >
+                                  <Calculator className="h-3 w-3 mr-1 text-violet-600" />
+                                  Calculer
+                                </Button>
+                              )}
+                              <Button
+                                size="sm"
+                                variant="ghost"
+                                onClick={(e: any) => {
+                                  e.stopPropagation();
+                                  onSelectTask(item);
+                                }}
+                                className="h-7 px-2 text-xs text-indigo-600 hover:text-indigo-800 hover:bg-indigo-50 font-semibold"
+                              >
+                                Détails
+                              </Button>
+                            </div>
                           </td>
                         </tr>
                       );
@@ -649,28 +727,76 @@ export function BudgetPlanningView({
         </div>
       )}
 
-      {/* ── TAB 2: S-CURVE & MONTHLY CASH FLOW FORECAST ── */}
+      {/* ── TAB 2: COURBE EN S & TRÉSORERIE (MULTI-GRANULARITY & ADAPTIVE SCALE) ── */}
       {activeViewTab === 'scurve' && (
         <div className="space-y-6">
           <div className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm space-y-4">
-            <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between border-b pb-4">
+            <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between border-b pb-4">
               <div>
                 <h3 className="font-bold text-slate-900 text-sm flex items-center gap-2">
                   <TrendingUp className="h-4 w-4 text-indigo-600" />
                   Courbe en S Prévisionnelle & Étalement Temporel des Dépenses (Cash Flow)
                 </h3>
                 <p className="text-xs text-slate-500 mt-0.5">
-                  Échéancier financier calculé au prorata de la durée des tâches planifiées dans le réseau PERT/Gantt
+                  Échéancier financier calculé au prorata des jours de chaque tâche planifiée
                 </p>
               </div>
-              <div className="flex items-center gap-4 text-xs">
-                <div className="flex items-center gap-1.5">
-                  <span className="h-3 w-3 rounded-full bg-indigo-600"></span>
-                  <span className="font-semibold text-slate-700">Courbe en S (PV Cumulé)</span>
+
+              {/* Granularity & Scale Controls */}
+              <div className="flex flex-wrap items-center gap-3">
+                {/* Granularity Switcher */}
+                <div className="flex items-center rounded-lg border border-slate-200 bg-slate-50 p-0.5 text-xs font-bold">
+                  <button
+                    type="button"
+                    onClick={() => setSCurveGranularity('day')}
+                    className={`px-2.5 py-1 rounded-md transition ${
+                      sCurveGranularity === 'day' ? 'bg-white text-indigo-700 shadow-xs' : 'text-slate-600 hover:text-slate-900'
+                    }`}
+                  >
+                    Par Jour
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setSCurveGranularity('week')}
+                    className={`px-2.5 py-1 rounded-md transition ${
+                      sCurveGranularity === 'week' ? 'bg-white text-indigo-700 shadow-xs' : 'text-slate-600 hover:text-slate-900'
+                    }`}
+                  >
+                    Par Semaine
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setSCurveGranularity('month')}
+                    className={`px-2.5 py-1 rounded-md transition ${
+                      sCurveGranularity === 'month' ? 'bg-white text-indigo-700 shadow-xs' : 'text-slate-600 hover:text-slate-900'
+                    }`}
+                  >
+                    Par Mois
+                  </button>
                 </div>
-                <div className="flex items-center gap-1.5">
-                  <span className="h-3 w-3 rounded bg-indigo-200"></span>
-                  <span className="font-semibold text-slate-700">Flux Mensuel (PV Mois)</span>
+
+                {/* Scale Switcher */}
+                <div className="flex items-center rounded-lg border border-slate-200 bg-slate-50 p-0.5 text-xs font-bold">
+                  <button
+                    type="button"
+                    onClick={() => setSCurveScaleMode('wbs_pv')}
+                    className={`px-2.5 py-1 rounded-md transition ${
+                      sCurveScaleMode === 'wbs_pv' ? 'bg-indigo-600 text-white shadow-xs' : 'text-slate-600 hover:text-slate-900'
+                    }`}
+                    title="Ajuste l'échelle verticale sur le total des coûts planifiés WBS"
+                  >
+                    Zoom Courbe PV ({fmt(totalWbsEstimatedCost)})
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setSCurveScaleMode('budget_bac')}
+                    className={`px-2.5 py-1 rounded-md transition ${
+                      sCurveScaleMode === 'budget_bac' ? 'bg-indigo-600 text-white shadow-xs' : 'text-slate-600 hover:text-slate-900'
+                    }`}
+                    title="Ajuste l'échelle sur le budget total alloué (BAC)"
+                  >
+                    Échelle Budget BAC ({fmt(totalBudget)})
+                  </button>
                 </div>
               </div>
             </div>
@@ -682,15 +808,15 @@ export function BudgetPlanningView({
             ) : (
               <div className="space-y-6">
                 {/* SVG Visual S-Curve */}
-                <div className="overflow-x-auto">
+                <div className="overflow-x-auto bg-slate-50/40 rounded-xl p-2 border border-slate-100">
                   <svg
                     viewBox={`0 0 ${sCurveWidth} ${sCurveHeight}`}
-                    className="w-full h-auto max-h-[260px] select-none"
+                    className="w-full h-auto max-h-[280px] select-none"
                   >
                     {/* Grid lines */}
                     {[0, 0.25, 0.5, 0.75, 1].map((pct, idx) => {
                       const y = sCurveHeight - sCurvePadding - pct * (sCurveHeight - sCurvePadding * 2);
-                      const val = maxCumulative * pct;
+                      const val = maxChartY * pct;
                       return (
                         <g key={idx}>
                           <line
@@ -715,12 +841,44 @@ export function BudgetPlanningView({
                       );
                     })}
 
-                    {/* Monthly Bars */}
+                    {/* Reference Line for Total WBS if in BAC mode */}
+                    {sCurveScaleMode === 'budget_bac' && totalWbsEstimatedCost > 0 && (
+                      <g>
+                        <line
+                          x1={sCurvePadding}
+                          y1={getSvgY(totalWbsEstimatedCost, maxChartY)}
+                          x2={sCurveWidth - sCurvePadding}
+                          y2={getSvgY(totalWbsEstimatedCost, maxChartY)}
+                          stroke="#8b5cf6"
+                          strokeWidth="1.5"
+                          strokeDasharray="6 3"
+                        />
+                        <text
+                          x={sCurveWidth - sCurvePadding}
+                          y={getSvgY(totalWbsEstimatedCost, maxChartY) - 5}
+                          textAnchor="end"
+                          fontSize="9"
+                          fill="#7c3aed"
+                          fontWeight="bold"
+                        >
+                          Cible WBS : {fmt(totalWbsEstimatedCost)}
+                        </text>
+                      </g>
+                    )}
+
+                    {/* Period Bars (Flux Périodique) */}
                     {cashFlowTimeSeries.map((p, idx) => {
                       const x = getSvgX(idx, cashFlowTimeSeries.length);
-                      const barWidth = Math.max(14, (sCurveWidth - sCurvePadding * 2) / (cashFlowTimeSeries.length * 2.5));
-                      const barH = (p.monthlyCost / maxCumulative) * (sCurveHeight - sCurvePadding * 2);
+                      const availableWidth = (sCurveWidth - sCurvePadding * 2) / Math.max(1, cashFlowTimeSeries.length);
+                      const barWidth = Math.max(6, Math.min(28, availableWidth * 0.6));
+                      const barH = (p.periodCost / maxChartY) * (sCurveHeight - sCurvePadding * 2);
                       const barY = sCurveHeight - sCurvePadding - barH;
+
+                      // Skip some X labels if too crowded in day mode
+                      const showLabel =
+                        sCurveGranularity !== 'day' ||
+                        idx % Math.ceil(cashFlowTimeSeries.length / 10) === 0 ||
+                        idx === cashFlowTimeSeries.length - 1;
 
                       return (
                         <g key={`bar-${idx}`}>
@@ -728,27 +886,43 @@ export function BudgetPlanningView({
                             x={x - barWidth / 2}
                             y={barY}
                             width={barWidth}
-                            height={Math.max(2, barH)}
-                            rx={3}
+                            height={Math.max(1, barH)}
+                            rx={2}
                             fill="#c7d2fe"
-                            opacity={0.8}
+                            opacity={0.85}
                           />
-                          {/* X Axis Labels */}
-                          <text
-                            x={x}
-                            y={sCurveHeight - sCurvePadding + 18}
-                            textAnchor="middle"
-                            fontSize="10"
-                            fill="#64748b"
-                            fontWeight="600"
-                          >
-                            {p.monthLabel}
-                          </text>
+                          {showLabel && (
+                            <text
+                              x={x}
+                              y={sCurveHeight - sCurvePadding + 16}
+                              textAnchor="middle"
+                              fontSize="9"
+                              fill="#64748b"
+                              fontWeight="600"
+                            >
+                              {p.label}
+                            </text>
+                          )}
                         </g>
                       );
                     })}
 
-                    {/* S-Curve Line */}
+                    {/* S-Curve Area Gradient */}
+                    <defs>
+                      <linearGradient id="scurveGradient" x1="0" y1="0" x2="0" y2="1">
+                        <stop offset="0%" stopColor="#4f46e5" stopOpacity="0.25" />
+                        <stop offset="100%" stopColor="#4f46e5" stopOpacity="0.0" />
+                      </linearGradient>
+                    </defs>
+
+                    {cashFlowTimeSeries.length > 1 && (
+                      <polygon
+                        points={`${getSvgX(0, cashFlowTimeSeries.length)},${sCurveHeight - sCurvePadding} ${sCurvePath} ${getSvgX(cashFlowTimeSeries.length - 1, cashFlowTimeSeries.length)},${sCurveHeight - sCurvePadding}`}
+                        fill="url(#scurveGradient)"
+                      />
+                    )}
+
+                    {/* S-Curve Continuous Line */}
                     <polyline
                       fill="none"
                       stroke="#4f46e5"
@@ -761,44 +935,74 @@ export function BudgetPlanningView({
                     {/* S-Curve Data Dots */}
                     {cashFlowTimeSeries.map((p, idx) => {
                       const x = getSvgX(idx, cashFlowTimeSeries.length);
-                      const y = getSvgY(p.cumulativeCost, maxCumulative);
+                      const y = getSvgY(p.cumulativeCost, maxChartY);
+                      const isLast = idx === cashFlowTimeSeries.length - 1;
+                      const isFirst = idx === 0;
+
+                      // Display label only for a subset if many points
+                      const showVal =
+                        isLast ||
+                        isFirst ||
+                        cashFlowTimeSeries.length <= 8 ||
+                        idx % Math.ceil(cashFlowTimeSeries.length / 5) === 0;
+
                       return (
                         <g key={`dot-${idx}`}>
-                          <circle cx={x} cy={y} r="5.5" fill="#ffffff" stroke="#4f46e5" strokeWidth="2.5" />
+                          <circle cx={x} cy={y} r="5" fill="#ffffff" stroke="#4f46e5" strokeWidth="2.5" />
                           <circle cx={x} cy={y} r="2" fill="#4f46e5" />
-                          <text
-                            x={x}
-                            y={y - 10}
-                            textAnchor="middle"
-                            fontSize="9"
-                            fontWeight="bold"
-                            fill="#3730a3"
-                            fontFamily="monospace"
-                          >
-                            {fmt(p.cumulativeCost)}
-                          </text>
+                          {showVal && (
+                            <text
+                              x={x}
+                              y={y - 9}
+                              textAnchor="middle"
+                              fontSize="9"
+                              fontWeight="bold"
+                              fill="#3730a3"
+                              fontFamily="monospace"
+                            >
+                              {fmt(p.cumulativeCost)}
+                            </text>
+                          )}
                         </g>
                       );
                     })}
                   </svg>
                 </div>
 
-                {/* Monthly Cash Flow Table */}
+                {/* S-Curve Legend & Metrics */}
+                <div className="flex flex-wrap items-center justify-between gap-4 text-xs bg-slate-50 p-3 rounded-lg border border-slate-200">
+                  <div className="flex items-center gap-4">
+                    <div className="flex items-center gap-1.5">
+                      <span className="h-3 w-3 rounded-full bg-indigo-600"></span>
+                      <span className="font-semibold text-slate-800">Courbe en S (PV Cumulé)</span>
+                    </div>
+                    <div className="flex items-center gap-1.5">
+                      <span className="h-3 w-3 rounded bg-indigo-200"></span>
+                      <span className="font-semibold text-slate-800">Décaissement de la période</span>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-3 font-mono text-[11px]">
+                    <span>Points tracés : <strong>{cashFlowTimeSeries.length}</strong></span>
+                    <span>Durée couverte : <strong>{cashFlowTimeSeries[0]?.label} → {cashFlowTimeSeries[cashFlowTimeSeries.length - 1]?.label}</strong></span>
+                  </div>
+                </div>
+
+                {/* Detailed Period Table */}
                 <div className="rounded-lg border border-slate-200 overflow-hidden">
                   <table className="w-full text-xs">
                     <thead className="bg-slate-50 border-b font-semibold uppercase text-slate-600">
                       <tr>
-                        <th className="px-4 py-2.5 text-left">Période (Mois)</th>
-                        <th className="px-4 py-2.5 text-right">Décaissement Mensuel (PV)</th>
+                        <th className="px-4 py-2.5 text-left">Période ({sCurveGranularity === 'day' ? 'Jour' : sCurveGranularity === 'week' ? 'Semaine' : 'Mois'})</th>
+                        <th className="px-4 py-2.5 text-right">Décaissement Prévu (PV)</th>
                         <th className="px-4 py-2.5 text-right">Cumul Prévisionnel</th>
                         <th className="px-4 py-2.5 text-right">% Progression Financière</th>
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-slate-100 font-mono">
                       {cashFlowTimeSeries.map((p) => (
-                        <tr key={p.monthKey} className="hover:bg-slate-50/80">
-                          <td className="px-4 py-2.5 font-sans font-bold text-slate-800">{p.monthLabel}</td>
-                          <td className="px-4 py-2.5 text-right font-semibold text-indigo-700">{fmt(p.monthlyCost)}</td>
+                        <tr key={p.key} className="hover:bg-slate-50/80">
+                          <td className="px-4 py-2.5 font-sans font-bold text-slate-800">{p.label}</td>
+                          <td className="px-4 py-2.5 text-right font-semibold text-indigo-700">{fmt(p.periodCost)}</td>
                           <td className="px-4 py-2.5 text-right font-bold text-slate-900">{fmt(p.cumulativeCost)}</td>
                           <td className="px-4 py-2.5 text-right font-bold text-emerald-600">{p.pctOfTotal}%</td>
                         </tr>
@@ -825,7 +1029,7 @@ export function BudgetPlanningView({
               <p className="text-xs text-slate-400">Aucune phase définie dans le projet.</p>
             ) : (
               <div className="space-y-4">
-                {phaseBreakdown.map((ph) => (
+                {phaseBreakdown.map((ph: any) => (
                   <div key={ph.id} className="space-y-1.5">
                     <div className="flex items-center justify-between text-xs">
                       <span className="font-bold text-slate-800">
