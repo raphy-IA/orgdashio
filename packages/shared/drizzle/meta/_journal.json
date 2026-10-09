@@ -15,6 +15,13 @@
       "when": 1791463408996,
       "tag": "0001_easy_penance",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1791517048747,
+      "tag": "0002_lovely_king_bedlam",
+      "breakpoints": true
     }
   ]
 }
