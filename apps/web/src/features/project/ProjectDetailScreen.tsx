@@ -672,6 +672,7 @@ export function ProjectDetailScreen() {
     },
   });
 
+
   const addDependencyMutation = useMutation({
     mutationFn: async () => {
       if (!selectedTask || !depPredId) return;
@@ -723,13 +724,14 @@ export function ProjectDetailScreen() {
         const err = await res.json().catch(() => ({}));
         throw new Error(err.message || 'Erreur lors de l\'ajout du prédécesseur (boucle circulaire détectée ?)');
       }
+      await fetch(`/api/v1/projects/${id}/sync-pert-schedule`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+      });
       return res.json();
     },
-    onSuccess: (updated) => {
-      invalidate();
-      if (updated && updated.id) {
-        setSelectedTask(updated);
-      }
+    onSuccess: async () => {
+      await invalidate();
       setDepPredId('');
       setDepLag('0');
       setShowAddDepForm(false);
@@ -746,6 +748,10 @@ export function ProjectDetailScreen() {
         const err = await res.json().catch(() => ({}));
         throw new Error(err.message || 'Erreur lors de la suppression de la dépendance');
       }
+      await fetch(`/api/v1/projects/${id}/sync-pert-schedule`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+      });
       return res.json();
     },
     onSuccess: () => invalidate(),
@@ -796,11 +802,15 @@ export function ProjectDetailScreen() {
         const err = await res.json().catch(() => ({}));
         throw new Error(err.message || 'Erreur lors de la mise à jour des paramètres');
       }
+      await fetch(`/api/v1/projects/${id}/sync-pert-schedule`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+      });
       return res.json();
     },
-    onSuccess: (updated) => {
-      invalidate();
-      setSelectedTask(updated);
+    onSuccess: async () => {
+      await invalidate();
+      setSelectedTask(null);
     },
     onError: (err: any) => alert(err.message),
   });
@@ -4188,11 +4198,12 @@ export function ProjectDetailScreen() {
       {/* DRAWER / MODAL: CONTEXTUEL (PLANIFICATION vs EXÉCUTION)        */}
       {/* ═══════════════════════════════════════════════════════════════ */}
       {selectedTask && (() => {
+        const currentTask = planItems.find((p: any) => p.id === selectedTask.id) || selectedTask;
         const isPlanningMode = activeTab === 'planning';
-        const typeCfg = TYPE_CONFIG[selectedTask.type] || TYPE_CONFIG.task;
-        const taskUpdates = updates.filter((u: any) => u.planItemId === selectedTask.id);
-        const taskDeliverables = deliverables.filter((d: any) => d.planItemId === selectedTask.id);
-        const taskAssignee = members.find((m: any) => m.id === selectedTask.assigneePartyId);
+        const typeCfg = TYPE_CONFIG[currentTask.type] || TYPE_CONFIG.task;
+        const taskUpdates = updates.filter((u: any) => u.planItemId === currentTask.id);
+        const taskDeliverables = deliverables.filter((d: any) => d.planItemId === currentTask.id);
+        const taskAssignee = members.find((m: any) => m.id === currentTask.assigneePartyId);
 
         return (
           <div className="fixed inset-0 z-50 flex items-center justify-end bg-slate-900/50 backdrop-blur-sm">
@@ -4201,24 +4212,28 @@ export function ProjectDetailScreen() {
               <div className="flex items-start justify-between border-b bg-slate-50 p-6">
                 <div>
                   <div className="flex items-center gap-2">
-                    <span className="font-mono text-xs font-bold text-slate-500">{selectedTask.wbs}</span>
+                    <span className="font-mono text-xs font-bold text-slate-500">{currentTask.wbs}</span>
                     <span className={`inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-xs font-semibold ${typeCfg.badgeClass}`}>
                       {typeCfg.icon}
                       {typeCfg.label}
                     </span>
                     <span className={`inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-xs font-semibold ${
-                      isPlanningMode ? 'bg-indigo-100 text-indigo-800' : (STATUS_CONFIG[selectedTask.status]?.color || 'bg-slate-100 text-slate-600')
+                      isPlanningMode ? 'bg-indigo-100 text-indigo-800' : (STATUS_CONFIG[currentTask.status]?.color || 'bg-slate-100 text-slate-600')
                     }`}>
-                      {isPlanningMode ? '📐 Mode Planification' : (STATUS_CONFIG[selectedTask.status]?.label || selectedTask.status)}
+                      {isPlanningMode ? '📐 Mode Planification' : (STATUS_CONFIG[currentTask.status]?.label || currentTask.status)}
                     </span>
                   </div>
-                  <h2 className="mt-2 text-xl font-bold text-slate-900">{selectedTask.title}</h2>
-                  {selectedTask.startDate && selectedTask.endDate && (
-                    <p className="mt-1 flex items-center gap-1 text-xs text-slate-500">
-                      <Calendar className="h-3.5 w-3.5 text-slate-400" />
-                      Période cible : {selectedTask.startDate} au {selectedTask.endDate} ({selectedTask.durationDays || 0} jours)
-                    </p>
-                  )}
+                  <h2 className="mt-2 text-xl font-bold text-slate-900">{currentTask.title}</h2>
+                  <div className="mt-2 flex flex-wrap items-center gap-2 text-xs">
+                    <span className="flex items-center gap-1.5 font-semibold text-indigo-900 bg-indigo-50 px-2.5 py-1 rounded-md border border-indigo-100">
+                      <Calendar className="h-3.5 w-3.5 text-indigo-600" />
+                      Période calculée :
+                      <strong className="font-bold text-indigo-950 font-mono">
+                        {currentTask.startDate && currentTask.endDate ? `${currentTask.startDate} → ${currentTask.endDate}` : 'Calculée au réseau'}
+                      </strong>
+                      <span className="text-indigo-700 font-medium">({currentTask.durationDays || taskDuration || 1}j)</span>
+                    </span>
+                  </div>
                 </div>
                 <Button variant="ghost" size="sm" onClick={() => setSelectedTask(null)}>
                   <X className="h-5 w-5" />
@@ -4271,16 +4286,15 @@ export function ProjectDetailScreen() {
                         <div>
                           <label className="mb-1 block text-xs font-semibold text-slate-700">Responsable Assigné</label>
                           <select
-                            value={selectedTask.assigneePartyId || ''}
+                            value={currentTask.assigneePartyId || ''}
                             onChange={async (e) => {
                               const newAssigneeId = e.target.value || null;
-                              await fetch(`/api/v1/projects/${id}/plan-items/${selectedTask.id}`, {
+                              await fetch(`/api/v1/projects/${id}/plan-items/${currentTask.id}`, {
                                 method: 'PATCH',
                                 headers: { 'Content-Type': 'application/json' },
                                 body: JSON.stringify({ assigneePartyId: newAssigneeId }),
                               });
                               invalidate();
-                              setSelectedTask({ ...selectedTask, assigneePartyId: newAssigneeId });
                             }}
                             className="w-full rounded-lg border border-slate-200 bg-white px-2.5 py-2 text-xs font-medium text-slate-700"
                           >
@@ -4307,59 +4321,18 @@ export function ProjectDetailScreen() {
 
                     {/* B. Délais, Dates Cibles & Coût Estimé (PV) */}
                     <div className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm space-y-4">
-                      <div className="flex items-center justify-between border-b pb-3">
-                        <div>
-                          <h3 className="flex items-center gap-2 font-bold text-slate-900 text-sm">
-                            <TrendingUp className="h-4 w-4 text-indigo-600" />
-                            Planification des Délais & Coût (PV)
-                          </h3>
-                          <p className="text-xs text-slate-500">
-                            Durée nominale, positionnement au réseau PERT et budget prévisionnel alloué.
-                          </p>
-                        </div>
-                        {taskType !== 'milestone' && taskType !== 'phase' && taskType !== 'activity' && (
-                          <Button
-                            size="sm"
-                            variant="outline"
-                            className="text-xs"
-                            onClick={() => setShowTaskPertEdit(!showTaskPertEdit)}
-                          >
-                            {showTaskPertEdit ? 'Masquer PERT 3-Points' : '🎯 Estimation PERT 3-Points'}
-                          </Button>
-                        )}
+                      <div className="border-b pb-3">
+                        <h3 className="flex items-center gap-2 font-bold text-slate-900 text-sm">
+                          <TrendingUp className="h-4 w-4 text-indigo-600" />
+                          Planification des Délais & Coût (PV)
+                        </h3>
+                        <p className="text-xs text-slate-500">
+                          Durée nominale et budget prévisionnel alloué.
+                        </p>
                       </div>
 
                       {taskType === 'milestone' ? (
                         <div className="space-y-3">
-                          <div className="rounded-xl border border-amber-200 bg-amber-50/70 p-3.5 space-y-2">
-                            <div className="flex items-center justify-between">
-                              <span className="text-xs font-bold text-amber-950 flex items-center gap-1.5">
-                                <Flag className="h-4 w-4 text-amber-600" />
-                                Date de franchissement calculée au réseau PERT
-                              </span>
-                              <Button
-                                size="sm"
-                                variant="outline"
-                                onClick={() => syncPertScheduleMutation.mutate()}
-                                disabled={syncPertScheduleMutation.isPending}
-                                className="h-7 text-[11px] bg-white border-amber-300 text-amber-900 hover:bg-amber-100 shadow-none font-semibold"
-                              >
-                                🔄 Synchroniser le réseau
-                              </Button>
-                            </div>
-                            <div className="flex items-center gap-3 text-xs">
-                              <span className="font-mono font-bold text-amber-950 bg-white px-2.5 py-1 rounded border border-amber-300">
-                                {selectedTask.startDate || selectedTask.endDate || 'Calculée à la synchronisation PERT'}
-                              </span>
-                              <span className="text-amber-800 font-medium text-[11px]">
-                                (Durée = 0 jour • Point de repère clé)
-                              </span>
-                            </div>
-                            <p className="text-[11px] text-amber-800/90 leading-relaxed">
-                              Positionnée automatiquement d'après la fin de ses prédécesseurs (ou du démarrage du projet si aucun prédécesseur).
-                            </p>
-                          </div>
-
                           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                             <div>
                               <label className="mb-1 block text-xs font-bold uppercase tracking-wider text-slate-700">
@@ -4402,15 +4375,15 @@ export function ProjectDetailScreen() {
                           <div className="grid grid-cols-3 gap-2 pt-2 text-[11px] font-medium">
                             <div className="bg-white/80 p-2 rounded border border-purple-100">
                               <span className="text-purple-600 block text-[10px] uppercase font-bold">Période Roll-up</span>
-                              <strong>{selectedTask.startDate || '—'} → {selectedTask.endDate || '—'}</strong>
+                              <strong>{currentTask.startDate || '—'} → {currentTask.endDate || '—'}</strong>
                             </div>
                             <div className="bg-white/80 p-2 rounded border border-purple-100">
                               <span className="text-purple-600 block text-[10px] uppercase font-bold">Durée cumulée</span>
-                              <strong>{selectedTask.durationDays || 0} jours ouvrés</strong>
+                              <strong>{currentTask.durationDays || 0} jours ouvrés</strong>
                             </div>
                             <div className="bg-white/80 p-2 rounded border border-purple-100">
                               <span className="text-purple-600 block text-[10px] uppercase font-bold">Budget PV consolidé</span>
-                              <strong>{fmt(selectedTask.estimatedCost || 0)}</strong>
+                              <strong>{fmt(currentTask.estimatedCost || 0)}</strong>
                             </div>
                           </div>
                         </div>
@@ -4442,107 +4415,100 @@ export function ProjectDetailScreen() {
                             </div>
                           </div>
 
-                          <div className="rounded-xl border border-indigo-100 bg-indigo-50/60 p-3.5 space-y-2">
-                            <div className="flex items-center justify-between">
-                              <span className="text-xs font-bold text-indigo-950 flex items-center gap-1.5">
-                                <Calendar className="h-4 w-4 text-indigo-600" />
-                                Période calculée par le réseau PERT / CPM
-                              </span>
-                              <Button
-                                size="sm"
-                                variant="outline"
-                                onClick={() => syncPertScheduleMutation.mutate()}
-                                disabled={syncPertScheduleMutation.isPending}
-                                className="h-7 text-[11px] bg-white border-indigo-200 text-indigo-700 hover:bg-indigo-50 shadow-none font-semibold"
-                              >
-                                🔄 Synchroniser le réseau
-                              </Button>
-                            </div>
-                            <div className="flex items-center gap-3 text-xs">
-                              <span className="font-mono font-bold text-slate-800 bg-white px-2.5 py-1 rounded border border-indigo-200">
-                                {selectedTask.startDate || 'Non positionnée'} → {selectedTask.endDate || 'Non positionnée'}
-                              </span>
-                              <span className="text-indigo-800 font-medium text-[11px]">
-                                ({selectedTask.durationDays || taskDuration || 1} jours calculés)
-                              </span>
-                            </div>
-                            <p className="text-[11px] text-indigo-700/80 leading-relaxed">
-                              Positionnée automatiquement d'après la date de début du projet ({data.project.startDate || 'T₀'}) et ses antécédents de précédence.
-                            </p>
+                          <div className="pt-1">
+                            <button
+                              type="button"
+                              onClick={() => setShowTaskPertEdit(!showTaskPertEdit)}
+                              className="text-xs font-semibold text-indigo-600 hover:text-indigo-800 flex items-center gap-1.5 transition"
+                            >
+                              <span>🎯 {showTaskPertEdit ? 'Masquer l\'estimation PERT 3-Points' : 'Estimer la durée par PERT 3-Points (Optimiste / Probable / Pessimiste)'}</span>
+                            </button>
                           </div>
-                        </div>
-                      )}
 
-                      {showTaskPertEdit && (
-                        <div className="rounded-xl border border-indigo-100 bg-indigo-50/50 p-4 space-y-2">
-                          <div className="flex items-center justify-between">
-                            <span className="text-xs font-bold text-indigo-900">Estimation PERT probabiliste (3 Points)</span>
-                            <span className="font-mono text-[11px] text-indigo-600">Te = (O + 4M + P) / 6</span>
-                          </div>
-                          <div className="grid grid-cols-3 gap-2">
-                            <div>
-                              <label className="mb-1 block text-[11px] font-medium text-slate-600">Optimiste (O)</label>
-                              <Input
-                                type="number"
-                                min="0"
-                                value={taskOptimistic}
-                                onChange={(e) => setTaskOptimistic(e.target.value)}
-                                placeholder="Min j"
-                                className="bg-white text-xs"
-                              />
-                            </div>
-                            <div>
-                              <label className="mb-1 block text-[11px] font-medium text-slate-600">Plus probable (M)</label>
-                              <Input
-                                type="number"
-                                min="0"
-                                value={taskMostLikely}
-                                onChange={(e) => setTaskMostLikely(e.target.value)}
-                                placeholder="Moy j"
-                                className="bg-white text-xs"
-                              />
-                            </div>
-                            <div>
-                              <label className="mb-1 block text-[11px] font-medium text-slate-600">Pessimiste (P)</label>
-                              <Input
-                                type="number"
-                                min="0"
-                                value={taskPessimistic}
-                                onChange={(e) => setTaskPessimistic(e.target.value)}
-                                placeholder="Max j"
-                                className="bg-white text-xs"
-                              />
-                            </div>
-                          </div>
-                          {taskOptimistic && taskMostLikely && taskPessimistic && (
-                            <div className="mt-2 flex items-center justify-between rounded-lg bg-white p-2.5 text-xs font-mono text-indigo-800">
-                              <span>Durée calculée Te : <strong>{((parseFloat(taskOptimistic) + 4 * parseFloat(taskMostLikely) + parseFloat(taskPessimistic)) / 6).toFixed(1)} j</strong></span>
-                              <span>Écart-type σ : ±{((parseFloat(taskPessimistic) - parseFloat(taskOptimistic)) / 6).toFixed(2)} j</span>
+                          {showTaskPertEdit && (
+                            <div className="rounded-xl border border-indigo-100 bg-indigo-50/50 p-4 space-y-2 mt-2">
+                              <div className="flex items-center justify-between">
+                                <span className="text-xs font-bold text-indigo-900">Estimation PERT probabiliste (3 Points)</span>
+                                <span className="font-mono text-[11px] text-indigo-600">Te = (O + 4M + P) / 6</span>
+                              </div>
+                              <div className="grid grid-cols-3 gap-2">
+                                <div>
+                                  <label className="mb-1 block text-[11px] font-medium text-slate-600">Optimiste (O)</label>
+                                  <Input
+                                    type="number"
+                                    min="0"
+                                    value={taskOptimistic}
+                                    onChange={(e) => {
+                                      setTaskOptimistic(e.target.value);
+                                      const o = parseFloat(e.target.value);
+                                      const m = parseFloat(taskMostLikely);
+                                      const p = parseFloat(taskPessimistic);
+                                      if (!isNaN(o) && !isNaN(m) && !isNaN(p)) {
+                                        setTaskDuration(String(Math.max(1, Math.round((o + 4 * m + p) / 6))));
+                                      }
+                                    }}
+                                    placeholder="Min j"
+                                    className="bg-white text-xs"
+                                  />
+                                </div>
+                                <div>
+                                  <label className="mb-1 block text-[11px] font-medium text-slate-600">Plus probable (M)</label>
+                                  <Input
+                                    type="number"
+                                    min="0"
+                                    value={taskMostLikely}
+                                    onChange={(e) => {
+                                      setTaskMostLikely(e.target.value);
+                                      const o = parseFloat(taskOptimistic);
+                                      const m = parseFloat(e.target.value);
+                                      const p = parseFloat(taskPessimistic);
+                                      if (!isNaN(o) && !isNaN(m) && !isNaN(p)) {
+                                        setTaskDuration(String(Math.max(1, Math.round((o + 4 * m + p) / 6))));
+                                      }
+                                    }}
+                                    placeholder="Moy j"
+                                    className="bg-white text-xs"
+                                  />
+                                </div>
+                                <div>
+                                  <label className="mb-1 block text-[11px] font-medium text-slate-600">Pessimiste (P)</label>
+                                  <Input
+                                    type="number"
+                                    min="0"
+                                    value={taskPessimistic}
+                                    onChange={(e) => {
+                                      setTaskPessimistic(e.target.value);
+                                      const o = parseFloat(taskOptimistic);
+                                      const m = parseFloat(taskMostLikely);
+                                      const p = parseFloat(e.target.value);
+                                      if (!isNaN(o) && !isNaN(m) && !isNaN(p)) {
+                                        setTaskDuration(String(Math.max(1, Math.round((o + 4 * m + p) / 6))));
+                                      }
+                                    }}
+                                    placeholder="Max j"
+                                    className="bg-white text-xs"
+                                  />
+                                </div>
+                              </div>
+                              {taskOptimistic && taskMostLikely && taskPessimistic && (
+                                <div className="mt-2 flex items-center justify-between rounded-lg bg-white p-2.5 text-xs font-mono text-indigo-800">
+                                  <span>Durée calculée Te : <strong>{((parseFloat(taskOptimistic) + 4 * parseFloat(taskMostLikely) + parseFloat(taskPessimistic)) / 6).toFixed(1)} j</strong></span>
+                                  <span>Écart-type σ : ±{((parseFloat(taskPessimistic) - parseFloat(taskOptimistic)) / 6).toFixed(2)} j</span>
+                                </div>
+                              )}
                             </div>
                           )}
                         </div>
                       )}
-
-                      <div className="flex justify-end pt-2">
-                        <Button
-                          size="sm"
-                          onClick={() => updateTaskParamsMutation.mutate()}
-                          disabled={updateTaskParamsMutation.isPending || !taskTitle.trim()}
-                          className="bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs"
-                        >
-                          <Check className="mr-1.5 h-3.5 w-3.5" />
-                          Enregistrer les modifications de planification
-                        </Button>
-                      </div>
                     </div>
 
                     {/* C. Liaisons Réseau PDM & Dépendances */}
                     {(() => {
-                      const incomingDeps = (dependencies || []).filter((d: any) => d.successorId === selectedTask.id);
-                      const outgoingDeps = (dependencies || []).filter((d: any) => d.predecessorId === selectedTask.id);
+                      const incomingDeps = (dependencies || []).filter((d: any) => d.successorId === currentTask.id);
+                      const outgoingDeps = (dependencies || []).filter((d: any) => d.predecessorId === currentTask.id);
                       const availablePredecessors = planItems.filter(
                         (p: any) =>
-                          p.id !== selectedTask.id &&
+                          p.id !== currentTask.id &&
                           (p.type === 'task' || p.type === 'milestone' || p.type === 'deliverable')
                       );
 
@@ -4651,11 +4617,11 @@ export function ProjectDetailScreen() {
                                 <span className="text-[11px] text-slate-400 font-medium">{incomingDeps.length} liaison{incomingDeps.length > 1 ? 's' : ''}</span>
                               </div>
                               {(() => {
-                                const projStartDate = data?.project?.startDate || selectedTask.startDate;
+                                const projStartDate = data?.project?.startDate || currentTask.startDate;
                                 let lagDaysFromProj = 0;
-                                if (selectedTask.startDate && projStartDate) {
+                                if (currentTask.startDate && projStartDate) {
                                   const sProj = new Date(projStartDate + 'T00:00:00Z').getTime();
-                                  const sTask = new Date(selectedTask.startDate + 'T00:00:00Z').getTime();
+                                  const sTask = new Date(currentTask.startDate + 'T00:00:00Z').getTime();
                                   lagDaysFromProj = Math.round((sTask - sProj) / (1000 * 60 * 60 * 24));
                                 }
 
@@ -4681,12 +4647,12 @@ export function ProjectDetailScreen() {
                                           className="h-6 text-[11px] text-emerald-800 hover:bg-emerald-100 px-2 font-semibold"
                                           onClick={async () => {
                                             const baseStart = data?.project?.startDate || new Date().toISOString().split('T')[0];
-                                            let dur = selectedTask.durationDays || 1;
-                                            if (selectedTask.type === 'milestone') dur = 0;
+                                            let dur = currentTask.durationDays || 1;
+                                            if (currentTask.type === 'milestone') dur = 0;
                                             const d = new Date(baseStart + 'T00:00:00Z');
                                             d.setUTCDate(d.getUTCDate() + dur);
                                             const dEnd = d.toISOString().split('T')[0];
-                                            await fetch(`/api/v1/projects/${id}/plan-items/${selectedTask.id}`, {
+                                            await fetch(`/api/v1/projects/${id}/plan-items/${currentTask.id}`, {
                                               method: 'PATCH',
                                               headers: { 'Content-Type': 'application/json' },
                                               body: JSON.stringify({ startDate: baseStart, endDate: dEnd }),
@@ -5013,6 +4979,29 @@ export function ProjectDetailScreen() {
                       )}
                     </div>
                   </div>
+                )}
+              </div>
+
+              {/* Drawer Sticky Footer */}
+              <div className="border-t bg-slate-50 px-6 py-3.5 flex items-center justify-between">
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => setSelectedTask(null)}
+                  className="text-xs text-slate-600 hover:text-slate-900"
+                >
+                  Fermer
+                </Button>
+                {isPlanningMode && (
+                  <Button
+                    size="sm"
+                    onClick={() => updateTaskParamsMutation.mutate()}
+                    disabled={updateTaskParamsMutation.isPending || !taskTitle.trim()}
+                    className="bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs shadow-sm"
+                  >
+                    <Check className="mr-1.5 h-3.5 w-3.5" />
+                    {updateTaskParamsMutation.isPending ? 'Enregistrement...' : 'Enregistrer et fermer'}
+                  </Button>
                 )}
               </div>
             </div>
