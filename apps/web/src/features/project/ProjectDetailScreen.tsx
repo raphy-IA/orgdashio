@@ -676,6 +676,39 @@ export function ProjectDetailScreen() {
     mutationFn: async () => {
       if (!selectedTask || !depPredId) return;
 
+      if (depPredId === 'PROJECT_START') {
+        const baseStart = data?.project?.startDate || new Date().toISOString().split('T')[0];
+        const lag = parseInt(depLag) || 0;
+        const d = new Date(baseStart + 'T00:00:00Z');
+        d.setUTCDate(d.getUTCDate() + lag);
+        const targetStartDate = d.toISOString().split('T')[0];
+
+        let dur = parseInt(taskDuration) || selectedTask.durationDays || 1;
+        if (selectedTask.type === 'milestone') dur = 0;
+        const dEnd = new Date(targetStartDate + 'T00:00:00Z');
+        dEnd.setUTCDate(dEnd.getUTCDate() + dur);
+        const targetEndDate = dEnd.toISOString().split('T')[0];
+
+        const res = await fetch(`/api/v1/projects/${id}/plan-items/${selectedTask.id}`, {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            startDate: targetStartDate,
+            endDate: targetEndDate,
+            durationDays: dur,
+          }),
+        });
+        if (!res.ok) {
+          const err = await res.json().catch(() => ({}));
+          throw new Error(err.message || 'Erreur lors de la mise à jour du décalage de démarrage');
+        }
+        await fetch(`/api/v1/projects/${id}/sync-pert-schedule`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+        });
+        return res.json();
+      }
+
       const res = await fetch(`/api/v1/projects/${id}/dependencies`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -4558,6 +4591,9 @@ export function ProjectDetailScreen() {
                                     className="w-full rounded-lg border border-slate-200 bg-white px-2.5 py-2 text-xs font-medium text-slate-700"
                                   >
                                     <option value="">— Sélectionner l'antécédent —</option>
+                                    <option value="PROJECT_START" className="font-bold text-emerald-800 bg-emerald-50">
+                                      🟢 Démarrage du Projet (T₀ : {data?.project?.startDate || 'Date initiale'})
+                                    </option>
                                     {availablePredecessors.map((p: any) => (
                                       <option key={p.id} value={p.id}>
                                         {p.wbs} — {p.title} ({p.type === 'milestone' ? 'Jalon' : `${p.durationDays || 1}j`})
@@ -4614,36 +4650,86 @@ export function ProjectDetailScreen() {
                                 </span>
                                 <span className="text-[11px] text-slate-400 font-medium">{incomingDeps.length} liaison{incomingDeps.length > 1 ? 's' : ''}</span>
                               </div>
-                              {incomingDeps.length === 0 ? (
-                                <div className="rounded-lg border border-slate-200 bg-slate-50 p-2.5 text-xs text-slate-500">
-                                  Aucun antécédent (Démarre dès le début du projet).
-                                </div>
-                              ) : (
-                                <div className="space-y-2">
-                                  {incomingDeps.map((dep: any) => {
-                                    const pred = planItems.find((p: any) => p.id === dep.predecessorId);
-                                    return (
-                                      <div key={dep.id} className="flex items-center justify-between rounded-lg border border-slate-200 bg-slate-50 p-2.5 text-xs">
-                                        <div className="flex items-center gap-1.5">
-                                          <span className="font-mono font-bold text-indigo-700 bg-indigo-50 px-1.5 py-0.5 rounded">{pred?.wbs || '—'}</span>
-                                          <span className="font-medium text-slate-800 truncate max-w-[150px]">{pred?.title || 'Inconnu'}</span>
-                                          <span className="bg-slate-200 text-slate-700 rounded px-1 text-[10px] font-semibold">{dep.type}</span>
-                                          {dep.lagDays ? <span className="text-[10px] text-slate-500 font-mono font-bold">+{dep.lagDays}j</span> : null}
-                                        </div>
+                              {(() => {
+                                const projStartDate = data?.project?.startDate || selectedTask.startDate;
+                                let lagDaysFromProj = 0;
+                                if (selectedTask.startDate && projStartDate) {
+                                  const sProj = new Date(projStartDate + 'T00:00:00Z').getTime();
+                                  const sTask = new Date(selectedTask.startDate + 'T00:00:00Z').getTime();
+                                  lagDaysFromProj = Math.round((sTask - sProj) / (1000 * 60 * 60 * 24));
+                                }
+
+                                if (incomingDeps.length === 0) {
+                                  return (
+                                    <div className="flex items-center justify-between rounded-lg border border-emerald-200 bg-emerald-50/70 p-2.5 text-xs">
+                                      <div className="flex items-center gap-1.5 flex-wrap">
+                                        <span className="font-mono font-bold text-emerald-800 bg-emerald-100 px-1.5 py-0.5 rounded text-[11px]">T₀</span>
+                                        <span className="font-medium text-emerald-950">Démarrage du Projet</span>
+                                        <span className="bg-emerald-200 text-emerald-900 rounded px-1 text-[10px] font-semibold">SS</span>
+                                        {lagDaysFromProj !== 0 ? (
+                                          <span className="text-[10px] text-emerald-900 font-mono font-bold bg-white px-1.5 py-0.5 rounded border border-emerald-300">
+                                            {lagDaysFromProj > 0 ? `+${lagDaysFromProj}j` : `${lagDaysFromProj}j`} décalage
+                                          </span>
+                                        ) : (
+                                          <span className="text-[10px] text-emerald-700 font-mono">+0j (Immédiat)</span>
+                                        )}
+                                      </div>
+                                      {lagDaysFromProj !== 0 && (
                                         <Button
                                           size="sm"
                                           variant="ghost"
-                                          className="h-6 w-6 p-0 text-slate-400 hover:text-red-600"
-                                          onClick={() => deleteDependencyMutation.mutate(dep.id)}
-                                          title="Supprimer la contrainte"
+                                          className="h-6 text-[11px] text-emerald-800 hover:bg-emerald-100 px-2 font-semibold"
+                                          onClick={async () => {
+                                            const baseStart = data?.project?.startDate || new Date().toISOString().split('T')[0];
+                                            let dur = selectedTask.durationDays || 1;
+                                            if (selectedTask.type === 'milestone') dur = 0;
+                                            const d = new Date(baseStart + 'T00:00:00Z');
+                                            d.setUTCDate(d.getUTCDate() + dur);
+                                            const dEnd = d.toISOString().split('T')[0];
+                                            await fetch(`/api/v1/projects/${id}/plan-items/${selectedTask.id}`, {
+                                              method: 'PATCH',
+                                              headers: { 'Content-Type': 'application/json' },
+                                              body: JSON.stringify({ startDate: baseStart, endDate: dEnd }),
+                                            });
+                                            await fetch(`/api/v1/projects/${id}/sync-pert-schedule`, { method: 'POST', headers: { 'Content-Type': 'application/json' } });
+                                            invalidate();
+                                          }}
+                                          title="Réaligner sur le début exact du projet (+0j)"
                                         >
-                                          <Trash2 className="h-3.5 w-3.5" />
+                                          Réaligner T₀
                                         </Button>
-                                      </div>
-                                    );
-                                  })}
-                                </div>
-                              )}
+                                      )}
+                                    </div>
+                                  );
+                                }
+
+                                return (
+                                  <div className="space-y-2">
+                                    {incomingDeps.map((dep: any) => {
+                                      const pred = planItems.find((p: any) => p.id === dep.predecessorId);
+                                      return (
+                                        <div key={dep.id} className="flex items-center justify-between rounded-lg border border-slate-200 bg-slate-50 p-2.5 text-xs">
+                                          <div className="flex items-center gap-1.5">
+                                            <span className="font-mono font-bold text-indigo-700 bg-indigo-50 px-1.5 py-0.5 rounded">{pred?.wbs || '—'}</span>
+                                            <span className="font-medium text-slate-800 truncate max-w-[150px]">{pred?.title || 'Inconnu'}</span>
+                                            <span className="bg-slate-200 text-slate-700 rounded px-1 text-[10px] font-semibold">{dep.type}</span>
+                                            {dep.lagDays ? <span className="text-[10px] text-slate-500 font-mono font-bold">+{dep.lagDays}j</span> : null}
+                                          </div>
+                                          <Button
+                                            size="sm"
+                                            variant="ghost"
+                                            className="h-6 w-6 p-0 text-slate-400 hover:text-red-600"
+                                            onClick={() => deleteDependencyMutation.mutate(dep.id)}
+                                            title="Supprimer la contrainte"
+                                          >
+                                            <Trash2 className="h-3.5 w-3.5" />
+                                          </Button>
+                                        </div>
+                                      );
+                                    })}
+                                  </div>
+                                );
+                              })()}
                             </div>
 
                             <div>
