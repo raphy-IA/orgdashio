@@ -5,9 +5,6 @@ import {
   HandCoins,
   ShieldCheck,
   Sparkles,
-  Layers,
-  ChevronRight,
-  CheckCircle2,
 } from 'lucide-react';
 import { ProjectCharterView } from './ProjectCharterView';
 import { ProjectLogframeView } from './ProjectLogframeView';
@@ -67,83 +64,77 @@ export function ProjectStrategicHub({
   const subTabs = [
     {
       id: 'charter' as const,
-      label: 'Charte & Note de Cadrage',
+      label: 'Charte Projet',
       icon: FileSpreadsheet,
-      badge: 'PMI Standard',
-      badgeCls: 'bg-emerald-50 text-emerald-700 border-emerald-200',
+      badge: 'PMI',
+      badgeCls: 'bg-emerald-500/20 text-emerald-300 border-emerald-400/30',
     },
     {
       id: 'logframe' as const,
-      label: 'Cadre Logique & Chaîne GAR',
+      label: 'Cadre Logique',
       icon: Target,
       count: resultNodes?.length || 0,
-      badge: `${resultNodes?.length || 0} niveaux`,
-      badgeCls: 'bg-blue-50 text-blue-700 border-blue-200',
+      badge: `${resultNodes?.length || 0} nœuds`,
+      badgeCls: 'bg-blue-500/20 text-blue-300 border-blue-400/30',
     },
     {
       id: 'funding' as const,
-      label: 'Bailleurs & Financements',
+      label: 'Bailleurs & Fonds',
       icon: HandCoins,
       count: fundingSources?.length || 0,
-      badge: budget > 0 ? `${fundingRate}% couvert` : `${fundingSources?.length || 0} source(s)`,
-      badgeCls: fundingRate >= 100 ? 'bg-emerald-50 text-emerald-700 border-emerald-200' : 'bg-amber-50 text-amber-700 border-amber-200',
+      badge: budget > 0 ? `${fundingRate}%` : `${fundingSources?.length || 0}`,
+      badgeCls: fundingRate >= 100 ? 'bg-emerald-500/20 text-emerald-300 border-emerald-400/30' : 'bg-amber-500/20 text-amber-300 border-amber-400/30',
     },
     {
       id: 'team' as const,
-      label: 'Gouvernance & Matrice RACI 2D',
+      label: 'Équipe & RACI',
       icon: ShieldCheck,
       count: members?.length || 0,
-      badge: `${members?.length || 0} membres`,
-      badgeCls: 'bg-purple-50 text-purple-700 border-purple-200',
+      badge: `${members?.length || 0}`,
+      badgeCls: 'bg-purple-500/20 text-purple-300 border-purple-400/30',
     },
   ];
 
   return (
     <div className="space-y-6">
-      {/* Strategic Hub Header Banner - Light, Crisp & Modern */}
-      <div className="bg-white rounded-2xl p-5 sm:p-6 border border-slate-200/80 shadow-xs relative">
-        <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-5">
+      {/* Strategic Hub Header Banner - Refined Indigo/Slate Theme */}
+      <div className="bg-gradient-to-r from-slate-900 via-indigo-950 to-slate-900 rounded-2xl p-5 text-white shadow-md border border-indigo-900/40 relative overflow-hidden">
+        <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
           <div>
-            <div className="flex items-center gap-2 mb-2">
-              <span className="px-2.5 py-0.5 rounded-full text-xs font-semibold bg-indigo-50 text-indigo-700 border border-indigo-200/60 flex items-center gap-1.5">
-                <Sparkles className="h-3.5 w-3.5 text-indigo-600" /> Pilier 1 · Cadrage & Stratégie
+            <div className="flex items-center gap-2 mb-1.5">
+              <span className="px-2 py-0.5 rounded-full text-[11px] font-semibold bg-indigo-500/20 text-indigo-300 border border-indigo-400/30 flex items-center gap-1">
+                <Sparkles className="h-3 w-3" /> Pilier 1 · Stratégie
               </span>
-              <span className="text-xs text-slate-400 font-medium">Standard GAR / RBM & PMI PMBOK</span>
+              <span className="text-[11px] text-slate-400 font-medium">GAR / RBM & PMI PMBOK</span>
             </div>
-            <h1 className="text-xl sm:text-2xl font-bold text-slate-900 tracking-tight flex items-center gap-2">
-              Orientation Stratégique & Cadre de Référence
+            <h1 className="text-xl font-bold text-white tracking-tight">
+              Cadrage Stratégique & Référence
             </h1>
-            <p className="text-xs sm:text-sm text-slate-500 max-w-2xl mt-1 leading-relaxed">
-              Structurez les fondations du projet : note de cadrage officielle, chaîne des résultats (Impact &rarr; Outcomes &rarr; Outputs), conventions de bailleurs et gouvernance RACI 2D.
+            <p className="text-xs text-slate-300 max-w-2xl mt-0.5">
+              Charte officielle, chaîne des résultats RBM, conventions de bailleurs et gouvernance RACI 2D.
             </p>
           </div>
 
-          {/* Key KPIs Pill Strip */}
-          <div className="flex flex-wrap items-center gap-2.5 sm:gap-3">
-            <div className="bg-slate-50 rounded-xl p-3 border border-slate-200/80 text-center min-w-[105px] shadow-2xs">
-              <div className="text-[11px] text-slate-500 font-medium">Cadre Logique</div>
-              <div className="text-lg font-bold text-blue-700">
-                {resultNodes?.length || 0} <span className="text-[11px] font-normal text-slate-400">nœuds</span>
-              </div>
+          {/* Compact KPIs */}
+          <div className="flex items-center gap-2 shrink-0">
+            <div className="bg-white/10 backdrop-blur-xs rounded-xl px-3 py-2 border border-white/10 text-center min-w-[85px]">
+              <div className="text-[10px] text-slate-400 font-medium">Cadre Logique</div>
+              <div className="text-base font-bold text-blue-300">{resultNodes?.length || 0}</div>
             </div>
-            <div className="bg-slate-50 rounded-xl p-3 border border-slate-200/80 text-center min-w-[105px] shadow-2xs">
-              <div className="text-[11px] text-slate-500 font-medium">Couverture Budget</div>
-              <div className="text-lg font-bold text-emerald-700">
-                {fundingRate}%
-              </div>
+            <div className="bg-white/10 backdrop-blur-xs rounded-xl px-3 py-2 border border-white/10 text-center min-w-[85px]">
+              <div className="text-[10px] text-slate-400 font-medium">Couverture</div>
+              <div className="text-base font-bold text-emerald-300">{fundingRate}%</div>
             </div>
-            <div className="bg-slate-50 rounded-xl p-3 border border-slate-200/80 text-center min-w-[105px] shadow-2xs">
-              <div className="text-[11px] text-slate-500 font-medium">Équipe & RACI</div>
-              <div className="text-lg font-bold text-purple-700">
-                {members?.length || 0} <span className="text-[11px] font-normal text-slate-400">membres</span>
-              </div>
+            <div className="bg-white/10 backdrop-blur-xs rounded-xl px-3 py-2 border border-white/10 text-center min-w-[85px]">
+              <div className="text-[10px] text-slate-400 font-medium">Membres RACI</div>
+              <div className="text-base font-bold text-purple-300">{members?.length || 0}</div>
             </div>
           </div>
         </div>
 
-        {/* Sub Navigation Tabs - Wrap naturally with no scrollbar */}
-        <div className="flex flex-wrap items-center gap-2 pt-4 mt-5 border-t border-slate-100">
-          <div className="flex flex-wrap items-center gap-1.5 rounded-xl bg-slate-100/90 p-1 border border-slate-200 shadow-2xs">
+        {/* Compact Sub-Navigation Tabs - Single line fit */}
+        <div className="flex flex-wrap items-center gap-1.5 pt-3.5 mt-3.5 border-t border-slate-700/60">
+          <div className="inline-flex flex-wrap items-center gap-1 bg-slate-800/80 p-1 rounded-xl border border-slate-700/60 shadow-inner">
             {subTabs.map((tab) => {
               const Icon = tab.icon;
               const isActive = activeSubTab === tab.id;
@@ -152,17 +143,17 @@ export function ProjectStrategicHub({
                   key={tab.id}
                   type="button"
                   onClick={() => setActiveSubTab(tab.id)}
-                  className={`flex items-center gap-2 px-3.5 py-2 rounded-lg text-xs sm:text-sm font-semibold transition-all duration-150 ${
+                  className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all duration-150 ${
                     isActive
-                      ? 'bg-white text-indigo-700 shadow-xs'
-                      : 'text-slate-600 hover:text-slate-900 hover:bg-slate-200/60'
+                      ? 'bg-white text-slate-900 shadow-sm font-bold'
+                      : 'text-slate-300 hover:text-white hover:bg-white/10'
                   }`}
                 >
-                  <Icon className={`h-4 w-4 ${isActive ? 'text-indigo-600' : 'text-slate-500'}`} />
+                  <Icon className={`h-3.5 w-3.5 ${isActive ? 'text-indigo-600' : 'text-slate-400'}`} />
                   <span>{tab.label}</span>
                   {tab.badge && (
-                    <span className={`text-[10px] px-2 py-0.5 rounded-full font-bold border ${
-                      isActive ? tab.badgeCls : 'bg-slate-200/70 text-slate-600 border-slate-300/60'
+                    <span className={`text-[10px] px-1.5 py-0.2 rounded-md font-bold border ${
+                      isActive ? 'bg-indigo-100 text-indigo-800 border-indigo-200' : tab.badgeCls
                     }`}>
                       {tab.badge}
                     </span>
