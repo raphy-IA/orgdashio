@@ -215,14 +215,15 @@ export function calculateCPM(
     }
   }
 
-  // Si des nœuds ne sont pas dans le tri topologique (ex: cycles résiduels), les ajouter à la fin
-  tasks.forEach((t) => {
+  // Si des nœuds opérationnels ne sont pas dans le tri topologique (ex: cycles résiduels), les ajouter à la fin
+  actionableTasks.forEach((t) => {
     if (!topoOrder.includes(t.id)) topoOrder.push(t.id);
   });
 
   // 5. PASSE AVANT (Forward Pass : Calcul des Dates au Plus Tôt - ES & EF)
   topoOrder.forEach((id) => {
-    const node = nodes.get(id)!;
+    const node = nodes.get(id);
+    if (!node) return;
     const preds = predecessorsMap.get(id) || [];
 
     let maxES = 0;
@@ -277,7 +278,8 @@ export function calculateCPM(
   // Parcourir dans l'ordre topologique inverse
   for (let i = topoOrder.length - 1; i >= 0; i--) {
     const id = topoOrder[i];
-    const node = nodes.get(id)!;
+    const node = nodes.get(id);
+    if (!node) continue;
     const succs = successorsMap.get(id) || [];
 
     if (succs.length > 0) {
