@@ -419,6 +419,7 @@ export function ProjectDetailScreen() {
   const [showPertInputs, setShowPertInputs] = useState(false);
 
   // Dependency Management state (inside task drawer)
+  const [depDirection, setDepDirection] = useState<'predecessor' | 'successor'>('predecessor');
   const [depPredId, setDepPredId] = useState('');
   const [depType, setDepType] = useState<'FS' | 'SS' | 'FF' | 'SF'>('FS');
   const [depLag, setDepLag] = useState('0');
@@ -709,12 +710,15 @@ export function ProjectDetailScreen() {
         return res.json();
       }
 
+      const predId = depDirection === 'predecessor' ? depPredId : selectedTask.id;
+      const succId = depDirection === 'predecessor' ? selectedTask.id : depPredId;
+
       const res = await fetch(`/api/v1/projects/${id}/dependencies`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          predecessorId: depPredId,
-          successorId: selectedTask.id,
+          predecessorId: predId,
+          successorId: succId,
           type: depType,
           lagDays: parseInt(depLag) || 0,
         }),
@@ -4578,22 +4582,45 @@ export function ProjectDetailScreen() {
 
                           {showAddDepForm && (
                             <div className="rounded-xl border border-violet-200 bg-violet-50/60 p-4 space-y-3">
-                              <h4 className="text-xs font-bold text-violet-900">Nouvelle contrainte de précédence (Antécédent)</h4>
+                              <div className="flex items-center justify-between">
+                                <h4 className="text-xs font-bold text-violet-900">Ajouter une contrainte d'ordonnancement</h4>
+                                <div className="flex rounded-lg border border-violet-200 bg-white p-0.5 text-xs font-semibold">
+                                  <button
+                                    type="button"
+                                    onClick={() => { setDepDirection('predecessor'); setDepPredId(''); }}
+                                    className={`px-2.5 py-1 rounded-md transition ${depDirection === 'predecessor' ? 'bg-violet-600 text-white font-bold' : 'text-slate-600 hover:text-slate-900'}`}
+                                  >
+                                    ⏮️ Prédécesseur (Avant)
+                                  </button>
+                                  <button
+                                    type="button"
+                                    onClick={() => { setDepDirection('successor'); setDepPredId(''); }}
+                                    className={`px-2.5 py-1 rounded-md transition ${depDirection === 'successor' ? 'bg-violet-600 text-white font-bold' : 'text-slate-600 hover:text-slate-900'}`}
+                                  >
+                                    ⏭️ Successeur (Après)
+                                  </button>
+                                </div>
+                              </div>
+
                               <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
                                 <div className="sm:col-span-1">
-                                  <label className="mb-1 block text-xs font-semibold text-slate-700">Tâche Antécédente *</label>
+                                  <label className="mb-1 block text-xs font-semibold text-slate-700">
+                                    {depDirection === 'predecessor' ? 'Tâche Antécédente (Requise avant) *' : 'Tâche Successeure (Démarrera après) *'}
+                                  </label>
                                   <select
                                     value={depPredId}
                                     onChange={(e) => setDepPredId(e.target.value)}
                                     className="w-full rounded-lg border border-slate-200 bg-white px-2.5 py-2 text-xs font-medium text-slate-700"
                                   >
                                     <option value="">— Sélectionner une tâche —</option>
-                                    <option value="PROJECT_START" className="font-bold text-emerald-800 bg-emerald-50">
-                                      🟢 Démarrage du Projet (T₀ : {data?.project?.startDate || 'Date initiale'})
-                                    </option>
+                                    {depDirection === 'predecessor' && (
+                                      <option value="PROJECT_START" className="font-bold text-emerald-800 bg-emerald-50">
+                                        🟢 Démarrage du Projet (T₀ : {data?.project?.startDate || 'Date initiale'})
+                                      </option>
+                                    )}
                                     {availablePredecessors.map((p: any) => (
                                       <option key={p.id} value={p.id}>
-                                        {p.wbs} — {p.title}
+                                        {p.wbs} — {p.title} ({p.type === 'milestone' ? 'Jalon' : `${p.durationDays || 1}j`})
                                       </option>
                                     ))}
                                   </select>
@@ -4618,7 +4645,7 @@ export function ProjectDetailScreen() {
                                     value={depLag}
                                     onChange={(e) => setDepLag(e.target.value)}
                                     placeholder="0"
-                                    className="bg-white text-xs"
+                                    className="bg-white text-xs font-bold"
                                   />
                                 </div>
                               </div>
@@ -4629,7 +4656,7 @@ export function ProjectDetailScreen() {
                                   disabled={!depPredId || addDependencyMutation.isPending}
                                   className="text-xs"
                                 >
-                                  Lier
+                                  {addDependencyMutation.isPending ? 'Enregistrement...' : 'Lier'}
                                 </Button>
                                 <Button size="sm" variant="ghost" onClick={() => setShowAddDepForm(false)} className="text-xs">
                                   Annuler
@@ -4641,38 +4668,14 @@ export function ProjectDetailScreen() {
                           {/* List of Incoming and Outgoing */}
                           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                             <div>
-                              <span className="text-xs font-bold text-slate-700 block mb-2">Prédécesseurs (Requis avant) :</span>
-                              {incomingDeps.length === 0 ? (() => {
-                                const pStart = data?.project?.startDate;
-                                const tStart = selectedTask.startDate;
-                                let offsetDays = 0;
-                                if (pStart && tStart && tStart >= pStart) {
-                                  const s = new Date(pStart + 'T00:00:00Z').getTime();
-                                  const e = new Date(tStart + 'T00:00:00Z').getTime();
-                                  offsetDays = Math.max(0, Math.round((e - s) / (1000 * 60 * 60 * 24)));
-                                }
-                                return (
-                                  <div className="rounded-lg border border-emerald-200 bg-emerald-50/70 p-3 text-xs text-emerald-900 space-y-1.5">
-                                    <div className="flex items-center justify-between">
-                                      <span className="font-bold flex items-center gap-1.5">
-                                        🟢 Liée au Démarrage du Projet (T₀)
-                                      </span>
-                                      <span className="text-[11px] font-mono text-emerald-800 bg-white px-2 py-0.5 rounded border border-emerald-200">
-                                        T₀ : {pStart || 'Non définie'}
-                                      </span>
-                                    </div>
-                                    <p className="text-[11px] text-emerald-800 leading-tight">
-                                      {offsetDays > 0 ? (
-                                        <span>
-                                          Décalage configuré : <strong>+{offsetDays} jour{offsetDays > 1 ? 's' : ''}</strong> après le début du projet (Démarre le <strong>{tStart}</strong>).
-                                        </span>
-                                      ) : (
-                                        <span>Aucun prédécesseur : cette tâche démarre dès le premier jour du projet ({pStart || 'T₀'}).</span>
-                                      )}
-                                    </p>
-                                  </div>
-                                );
-                              })() : (
+                              <span className="text-xs font-bold text-slate-700 block mb-2">
+                                Prédécesseurs (Requis avant) :
+                              </span>
+                              {incomingDeps.length === 0 ? (
+                                <div className="rounded-lg border border-slate-200 bg-slate-50 p-2.5 text-xs text-slate-500">
+                                  Aucun prédécesseur direct (Démarre au début du projet).
+                                </div>
+                              ) : (
                                 <div className="space-y-2">
                                   {incomingDeps.map((dep: any) => {
                                     const pred = planItems.find((p: any) => p.id === dep.predecessorId);
@@ -4700,15 +4703,12 @@ export function ProjectDetailScreen() {
                             </div>
 
                             <div>
-                              <span className="text-xs font-bold text-slate-700 block mb-2">Successeurs (Dépendent de celle-ci) :</span>
+                              <span className="text-xs font-bold text-slate-700 block mb-2">
+                                Successeurs (Dépendent de celle-ci) :
+                              </span>
                               {outgoingDeps.length === 0 ? (
-                                <div className="rounded-lg border border-amber-200 bg-amber-50/70 p-3 text-xs text-amber-900 space-y-1">
-                                  <div className="font-bold flex items-center gap-1.5">
-                                    🏁 Liée à la Clôture du Projet (T_fin)
-                                  </div>
-                                  <p className="text-[11px] text-amber-800 leading-tight">
-                                    Aucun successeur direct : cette tâche est terminale et contribue à la date d'achèvement global du projet.
-                                  </p>
+                                <div className="rounded-lg border border-slate-200 bg-slate-50 p-2.5 text-xs text-slate-500">
+                                  Aucun successeur direct.
                                 </div>
                               ) : (
                                 <div className="space-y-2">
