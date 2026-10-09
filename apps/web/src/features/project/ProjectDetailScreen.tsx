@@ -50,6 +50,7 @@ import { Navbar } from '../../components/Navbar';
 import { PertNetworkDiagram } from './components/PertNetworkDiagram';
 import { GanttChartInteractive } from './components/GanttChartInteractive';
 import { EarnedValueManagementView } from './components/EarnedValueManagementView';
+import { BudgetPlanningView } from './components/BudgetPlanningView';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 type TabKey = 'overview' | 'strategy' | 'planning' | 'execution' | 'monitoring';
@@ -839,11 +840,14 @@ export function ProjectDetailScreen() {
   });
 
   const addBudgetLine = useMutation({
-    mutationFn: async () => {
+    mutationFn: async (params?: { categoryCode?: string; description?: string; amount?: number }) => {
+      const cat = params?.categoryCode || blCategory;
+      const desc = params?.description || blDescription;
+      const amt = params?.amount !== undefined ? params.amount : parseFloat(blAmount);
       const res = await fetch(`/api/v1/projects/${id}/budget-lines`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ categoryCode: blCategory, description: blDescription, amount: parseFloat(blAmount) }),
+        body: JSON.stringify({ categoryCode: cat, description: desc, amount: amt }),
       });
       if (!res.ok) {
         const err = await res.json().catch(() => ({}));
@@ -854,6 +858,25 @@ export function ProjectDetailScreen() {
     onSuccess: () => {
       invalidate();
       setBlDescription(''); setBlAmount(''); setShowBudgetLineForm(false);
+    },
+    onError: (err: any) => alert(err.message),
+  });
+
+  const updatePlanItemCostMutation = useMutation({
+    mutationFn: async ({ taskId, newCost }: { taskId: string; newCost: number }) => {
+      const res = await fetch(`/api/v1/projects/${id}/plan-items/${taskId}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ estimatedCost: newCost }),
+      });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error(err.message || 'Erreur lors de la modification du coût');
+      }
+      return res.json();
+    },
+    onSuccess: () => {
+      invalidate();
     },
     onError: (err: any) => alert(err.message),
   });
@@ -3110,331 +3133,28 @@ export function ProjectDetailScreen() {
 
             {/* Sub-tab 4: Budget Prévisionnel */}
             {planningSubTab === 'budget_plan' && (
-              <div className="space-y-6">
-                {/* Budget KPI Cards */}
-                <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
-                  <div className="rounded-xl border bg-white p-5 shadow-sm">
-                    <p className="text-xs font-medium text-slate-500">Budget total alloué</p>
-                    <p className="mt-1 text-2xl font-bold text-slate-900">{fmt(totalBudget)}</p>
-                    <p className="mt-0.5 text-xs text-slate-400">{projBudget?.lines?.length || 0} ligne(s) budgétaire(s)</p>
-                  </div>
-                  <div className="rounded-xl border bg-white p-5 shadow-sm">
-                    <p className="text-xs font-medium text-slate-500">Coûts estimés WBS (PV)</p>
-                    <p className="mt-1 text-2xl font-bold text-indigo-700">{fmt(totalWbsEstimatedCost)}</p>
-                    <p className="mt-0.5 text-xs text-slate-400">Somme des tâches & lots</p>
-                  </div>
-                  <div className="rounded-xl border bg-white p-5 shadow-sm">
-                    <p className="text-xs font-medium text-slate-500">Dépenses réelles (AC)</p>
-                    <p className="mt-1 text-2xl font-bold text-amber-600">{fmt(totalApprovedExpenses)}</p>
-                    <p className="mt-0.5 text-xs text-slate-400">Factures approuvées</p>
-                  </div>
-                  <div className="rounded-xl border bg-white p-5 shadow-sm">
-                    <p className="text-xs font-medium text-slate-500">Solde budgétaire disponible</p>
-                    <p className={`mt-1 text-2xl font-bold ${remaining >= 0 ? 'text-emerald-600' : 'text-red-600'}`}>
-                      {fmt(remaining)}
-                    </p>
-                    <p className="mt-0.5 text-xs text-slate-400">Budget - Dépensé</p>
-                  </div>
-                </div>
-
-                {/* Section 1 : Ventilation des Coûts par Structure WBS (Cost Breakdown Structure - CBS) */}
-                <div className="rounded-xl border bg-white shadow-sm overflow-hidden">
-                  <div className="flex items-center justify-between border-b px-5 py-4 bg-slate-50/50">
-                    <div>
-                      <h2 className="font-bold text-slate-800 text-sm flex items-center gap-2">
-                        <DollarSign className="h-4 w-4 text-indigo-600" />
-                        Ventilation & Planification des Coûts par Phase, Activité et Tâche (CBS)
-                      </h2>
-                      <p className="text-xs text-slate-500 mt-0.5">
-                        Coûts prévisionnels (PV) affectés à chaque niveau de l'arborescence du projet
-                      </p>
-                    </div>
-                    <span className="text-xs font-bold text-indigo-900 bg-indigo-50 border border-indigo-200 px-3 py-1 rounded-full font-mono">
-                      Total WBS : {fmt(totalWbsEstimatedCost)}
-                    </span>
-                  </div>
-
-                  {planItems.length === 0 ? (
-                    <div className="p-8 text-center text-sm text-slate-400">
-                      Aucun élément dans le WBS pour ventiler les coûts. Créez des phases et des tâches dans l'arborescence WBS.
-                    </div>
-                  ) : (
-                    <div className="overflow-x-auto">
-                      <table className="w-full text-sm">
-                        <thead className="border-b bg-slate-50 text-xs font-semibold uppercase text-slate-500">
-                          <tr>
-                            <th className="px-5 py-3 text-left">Code WBS</th>
-                            <th className="px-5 py-3 text-left">Type</th>
-                            <th className="px-5 py-3 text-left">Élément de travail</th>
-                            <th className="px-5 py-3 text-right">Coût Planifié (PV)</th>
-                            <th className="px-5 py-3 text-right">% du Budget WBS</th>
-                            <th className="px-5 py-3 text-left">Responsable / Statut</th>
-                            <th className="px-5 py-3 text-right">Action</th>
-                          </tr>
-                        </thead>
-                        <tbody className="divide-y divide-slate-100">
-                          {[...planItems]
-                            .sort((a: any, b: any) => a.wbs.localeCompare(b.wbs, undefined, { numeric: true }))
-                            .map((item: any) => {
-                              const depth = Math.max(0, (item.wbs || '').split('.').length - 1);
-                              const typeCfg = TYPE_CONFIG[item.type] || TYPE_CONFIG.task;
-                              const cost = parseFloat(item.estimatedCost || '0');
-                              const pctBudget = totalWbsEstimatedCost > 0 ? Math.round((cost / totalWbsEstimatedCost) * 100) : 0;
-                              const isContainer = item.type === 'phase' || item.type === 'activity';
-                              const assignee = members.find((m: any) => m.id === item.assigneePartyId);
-
-                              return (
-                                <tr key={item.id} className={`hover:bg-slate-50/80 transition-colors ${isContainer ? 'bg-slate-50/40 font-semibold' : ''}`}>
-                                  <td className="px-5 py-3 font-mono text-xs font-bold text-slate-600">{item.wbs}</td>
-                                  <td className="px-5 py-3">
-                                    <span className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs ${typeCfg.badgeClass}`}>
-                                      {typeCfg.icon}
-                                      {typeCfg.label}
-                                    </span>
-                                  </td>
-                                  <td className="px-5 py-3">
-                                    <div
-                                      className={`flex items-center gap-1.5 ${item.type === 'phase' ? 'text-purple-950 font-bold' : item.type === 'activity' ? 'text-indigo-950 font-semibold' : 'text-slate-700'}`}
-                                      style={{ paddingLeft: `${depth * 18}px` }}
-                                    >
-                                      {depth > 0 && <span className="text-slate-300 font-mono">↳</span>}
-                                      <span>{item.title}</span>
-                                    </div>
-                                  </td>
-                                  <td className="px-5 py-3 text-right font-mono">
-                                    {isContainer ? (
-                                      <div className="flex flex-col items-end">
-                                        <span className="font-bold text-indigo-900">{fmt(cost)}</span>
-                                        <span className="text-[10px] text-slate-400 font-normal">roll-up</span>
-                                      </div>
-                                    ) : (
-                                      <span className="font-semibold text-slate-800">{fmt(cost)}</span>
-                                    )}
-                                  </td>
-                                  <td className="px-5 py-3 text-right">
-                                    <div className="flex items-center justify-end gap-2">
-                                      <div className="w-16 bg-slate-100 rounded-full h-1.5 overflow-hidden">
-                                        <div
-                                          className={`h-1.5 rounded-full ${isContainer ? 'bg-purple-500' : 'bg-indigo-500'}`}
-                                          style={{ width: `${Math.min(100, pctBudget)}%` }}
-                                        />
-                                      </div>
-                                      <span className="font-mono text-xs text-slate-600 w-8 text-right">{pctBudget}%</span>
-                                    </div>
-                                  </td>
-                                  <td className="px-5 py-3 text-xs text-slate-600">
-                                    {assignee ? (
-                                      <span className="inline-flex items-center gap-1 font-medium text-slate-800">
-                                        <Users className="h-3 w-3 text-slate-400" />
-                                        {assignee.name}
-                                      </span>
-                                    ) : (
-                                      <span className="text-slate-400 italic">Non assigné</span>
-                                    )}
-                                  </td>
-                                  <td className="px-5 py-3 text-right">
-                                    <Button
-                                      size="sm"
-                                      variant="ghost"
-                                      onClick={() => setSelectedTask(item)}
-                                      className="h-7 px-2 text-xs text-indigo-600 hover:text-indigo-800 hover:bg-indigo-50"
-                                      title="Consulter et ajuster les coûts et paramètres"
-                                    >
-                                      Détails
-                                    </Button>
-                                  </td>
-                                </tr>
-                              );
-                            })}
-                        </tbody>
-                        <tfoot className="border-t-2 border-slate-200 bg-slate-50 font-bold text-slate-900">
-                          <tr>
-                            <td colSpan={3} className="px-5 py-3">Total Coûts Prévisionnels WBS (PV)</td>
-                            <td className="px-5 py-3 text-right font-mono text-indigo-900">{fmt(totalWbsEstimatedCost)}</td>
-                            <td className="px-5 py-3 text-right font-mono">100%</td>
-                            <td colSpan={2}></td>
-                          </tr>
-                        </tfoot>
-                      </table>
-                    </div>
-                  )}
-                </div>
-
-                {/* Section 2 : Lignes Budgétaires par Catégorie Métier */}
-                <div className="rounded-xl border bg-white shadow-sm overflow-hidden">
-                  <div className="flex items-center justify-between border-b px-5 py-4">
-                    <div>
-                      <h2 className="font-semibold text-slate-800 text-sm">Lignes Budgétaires par Catégorie Métier</h2>
-                      <p className="text-xs text-slate-500 mt-0.5">Budget formel ventilé par poste de dépense (Personnel, Matériel, etc.)</p>
-                    </div>
-                    <Button size="sm" onClick={() => setShowBudgetLineForm(!showBudgetLineForm)}>
-                      <Plus className="mr-1 h-4 w-4" />
-                      Ajouter une ligne
-                    </Button>
-                  </div>
-                  {showBudgetLineForm && (
-                    <div className="border-b bg-indigo-50 p-4">
-                      <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
-                        <div>
-                          <label className="mb-1 block text-xs font-medium text-slate-600">Catégorie</label>
-                          <select
-                            value={blCategory}
-                            onChange={(e) => setBlCategory(e.target.value)}
-                            className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm"
-                          >
-                            {Object.entries(CATEGORY_LABELS).map(([k, v]) => (
-                              <option key={k} value={k}>{v}</option>
-                            ))}
-                          </select>
-                        </div>
-                        <div>
-                          <label className="mb-1 block text-xs font-medium text-slate-600">Description *</label>
-                          <Input value={blDescription} onChange={(e) => setBlDescription(e.target.value)} placeholder="Ex: Salaire coordonnateur..." />
-                        </div>
-                        <div>
-                          <label className="mb-1 block text-xs font-medium text-slate-600">Montant (CAD) *</label>
-                          <Input type="number" value={blAmount} onChange={(e) => setBlAmount(e.target.value)} placeholder="0.00" />
-                        </div>
-                      </div>
-                      <div className="mt-3 flex gap-2">
-                        <Button size="sm" onClick={() => addBudgetLine.mutate()} disabled={!blDescription.trim() || !blAmount || addBudgetLine.isPending}>
-                          Enregistrer
-                        </Button>
-                        <Button size="sm" variant="ghost" onClick={() => setShowBudgetLineForm(false)}>Annuler</Button>
-                      </div>
-                    </div>
-                  )}
-                  {(!projBudget?.lines || projBudget.lines.length === 0) ? (
-                    <div className="p-8 text-center text-sm text-slate-400">Aucune ligne budgétaire définie.</div>
-                  ) : (
-                    <table className="w-full text-sm">
-                      <thead className="border-b bg-slate-50 text-xs font-semibold uppercase text-slate-500">
-                        <tr>
-                          <th className="px-5 py-3 text-left">Catégorie</th>
-                          <th className="px-5 py-3 text-left">Description</th>
-                          <th className="px-5 py-3 text-right">Montant planifié</th>
-                          <th className="px-5 py-3 text-right">Actions</th>
-                        </tr>
-                      </thead>
-                      <tbody className="divide-y divide-slate-100">
-                        {projBudget.lines.map((line: any) => {
-                          const isEditing = editingBlId === line.id;
-                          if (isEditing) {
-                            return (
-                              <tr key={line.id} className="bg-indigo-50/50">
-                                <td className="px-5 py-2.5">
-                                  <select
-                                    value={editBlCategory}
-                                    onChange={(e) => setEditBlCategory(e.target.value)}
-                                    className="w-full rounded-lg border border-slate-300 bg-white px-2.5 py-1.5 text-xs font-medium focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500"
-                                  >
-                                    {Object.entries(CATEGORY_LABELS).map(([k, v]) => (
-                                      <option key={k} value={k}>{v}</option>
-                                    ))}
-                                  </select>
-                                </td>
-                                <td className="px-5 py-2.5">
-                                  <Input
-                                    value={editBlDescription}
-                                    onChange={(e) => setEditBlDescription(e.target.value)}
-                                    placeholder="Description"
-                                    className="bg-white text-xs"
-                                  />
-                                </td>
-                                <td className="px-5 py-2.5 text-right">
-                                  <Input
-                                    type="number"
-                                    value={editBlAmount}
-                                    onChange={(e) => setEditBlAmount(e.target.value)}
-                                    placeholder="0.00"
-                                    className="bg-white text-xs text-right font-semibold"
-                                  />
-                                </td>
-                                <td className="px-5 py-2.5 text-right whitespace-nowrap">
-                                  <div className="flex items-center justify-end gap-1.5">
-                                    <Button
-                                      size="sm"
-                                      className="h-7 px-2.5 text-xs"
-                                      disabled={!editBlDescription.trim() || !editBlAmount || updateBudgetLine.isPending}
-                                      onClick={() => {
-                                        updateBudgetLine.mutate({
-                                          lineId: line.id,
-                                          categoryCode: editBlCategory,
-                                          description: editBlDescription.trim(),
-                                          amount: parseFloat(editBlAmount),
-                                        });
-                                      }}
-                                    >
-                                      <Check className="h-3.5 w-3.5 mr-1" />
-                                      Enregistrer
-                                    </Button>
-                                    <Button
-                                      size="sm"
-                                      variant="ghost"
-                                      className="h-7 px-2 text-xs"
-                                      onClick={() => setEditingBlId(null)}
-                                    >
-                                      Annuler
-                                    </Button>
-                                  </div>
-                                </td>
-                              </tr>
-                            );
-                          }
-
-                          return (
-                            <tr key={line.id} className="hover:bg-slate-50 group">
-                              <td className="px-5 py-3">
-                                <span className="rounded-full bg-slate-100 px-2 py-0.5 text-xs font-medium text-slate-600">
-                                  {CATEGORY_LABELS[line.categoryCode] || line.categoryCode}
-                                </span>
-                              </td>
-                              <td className="px-5 py-3 text-slate-700 font-medium">{line.description}</td>
-                              <td className="px-5 py-3 text-right font-semibold text-slate-900">{fmt(line.amount)}</td>
-                              <td className="px-5 py-3 text-right">
-                                <div className="flex items-center justify-end gap-1 opacity-90 group-hover:opacity-100">
-                                  <Button
-                                    size="sm"
-                                    variant="ghost"
-                                    className="h-7 w-7 p-0 text-slate-400 hover:text-indigo-600 hover:bg-indigo-50"
-                                    title="Modifier cette ligne budgétaire"
-                                    onClick={() => {
-                                      setEditingBlId(line.id);
-                                      setEditBlCategory(line.categoryCode);
-                                      setEditBlDescription(line.description);
-                                      setEditBlAmount(line.amount);
-                                    }}
-                                  >
-                                    <Pencil className="h-3.5 w-3.5" />
-                                  </Button>
-                                  <Button
-                                    size="sm"
-                                    variant="ghost"
-                                    className="h-7 w-7 p-0 text-slate-400 hover:text-red-600 hover:bg-red-50"
-                                    title="Supprimer cette ligne budgétaire"
-                                    onClick={() => {
-                                      if (window.confirm(`Supprimer la ligne budgétaire "${line.description}" (${fmt(line.amount)}) ?`)) {
-                                        deleteBudgetLine.mutate(line.id);
-                                      }
-                                    }}
-                                  >
-                                    <Trash2 className="h-3.5 w-3.5" />
-                                  </Button>
-                                </div>
-                              </td>
-                            </tr>
-                          );
-                        })}
-                        <tr className="border-t-2 border-slate-200 bg-slate-50">
-                          <td colSpan={2} className="px-5 py-3 font-bold text-slate-700">Total Lignes Budgétaires</td>
-                          <td className="px-5 py-3 text-right font-bold text-slate-900">{fmt(totalBudget)}</td>
-                          <td className="px-5 py-3"></td>
-                        </tr>
-                      </tbody>
-                    </table>
-                  )}
-                </div>
-              </div>
+              <BudgetPlanningView
+                projectId={id!}
+                projectStartDate={data?.project?.startDate}
+                planItems={planItems}
+                projBudget={projBudget}
+                expenses={expenses}
+                members={members}
+                onSelectTask={(task) => setSelectedTask(task)}
+                onUpdateTaskCost={async (taskId, newCost) => {
+                  await updatePlanItemCostMutation.mutateAsync({ taskId, newCost });
+                }}
+                onAddBudgetLine={async (categoryCode, description, amount) => {
+                  await addBudgetLine.mutateAsync({ categoryCode, description, amount });
+                }}
+                onUpdateBudgetLine={async (lineId, categoryCode, description, amount) => {
+                  await updateBudgetLine.mutateAsync({ lineId, categoryCode, description, amount });
+                }}
+                onDeleteBudgetLine={async (lineId) => {
+                  await deleteBudgetLine.mutateAsync(lineId);
+                }}
+                isUpdating={updatePlanItemCostMutation.isPending || addBudgetLine.isPending}
+              />
             )}
           </div>
         )}
