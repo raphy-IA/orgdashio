@@ -53,6 +53,7 @@ import { PertNetworkDiagram } from './components/PertNetworkDiagram';
 import { GanttChartInteractive } from './components/GanttChartInteractive';
 import { EarnedValueManagementView } from './components/EarnedValueManagementView';
 import { BudgetPlanningView } from './components/BudgetPlanningView';
+import { TaskExecutionHub } from './components/TaskExecutionHub';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 type TabKey = 'overview' | 'strategy' | 'planning' | 'execution' | 'monitoring';
@@ -1126,7 +1127,87 @@ export function ProjectDetailScreen() {
       setLogComment('');
       setLogBlocker('');
       setLogIsBlocked(false);
+      setSelectedTask(null);
     },
+  });
+
+  const updateTaskQuickStatusMutation = useMutation({
+    mutationFn: async ({ taskId, status, progressPct }: { taskId: string; status: string; progressPct?: number }) => {
+      const res = await fetch(`/api/v1/projects/${id}/plan-items/${taskId}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ status, progressPct }),
+      });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error(err.message || 'Erreur lors du changement de statut');
+      }
+      return res.json();
+    },
+    onSuccess: () => invalidate(),
+    onError: (err: any) => alert(err.message),
+  });
+
+  const addExpenseGenericMutation = useMutation({
+    mutationFn: async (expenseData: { budgetLineId: string; amount: number; vendor: string; date: string; notes?: string }) => {
+      const res = await fetch(`/api/v1/projects/${id}/expenses`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          budgetLineId: expenseData.budgetLineId,
+          amount: expenseData.amount,
+          vendor: expenseData.vendor,
+          date: expenseData.date,
+          notes: expenseData.notes,
+          taxTps: 0,
+          taxTvq: 0,
+        }),
+      });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error(err.message || 'Erreur lors de l\'enregistrement de la dépense');
+      }
+      return res.json();
+    },
+    onSuccess: () => invalidate(),
+    onError: (err: any) => alert(err.message),
+  });
+
+  const addDeliverableGenericMutation = useMutation({
+    mutationFn: async ({ planItemId, title, description, fileUrl }: { planItemId: string; title: string; description?: string; fileUrl?: string }) => {
+      const res = await fetch(`/api/v1/projects/${id}/plan-items/${planItemId}/deliverables`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ title, description, fileUrl }),
+      });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error(err.message || 'Erreur lors de l\'ajout du livrable');
+      }
+      return res.json();
+    },
+    onSuccess: () => invalidate(),
+    onError: (err: any) => alert(err.message),
+  });
+
+  const verifyDeliverableGenericMutation = useMutation({
+    mutationFn: async ({ planItemId, deliverableId, status, verifiedBy }: { planItemId: string; deliverableId: string; status: 'approved' | 'rejected'; verifiedBy?: string }) => {
+      const res = await fetch(`/api/v1/projects/${id}/plan-items/${planItemId}/deliverables/${deliverableId}/verify`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          status,
+          verifiedBy: verifiedBy || 'Gestionnaire de Projet',
+        }),
+      });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error(err.message || 'Erreur lors de la validation du livrable');
+      }
+      return res.json();
+    },
+    onSuccess: () => invalidate(),
+    onError: (err: any) => alert(err.message),
   });
 
   const addDeliverableMutation = useMutation({
@@ -3174,451 +3255,43 @@ export function ProjectDetailScreen() {
         {/* PILIER 3: EXÉCUTION & OPÉRATIONS                                */}
         {/* ═══════════════════════════════════════════════════════════════ */}
         {activeTab === 'execution' && (
-          <div className="space-y-6">
-            {/* Sub-tab Navigation */}
-            <div className="flex items-center gap-1.5 p-1 bg-slate-200/80 rounded-xl w-fit border border-slate-300 shadow-2xs">
-              <button
-                onClick={() => setExecutionSubTab('tasks')}
-                className={`flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg text-xs font-bold transition ${
-                  executionSubTab === 'tasks' ? 'bg-white text-indigo-700 shadow-xs' : 'text-slate-600 hover:text-slate-900'
-                }`}
-              >
-                <CheckCircle2 className="h-3.5 w-3.5" />
-                Tâches & Tableau Kanban ({totalTasks})
-              </button>
-              <button
-                onClick={() => setExecutionSubTab('expenses')}
-                className={`flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg text-xs font-bold transition ${
-                  executionSubTab === 'expenses' ? 'bg-white text-indigo-700 shadow-xs' : 'text-slate-600 hover:text-slate-900'
-                }`}
-              >
-                <DollarSign className="h-3.5 w-3.5" />
-                Dépenses Réelles & Factures ({expenses.length})
-              </button>
-              <button
-                onClick={() => setExecutionSubTab('deliverables')}
-                className={`flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg text-xs font-bold transition ${
-                  executionSubTab === 'deliverables' ? 'bg-white text-emerald-700 shadow-xs' : 'text-slate-600 hover:text-slate-900'
-                }`}
-              >
-                <PackageCheck className="h-3.5 w-3.5" />
-                Registre des Livrables ({deliverables.length})
-              </button>
-            </div>
-
-            {/* Sub-tab 1: Tâches & Kanban */}
-            {executionSubTab === 'tasks' && (
-              <div className="space-y-6">
-            <div className="flex items-center justify-between">
-              <div>
-                <h2 className="text-base font-bold text-slate-800">Centre d'Évolution des Tâches & Livrables</h2>
-                <p className="text-sm text-slate-500">
-                  Cliquez sur n'importe quelle tâche pour ouvrir son journal d'évolution, consigner des logs, signaler un blocage ou déposer un livrable.
-                </p>
-              </div>
-            </div>
-
-            {/* Kanban Columns */}
-            <div className="grid grid-cols-1 gap-4 sm:grid-cols-5">
-              {Object.entries(STATUS_CONFIG).map(([statusKey, cfg]) => {
-                const items = planItems.filter((p: any) => p.status === statusKey && (p.type === 'task' || p.type === 'milestone'));
-                return (
-                  <div key={statusKey} className="space-y-3">
-                    <div className={`flex items-center justify-between rounded-lg px-3 py-2 text-xs font-semibold ${cfg.color}`}>
-                      <span className="flex items-center gap-1.5">{cfg.icon} {cfg.label}</span>
-                      <span className="rounded-full bg-white/70 px-2 py-0.5 font-bold">{items.length}</span>
-                    </div>
-                    {items.length === 0 && (
-                      <div className="rounded-xl border border-dashed border-slate-200 p-4 text-center text-xs text-slate-300">
-                        Aucune tâche
-                      </div>
-                    )}
-                    {items.map((item: any) => {
-                      const typeCfg = TYPE_CONFIG[item.type] || TYPE_CONFIG.task;
-                      const isMilestone = item.type === 'milestone';
-                      const taskUpdates = updates.filter((u: any) => u.planItemId === item.id);
-                      const taskDeliverables = deliverables.filter((d: any) => d.planItemId === item.id);
-                      const hasBlocker = item.status === 'blocked';
-
-                      return (
-                        <div
-                          key={item.id}
-                          onClick={() => {
-                            setSelectedTask(item);
-                            setLogProgress(item.progressPct || 0);
-                            setLogIsBlocked(item.status === 'blocked');
-                          }}
-                          className={`cursor-pointer rounded-xl border bg-white p-4 shadow-sm transition hover:border-indigo-400 hover:shadow-md ${
-                            hasBlocker ? 'border-red-300 bg-red-50/30' : ''
-                          }`}
-                        >
-                          <div className="mb-2 flex items-center justify-between">
-                            <span className="font-mono text-xs font-bold text-slate-500">{item.wbs}</span>
-                            <span className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] ${typeCfg.badgeClass}`}>
-                              {typeCfg.icon}
-                              {typeCfg.label}
-                            </span>
-                          </div>
-                          <p className="text-sm font-semibold text-slate-900">{item.title}</p>
-                          
-                          {item.endDate && (
-                            <p className="mt-2 flex items-center gap-1 text-xs text-slate-500">
-                              {isMilestone ? <Flag className="h-3.5 w-3.5 text-amber-500" /> : <Calendar className="h-3.5 w-3.5 text-slate-400" />}
-                              {isMilestone ? `Jalon le : ${item.endDate}` : `Échéance : ${item.endDate}`}
-                            </p>
-                          )}
-
-                          <div className="mt-3">
-                            <ProgressBar value={item.progressPct || 0} />
-                          </div>
-
-                          {/* Mini badges for updates and deliverables */}
-                          <div className="mt-3 flex items-center gap-3 border-t border-slate-100 pt-2 text-[11px] text-slate-500">
-                            <span className="flex items-center gap-1">
-                              <MessageSquare className="h-3 w-3 text-indigo-500" />
-                              {taskUpdates.length} log{taskUpdates.length !== 1 ? 's' : ''}
-                            </span>
-                            <span className="flex items-center gap-1">
-                              <PackageCheck className="h-3 w-3 text-emerald-500" />
-                              {taskDeliverables.length} livrable{taskDeliverables.length !== 1 ? 's' : ''}
-                            </span>
-                          </div>
-                        </div>
-                      );
-                    })}
-                  </div>
-                );
-              })}
-            </div>
-
-            {/* Non-task items (phases, activities, deliverables) */}
-            {planItems.filter((p: any) => p.type === 'phase' || p.type === 'activity' || p.type === 'deliverable').length > 0 && (
-              <div className="mt-8">
-                <h3 className="mb-3 text-sm font-bold text-slate-700">Phases, Activités & Livrables Globaux</h3>
-                <div className="overflow-hidden rounded-xl border bg-white shadow-sm">
-                  <table className="w-full text-sm">
-                    <thead className="border-b bg-slate-50">
-                      <tr className="text-left text-xs font-semibold uppercase text-slate-500">
-                        <th className="px-4 py-3">WBS</th>
-                        <th className="px-4 py-3">Type</th>
-                        <th className="px-4 py-3">Titre</th>
-                        <th className="px-4 py-3">Logs & Livrables</th>
-                        <th className="px-4 py-3">Avancement</th>
-                        <th className="px-4 py-3">Action</th>
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-slate-100">
-                      {planItems
-                        .filter((p: any) => p.type === 'phase' || p.type === 'activity' || p.type === 'deliverable')
-                        .sort((a: any, b: any) => a.wbs.localeCompare(b.wbs, undefined, { numeric: true }))
-                        .map((item: any) => {
-                          const typeCfg = TYPE_CONFIG[item.type] || TYPE_CONFIG.activity;
-                          const taskUpdates = updates.filter((u: any) => u.planItemId === item.id);
-                          const taskDeliverables = deliverables.filter((d: any) => d.planItemId === item.id);
-
-                          return (
-                            <tr key={item.id} className="group hover:bg-slate-50">
-                              <td className="px-4 py-3 font-mono text-xs font-semibold text-slate-400">{item.wbs}</td>
-                              <td className="px-4 py-3">
-                                <span className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-medium ${typeCfg.badgeClass}`}>
-                                  {typeCfg.icon}
-                                  {typeCfg.label}
-                                </span>
-                              </td>
-                              <td className="px-4 py-3 font-semibold text-slate-800">{item.title}</td>
-                              <td className="px-4 py-3 text-xs text-slate-500">
-                                <span className="mr-3 inline-flex items-center gap-1">
-                                  <MessageSquare className="h-3 w-3 text-indigo-500" /> {taskUpdates.length}
-                                </span>
-                                <span className="inline-flex items-center gap-1">
-                                  <PackageCheck className="h-3 w-3 text-emerald-500" /> {taskDeliverables.length}
-                                </span>
-                              </td>
-                              <td className="w-44 px-4 py-3">
-                                <ProgressBar value={item.progressPct || 0} />
-                              </td>
-                              <td className="px-4 py-3">
-                                <Button
-                                  size="sm"
-                                  variant="outline"
-                                  className="h-7 text-xs"
-                                  onClick={() => {
-                                    setSelectedTask(item);
-                                    setLogProgress(item.progressPct || 0);
-                                    setLogIsBlocked(item.status === 'blocked');
-                                  }}
-                                >
-                                  Ouvrir journal
-                                </Button>
-                              </td>
-                            </tr>
-                          );
-                        })}
-                    </tbody>
-                  </table>
-                </div>
-              </div>
-            )}
-          </div>
-            )}
-
-            {/* Sub-tab 2: Dépenses Réelles */}
-            {executionSubTab === 'expenses' && (
-              <div className="space-y-6">
-                {/* Expenses */}
-            <div className="rounded-xl border bg-white shadow-sm">
-              <div className="flex items-center justify-between border-b px-5 py-4">
-                <h2 className="font-semibold text-slate-800">Dépenses</h2>
-                <div className="flex items-center gap-2">
-                  <Button size="sm" variant="outline" onClick={() => window.open(`/api/v1/projects/${id}/expenses/export`, '_blank')}>
-                    <FileSpreadsheet className="mr-1 h-4 w-4 text-emerald-600" />
-                    Exporter CSV
-                  </Button>
-                  <Button size="sm" onClick={() => setShowExpenseForm(!showExpenseForm)}>
-                    <Plus className="mr-1 h-4 w-4" />
-                    Saisir une dépense
-                  </Button>
-                </div>
-              </div>
-              {showExpenseForm && (
-                <div className="border-b bg-indigo-50 p-4">
-                  <div className="grid grid-cols-1 gap-3 sm:grid-cols-4">
-                    <div>
-                      <label className="mb-1 block text-xs font-medium text-slate-600">Ligne budgétaire *</label>
-                      <select
-                        value={expBudgetLineId}
-                        onChange={(e) => setExpBudgetLineId(e.target.value)}
-                        className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm"
-                      >
-                        <option value="">— Sélectionner —</option>
-                        {(projBudget?.lines || []).map((line: any) => (
-                          <option key={line.id} value={line.id}>
-                            {CATEGORY_LABELS[line.categoryCode] || line.categoryCode} — {line.description}
-                          </option>
-                        ))}
-                      </select>
-                    </div>
-                    <div>
-                      <label className="mb-1 block text-xs font-medium text-slate-600">Fournisseur *</label>
-                      <Input value={expVendor} onChange={(e) => setExpVendor(e.target.value)} placeholder="Nom du fournisseur" />
-                    </div>
-                    <div>
-                      <label className="mb-1 block text-xs font-medium text-slate-600">Montant (CAD) *</label>
-                      <Input type="number" value={expAmount} onChange={(e) => setExpAmount(e.target.value)} placeholder="0.00" />
-                    </div>
-                    <div>
-                      <label className="mb-1 block text-xs font-medium text-slate-600">Date *</label>
-                      <Input type="date" value={expDate} onChange={(e) => setExpDate(e.target.value)} />
-                    </div>
-                  </div>
-                  <div className="mt-3 flex gap-2">
-                    <Button
-                      size="sm"
-                      onClick={() => addExpense.mutate()}
-                      disabled={!expVendor.trim() || !expAmount || !expBudgetLineId || addExpense.isPending}
-                    >
-                      Soumettre
-                    </Button>
-                    <Button size="sm" variant="ghost" onClick={() => setShowExpenseForm(false)}>Annuler</Button>
-                  </div>
-                </div>
-              )}
-              {expenses.length === 0 ? (
-                <div className="p-8 text-center text-sm text-slate-400">Aucune dépense enregistrée.</div>
-              ) : (
-                <table className="w-full text-sm">
-                  <thead className="border-b bg-slate-50 text-xs font-semibold uppercase text-slate-500">
-                    <tr>
-                      <th className="px-5 py-3 text-left">Date</th>
-                      <th className="px-5 py-3 text-left">Fournisseur</th>
-                      <th className="px-5 py-3 text-right">Montant</th>
-                      <th className="px-5 py-3 text-center">Statut</th>
-                      <th className="px-5 py-3"></th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-slate-100">
-                    {expenses.map((exp: any) => (
-                      <tr key={exp.id} className="hover:bg-slate-50">
-                        <td className="px-5 py-3 text-slate-500">{exp.date}</td>
-                        <td className="px-5 py-3 font-medium text-slate-900">{exp.vendor}</td>
-                        <td className="px-5 py-3 text-right font-mono">
-                          {fmt(exp.amount)}
-                        </td>
-                        <td className="px-5 py-3 text-center">
-                          <span className={`rounded-full px-2 py-0.5 text-xs font-semibold ${
-                            exp.status === 'approved' || exp.status === 'paid'
-                              ? 'bg-emerald-100 text-emerald-800'
-                              : exp.status === 'submitted'
-                                ? 'bg-amber-100 text-amber-800'
-                                : 'bg-slate-100 text-slate-600'
-                          }`}>
-                            {exp.status === 'approved' ? 'Approuvée' : exp.status === 'submitted' ? 'En attente' : exp.status === 'paid' ? 'Payée' : exp.status}
-                          </span>
-                        </td>
-                        <td className="px-5 py-3 text-right">
-                          {exp.status === 'submitted' && (
-                            <Button
-                              size="sm"
-                              variant="outline"
-                              onClick={() => approveExpense.mutate(exp.id)}
-                              disabled={approveExpense.isPending}
-                              className="text-emerald-700 hover:bg-emerald-50"
-                            >
-                              <Check className="mr-1 h-3 w-3" />
-                              Approuver
-                            </Button>
-                          )}
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              )}
-            </div>
-              </div>
-            )}
-
-            {/* Sub-tab 3: Registre des Livrables */}
-            {executionSubTab === 'deliverables' && (
-              <div className="space-y-4">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <h2 className="text-base font-bold text-slate-800">Registre Général des Livrables</h2>
-                    <p className="text-sm text-slate-500">Validation formelle des livrables et preuves de réalisation</p>
-                  </div>
-                </div>
-
-                {deliverables.length === 0 ? (
-                  <div className="rounded-xl border border-dashed border-slate-200 bg-white p-10 text-center">
-                    <PackageCheck className="mx-auto mb-3 h-10 w-10 text-slate-300" />
-                    <p className="text-sm font-medium text-slate-500">Aucun livrable déposé</p>
-                    <p className="mt-1 text-xs text-slate-400">Les livrables sont déposés par les responsables de tâches dans le tiroir d'exécution.</p>
-                  </div>
-                ) : (
-                  <div className="overflow-hidden rounded-xl border bg-white shadow-sm">
-                    <table className="w-full text-sm">
-                      <thead className="border-b bg-slate-50 text-xs font-semibold uppercase text-slate-500">
-                        <tr>
-                          <th className="px-5 py-3 text-left">Livrable & Document</th>
-                          <th className="px-5 py-3 text-left">Tâche / Activité rattachée</th>
-                          <th className="px-5 py-3 text-center">Statut</th>
-                          <th className="px-5 py-3 text-left">Vérification</th>
-                          <th className="px-5 py-3 text-right">Actions</th>
-                        </tr>
-                      </thead>
-                      <tbody className="divide-y divide-slate-100">
-                        {deliverables.map((deliv: any) => {
-                          const parentTask = planItems.find((p: any) => p.id === deliv.planItemId);
-                          return (
-                            <tr key={deliv.id} className="hover:bg-slate-50">
-                              <td className="px-5 py-3">
-                                <div className="font-semibold text-slate-900">{deliv.title}</div>
-                                {deliv.description && <p className="text-xs text-slate-500 mt-0.5">{deliv.description}</p>}
-                                {deliv.fileUrl && (
-                                  <a
-                                    href={deliv.fileUrl}
-                                    target="_blank"
-                                    rel="noreferrer"
-                                    className="inline-flex items-center gap-1 text-xs font-medium text-indigo-600 hover:text-indigo-800 mt-1"
-                                  >
-                                    <Paperclip className="h-3 w-3" />
-                                    Voir le fichier / lien
-                                  </a>
-                                )}
-                              </td>
-                              <td className="px-5 py-3 text-slate-700">
-                                {parentTask ? (
-                                  <button
-                                    onClick={() => setSelectedTask(parentTask)}
-                                    className="text-left text-xs font-medium text-indigo-700 hover:underline flex items-center gap-1"
-                                  >
-                                    <span className="font-mono bg-indigo-50 px-1.5 py-0.5 rounded text-[11px] font-bold text-indigo-800">{parentTask.wbs}</span>
-                                    <span>{parentTask.title}</span>
-                                  </button>
-                                ) : (
-                                  <span className="text-xs text-slate-400">Élément #{deliv.planItemId.slice(0, 8)}</span>
-                                )}
-                              </td>
-                              <td className="px-5 py-3 text-center">
-                                <span
-                                  className={`inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-xs font-semibold ${
-                                    deliv.status === 'approved'
-                                      ? 'bg-emerald-100 text-emerald-800'
-                                      : deliv.status === 'rejected'
-                                      ? 'bg-red-100 text-red-800'
-                                      : 'bg-amber-100 text-amber-800'
-                                  }`}
-                                >
-                                  {deliv.status === 'approved' && <Check className="h-3 w-3" />}
-                                  {deliv.status === 'rejected' && <X className="h-3 w-3" />}
-                                  {deliv.status === 'pending' && <Clock className="h-3 w-3" />}
-                                  {deliv.status === 'approved' ? 'Approuvé' : deliv.status === 'rejected' ? 'Rejeté' : 'En attente'}
-                                </span>
-                              </td>
-                              <td className="px-5 py-3 text-xs text-slate-500">
-                                {deliv.verifiedBy ? (
-                                  <div>
-                                    <span className="font-medium text-slate-700">{deliv.verifiedBy}</span>
-                                    {deliv.verifiedAt && <span className="block text-[11px] text-slate-400">{new Date(deliv.verifiedAt).toLocaleDateString('fr-CA')}</span>}
-                                  </div>
-                                ) : (
-                                  <span className="text-slate-400 italic">Non vérifié</span>
-                                )}
-                              </td>
-                              <td className="px-5 py-3 text-right whitespace-nowrap">
-                                <div className="flex items-center justify-end gap-1.5">
-                                  {deliv.status === 'pending' && (
-                                    <>
-                                      <Button
-                                        size="sm"
-                                        variant="outline"
-                                        onClick={() => {
-                                          if (parentTask) setSelectedTask(parentTask);
-                                          verifyDeliverableMutation.mutate({ deliverableId: deliv.id, status: 'approved' });
-                                        }}
-                                        disabled={verifyDeliverableMutation.isPending}
-                                        className="h-7 px-2 text-xs text-emerald-700 hover:bg-emerald-50 border-emerald-300"
-                                        title="Approuver le livrable"
-                                      >
-                                        <Check className="mr-1 h-3 w-3" /> Approuver
-                                      </Button>
-                                      <Button
-                                        size="sm"
-                                        variant="outline"
-                                        onClick={() => {
-                                          if (parentTask) setSelectedTask(parentTask);
-                                          verifyDeliverableMutation.mutate({ deliverableId: deliv.id, status: 'rejected' });
-                                        }}
-                                        disabled={verifyDeliverableMutation.isPending}
-                                        className="h-7 px-2 text-xs text-red-700 hover:bg-red-50 border-red-300"
-                                        title="Rejeter le livrable"
-                                      >
-                                        <X className="mr-1 h-3 w-3" /> Rejeter
-                                      </Button>
-                                    </>
-                                  )}
-                                  {parentTask && (
-                                    <Button
-                                      size="sm"
-                                      variant="ghost"
-                                      onClick={() => setSelectedTask(parentTask)}
-                                      className="h-7 px-2 text-xs text-slate-600 hover:text-indigo-600"
-                                    >
-                                      Ouvrir la tâche
-                                    </Button>
-                                  )}
-                                </div>
-                              </td>
-                            </tr>
-                          );
-                        })}
-                      </tbody>
-                    </table>
-                  </div>
-                )}
-              </div>
-            )}
-          </div>
+          <TaskExecutionHub
+            projectId={id!}
+            planItems={planItems}
+            members={members}
+            raci={raci}
+            budget={projBudget}
+            expenses={expenses}
+            deliverables={deliverables}
+            updates={updates}
+            onSelectTask={(task) => {
+              setSelectedTask(task);
+              setLogProgress(task.progressPct || 0);
+              setLogIsBlocked(task.status === 'blocked');
+            }}
+            onUpdateTaskStatus={async (taskId, newStatus, newProgress) => {
+              await updateTaskQuickStatusMutation.mutateAsync({ taskId, status: newStatus, progressPct: newProgress });
+            }}
+            onAddExpense={async (expenseData) => {
+              await addExpenseGenericMutation.mutateAsync(expenseData);
+            }}
+            onApproveExpense={async (expenseId) => {
+              await approveExpense.mutateAsync(expenseId);
+            }}
+            onAddDeliverable={async (planItemId, deliverableData) => {
+              await addDeliverableGenericMutation.mutateAsync({ planItemId, ...deliverableData });
+            }}
+            onVerifyDeliverable={async (planItemId, deliverableId, status, verifiedBy) => {
+              await verifyDeliverableGenericMutation.mutateAsync({ planItemId, deliverableId, status, verifiedBy });
+            }}
+            isUpdating={
+              updateTaskQuickStatusMutation.isPending ||
+              addExpenseGenericMutation.isPending ||
+              approveExpense.isPending ||
+              addDeliverableGenericMutation.isPending ||
+              verifyDeliverableGenericMutation.isPending
+            }
+          />
         )}
 
         {/* ═══════════════════════════════════════════════════════════════ */}
@@ -4691,18 +4364,34 @@ export function ProjectDetailScreen() {
                             Ajustez l'avancement (%) pour consigner un point d'étape opérationnel et mettre à jour le statut.
                           </p>
                         </div>
-                        <span className="rounded-lg bg-indigo-600 px-3 py-1 text-sm font-bold text-white shadow-sm">
+                        <span className="rounded-lg bg-indigo-600 px-3 py-1 text-sm font-bold text-white shadow-sm font-mono">
                           {logProgress}%
                         </span>
                       </div>
 
+                      {/* Quick Preset Buttons */}
+                      <div className="flex flex-wrap items-center gap-1.5">
+                        {[0, 25, 50, 75, 100].map((pct) => (
+                          <button
+                            key={pct}
+                            type="button"
+                            onClick={() => {
+                              setLogProgress(pct);
+                              if (pct === 100) setLogIsBlocked(false);
+                            }}
+                            className={`px-2.5 py-1 rounded-lg text-xs font-bold transition border ${
+                              logProgress === pct
+                                ? 'bg-indigo-600 text-white border-indigo-600 shadow-xs'
+                                : 'bg-white text-slate-700 border-slate-200 hover:bg-slate-100'
+                            }`}
+                          >
+                            {pct === 0 ? '0% (À faire)' : pct === 100 ? '100% (Terminé)' : `${pct}%`}
+                          </button>
+                        ))}
+                      </div>
+
                       {/* Slider */}
                       <div>
-                        <div className="mb-1 flex justify-between text-xs font-semibold text-slate-700">
-                          <span>0% (À faire)</span>
-                          <span>50% (En cours)</span>
-                          <span>100% (Terminé)</span>
-                        </div>
                         <input
                           type="range"
                           min={0}
@@ -4780,7 +4469,7 @@ export function ProjectDetailScreen() {
                         className="bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs"
                       >
                         <Send className="mr-1.5 h-3.5 w-3.5" />
-                        Mettre à jour l'avancement
+                        {addUpdateLogMutation.isPending ? 'Enregistrement...' : 'Mettre à jour et fermer'}
                       </Button>
                     </div>
 
