@@ -677,21 +677,6 @@ export function BudgetPlanningView({
                           </td>
                           <td className="px-5 py-3 text-right">
                             <div className="flex items-center justify-end gap-1.5">
-                              {!isContainer && !isMilestone && (
-                                <Button
-                                  size="sm"
-                                  variant="outline"
-                                  onClick={(e: any) => {
-                                    e.stopPropagation();
-                                    onSelectTask(item);
-                                  }}
-                                  className="h-7 px-2 text-xs text-violet-700 bg-violet-50 hover:bg-violet-100 border-violet-200 font-bold"
-                                  title="Ouvrir le calculateur détaillé de coût"
-                                >
-                                  <Calculator className="h-3 w-3 mr-1 text-violet-600" />
-                                  Calculer
-                                </Button>
-                              )}
                               <Button
                                 size="sm"
                                 variant="ghost"
@@ -699,7 +684,7 @@ export function BudgetPlanningView({
                                   e.stopPropagation();
                                   onSelectTask(item);
                                 }}
-                                className="h-7 px-2 text-xs text-indigo-600 hover:text-indigo-800 hover:bg-indigo-50 font-semibold"
+                                className="h-7 px-2.5 text-xs text-indigo-600 hover:text-indigo-800 hover:bg-indigo-50 font-semibold"
                               >
                                 Détails
                               </Button>

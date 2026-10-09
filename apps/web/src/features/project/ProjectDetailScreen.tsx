@@ -4301,6 +4301,7 @@ export function ProjectDetailScreen() {
                                       (parseFloat(costSubcontracting) || 0) +
                                       (parseFloat(costOther) || 0);
                                     setTaskCost(String(Math.round(total * 100) / 100));
+                                    setShowTaskCostCalc(false);
                                   }}
                                   className="text-xs bg-violet-600 hover:bg-violet-700 text-white font-bold"
                                 >
@@ -4382,9 +4383,30 @@ export function ProjectDetailScreen() {
                                 </div>
                               </div>
                               {taskOptimistic && taskMostLikely && taskPessimistic && (
-                                <div className="mt-2 flex items-center justify-between rounded-lg bg-white p-2.5 text-xs font-mono text-indigo-800">
-                                  <span>Durée calculée Te : <strong>{((parseFloat(taskOptimistic) + 4 * parseFloat(taskMostLikely) + parseFloat(taskPessimistic)) / 6).toFixed(1)} j</strong></span>
-                                  <span>Écart-type σ : ±{((parseFloat(taskPessimistic) - parseFloat(taskOptimistic)) / 6).toFixed(2)} j</span>
+                                <div className="mt-2 space-y-2">
+                                  <div className="flex items-center justify-between rounded-lg bg-white p-2 text-xs font-mono text-indigo-800 border border-indigo-100">
+                                    <span>Durée calculée Te : <strong>{((parseFloat(taskOptimistic) + 4 * parseFloat(taskMostLikely) + parseFloat(taskPessimistic)) / 6).toFixed(1)} j</strong></span>
+                                    <span>Écart-type σ : ±{((parseFloat(taskPessimistic) - parseFloat(taskOptimistic)) / 6).toFixed(2)} j</span>
+                                  </div>
+                                  <div className="flex justify-end">
+                                    <Button
+                                      type="button"
+                                      size="sm"
+                                      onClick={() => {
+                                        const o = parseFloat(taskOptimistic);
+                                        const m = parseFloat(taskMostLikely);
+                                        const p = parseFloat(taskPessimistic);
+                                        if (!isNaN(o) && !isNaN(m) && !isNaN(p)) {
+                                          setTaskDuration(String(Math.max(1, Math.round((o + 4 * m + p) / 6))));
+                                        }
+                                        setShowTaskPertEdit(false);
+                                      }}
+                                      className="text-xs bg-indigo-600 hover:bg-indigo-700 text-white font-bold"
+                                    >
+                                      <Check className="mr-1 h-3.5 w-3.5" />
+                                      Appliquer la durée ({Math.max(1, Math.round((parseFloat(taskOptimistic) + 4 * parseFloat(taskMostLikely) + parseFloat(taskPessimistic)) / 6))} j)
+                                    </Button>
+                                  </div>
                                 </div>
                               )}
                             </div>
