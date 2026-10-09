@@ -47,6 +47,8 @@ import {
   RefreshCw,
   Coins,
   Calculator,
+  Upload,
+  Download,
 } from 'lucide-react';
 import { Navbar } from '../../components/Navbar';
 import { PertNetworkDiagram } from './components/PertNetworkDiagram';
@@ -544,6 +546,36 @@ export function ProjectDetailScreen() {
   const [delivTitle, setDelivTitle] = useState('');
   const [delivDesc, setDelivDesc] = useState('');
   const [delivUrl, setDelivUrl] = useState('');
+  const [delivFileName, setDelivFileName] = useState('');
+  const [delivAttachMode, setDelivAttachMode] = useState<'file' | 'link'>('file');
+
+  // Evolution log attachment state
+  const [logAttachMode, setLogAttachMode] = useState<'link' | 'file'>('file');
+  const [logFileName, setLogFileName] = useState('');
+
+  // Helper for uploading local file up to 1MB as Base64 Data URL
+  const handleFileUpload = (
+    file: File,
+    setUrl: (url: string) => void,
+    setName: (name: string) => void,
+    maxSizeMb = 1
+  ) => {
+    const maxBytes = maxSizeMb * 1024 * 1024;
+    if (file.size > maxBytes) {
+      alert(`⚠️ Le fichier "${file.name}" dépasse la taille maximale autorisée de ${maxSizeMb} Mo (${(file.size / (1024 * 1024)).toFixed(2)} Mo). Veuillez sélectionner un fichier plus léger ou fournir un lien cloud.`);
+      return;
+    }
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      const result = e.target?.result as string;
+      setUrl(result);
+      setName(file.name);
+    };
+    reader.onerror = () => {
+      alert('Erreur lors de la lecture du fichier.');
+    };
+    reader.readAsDataURL(file);
+  };
 
   const invalidate = () => queryClient.invalidateQueries({ queryKey: ['project', id] });
 
@@ -1298,22 +1330,33 @@ export function ProjectDetailScreen() {
   const addDeliverableMutation = useMutation({
     mutationFn: async () => {
       if (!selectedTask) return;
+      if (!delivTitle.trim()) {
+        throw new Error('Le titre du livrable est requis');
+      }
       const res = await fetch(`/api/v1/projects/${id}/plan-items/${selectedTask.id}/deliverables`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          title: delivTitle,
-          description: delivDesc || undefined,
-          fileUrl: delivUrl || undefined,
+          title: delivTitle.trim(),
+          description: delivDesc.trim() || undefined,
+          fileUrl: delivUrl.trim() || undefined,
         }),
       });
-      if (!res.ok) throw new Error('Erreur dépôt livrable');
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error(err.message || 'Erreur lors de l\'enregistrement du livrable');
+      }
       return res.json();
     },
     onSuccess: () => {
       invalidate();
-      setDelivTitle(''); setDelivDesc(''); setDelivUrl(''); setShowDeliverableModal(false);
+      setDelivTitle('');
+      setDelivDesc('');
+      setDelivUrl('');
+      setDelivFileName('');
+      setShowDeliverableModal(false);
     },
+    onError: (err: any) => alert(err.message),
   });
 
   const verifyDeliverableMutation = useMutation({
@@ -4738,19 +4781,74 @@ export function ProjectDetailScreen() {
                                 </div>
                               )}
 
-                              {/* Justificatif / Pièce jointe optionnelle */}
-                              <div>
-                                <label className="mb-1 block text-xs font-semibold text-slate-700">
-                                  {logProgress >= 100
-                                    ? "Lien vers livrable / justificatif de fin de tâche (URL cloud, Drive...)"
-                                    : "Lien vers justificatif d'étape (optionnel)"}
-                                </label>
-                                <Input
-                                  value={logAttachmentUrl}
-                                  onChange={(e) => setLogAttachmentUrl(e.target.value)}
-                                  placeholder="https://drive.google.com/... ou https://sharepoint.com/..."
-                                  className="bg-white text-xs"
-                                />
+                              {/* Justificatif / Pièce jointe optionnelle (Lien URL ou Fichier direct max 1Mo) */}
+                              <div className="space-y-1.5">
+                                <div className="flex items-center justify-between">
+                                  <label className="text-xs font-semibold text-slate-700">
+                                    {logProgress >= 100
+                                      ? "Justificatif / Livrable de fin de tâche"
+                                      : "Justificatif d'étape (optionnel)"}
+                                  </label>
+                                  <div className="flex items-center gap-1 p-0.5 bg-slate-100 rounded-md text-[10px] font-bold">
+                                    <button
+                                      type="button"
+                                      onClick={() => setLogAttachMode('file')}
+                                      className={`px-1.5 py-0.5 rounded ${logAttachMode === 'file' ? 'bg-white text-indigo-700 shadow-2xs' : 'text-slate-500 hover:text-slate-800'}`}
+                                    >
+                                      📎 Fichier (1 Mo max)
+                                    </button>
+                                    <button
+                                      type="button"
+                                      onClick={() => setLogAttachMode('link')}
+                                      className={`px-1.5 py-0.5 rounded ${logAttachMode === 'link' ? 'bg-white text-indigo-700 shadow-2xs' : 'text-slate-500 hover:text-slate-800'}`}
+                                    >
+                                      🔗 Lien Cloud
+                                    </button>
+                                  </div>
+                                </div>
+
+                                {logAttachMode === 'file' ? (
+                                  <div>
+                                    {logFileName ? (
+                                      <div className="flex items-center justify-between bg-slate-50 border border-slate-200 rounded-lg p-2 text-xs">
+                                        <div className="flex items-center gap-1.5 truncate">
+                                          <Paperclip className="h-3.5 w-3.5 text-indigo-600 shrink-0" />
+                                          <span className="font-semibold text-slate-800 truncate">{logFileName}</span>
+                                        </div>
+                                        <Button
+                                          type="button"
+                                          variant="ghost"
+                                          size="sm"
+                                          onClick={() => { setLogAttachmentUrl(''); setLogFileName(''); }}
+                                          className="h-5 text-[10px] text-red-600 hover:bg-red-50 px-1.5 font-semibold"
+                                        >
+                                          Retirer
+                                        </Button>
+                                      </div>
+                                    ) : (
+                                      <label className="flex items-center justify-center border border-dashed border-slate-300 hover:border-indigo-400 bg-white rounded-lg p-2.5 cursor-pointer transition gap-2 text-xs text-slate-600">
+                                        <Upload className="h-4 w-4 text-indigo-600" />
+                                        <span>Joindre un fichier (Max 1 Mo - PDF, images, docs...)</span>
+                                        <input
+                                          type="file"
+                                          className="hidden"
+                                          accept=".pdf,.doc,.docx,.xls,.xlsx,.png,.jpg,.jpeg,.zip,.csv,.txt"
+                                          onChange={(e) => {
+                                            const file = e.target.files?.[0];
+                                            if (file) handleFileUpload(file, setLogAttachmentUrl, setLogFileName, 1);
+                                          }}
+                                        />
+                                      </label>
+                                    )}
+                                  </div>
+                                ) : (
+                                  <Input
+                                    value={logAttachmentUrl}
+                                    onChange={(e) => setLogAttachmentUrl(e.target.value)}
+                                    placeholder="https://drive.google.com/... ou https://sharepoint.com/..."
+                                    className="bg-white text-xs"
+                                  />
+                                )}
                               </div>
 
                               {/* Commentaire de compte-rendu */}
@@ -4790,6 +4888,7 @@ export function ProjectDetailScreen() {
                                     setLogBlocker('');
                                     setLogComment('');
                                     setLogAttachmentUrl('');
+                                    setLogFileName('');
                                   }}
                                   className="text-xs text-slate-500 hover:text-slate-800"
                                 >
@@ -4822,37 +4921,108 @@ export function ProjectDetailScreen() {
                         </div>
 
                         {showDeliverableModal && (
-                          <div className="rounded-lg border border-emerald-200 bg-emerald-50 p-4 space-y-3">
-                            <h4 className="text-xs font-bold text-emerald-900">Nouveau livrable de fin de tâche</h4>
-                            <Input
-                              value={delivTitle}
-                              onChange={(e) => setDelivTitle(e.target.value)}
-                              placeholder="Intitulé du livrable (ex: Rapport d'évaluation final)"
-                              className="text-xs bg-white"
-                            />
-                            <textarea
-                              value={delivDesc}
-                              onChange={(e) => setDelivDesc(e.target.value)}
-                              rows={2}
-                              className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs"
-                              placeholder="Détails ou synthèse des résultats..."
-                            />
-                            <Input
-                              value={delivUrl}
-                              onChange={(e) => setDelivUrl(e.target.value)}
-                              placeholder="URL du fichier (Drive, Cloud, etc.)"
-                              className="text-xs bg-white"
-                            />
-                            <div className="flex gap-2">
+                          <div className="rounded-lg border border-emerald-200 bg-emerald-50 p-4 space-y-3.5 animate-in fade-in-50 duration-150">
+                            <h4 className="text-xs font-bold text-emerald-900 flex items-center gap-1.5">
+                              <PackageCheck className="h-4 w-4 text-emerald-600" />
+                              Nouveau livrable de fin de tâche
+                            </h4>
+                            <div>
+                              <label className="mb-1 block text-xs font-semibold text-emerald-950">Intitulé du livrable *</label>
+                              <Input
+                                value={delivTitle}
+                                onChange={(e) => setDelivTitle(e.target.value)}
+                                placeholder="Intitulé du livrable (ex: Rapport d'évaluation final, PV de recette...)"
+                                className="text-xs bg-white"
+                              />
+                            </div>
+                            <div>
+                              <label className="mb-1 block text-xs font-semibold text-emerald-950">Détails ou synthèse des résultats</label>
+                              <textarea
+                                value={delivDesc}
+                                onChange={(e) => setDelivDesc(e.target.value)}
+                                rows={2}
+                                className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs"
+                                placeholder="Détails ou synthèse des résultats..."
+                              />
+                            </div>
+
+                            {/* Pièce jointe / Livrable (Fichier 1Mo ou Lien) */}
+                            <div className="space-y-1.5">
+                              <div className="flex items-center justify-between">
+                                <label className="text-xs font-semibold text-emerald-950">Fichier / Justificatif joint</label>
+                                <div className="flex items-center gap-1 p-0.5 bg-emerald-100 rounded-md text-[10px] font-bold">
+                                  <button
+                                    type="button"
+                                    onClick={() => setDelivAttachMode('file')}
+                                    className={`px-1.5 py-0.5 rounded ${delivAttachMode === 'file' ? 'bg-white text-emerald-900 shadow-2xs' : 'text-emerald-700 hover:text-emerald-900'}`}
+                                  >
+                                    📎 Fichier direct (1 Mo max)
+                                  </button>
+                                  <button
+                                    type="button"
+                                    onClick={() => setDelivAttachMode('link')}
+                                    className={`px-1.5 py-0.5 rounded ${delivAttachMode === 'link' ? 'bg-white text-emerald-900 shadow-2xs' : 'text-emerald-700 hover:text-emerald-900'}`}
+                                  >
+                                    🔗 Lien Cloud / Drive
+                                  </button>
+                                </div>
+                              </div>
+
+                              {delivAttachMode === 'file' ? (
+                                <div>
+                                  {delivFileName ? (
+                                    <div className="flex items-center justify-between bg-white border border-emerald-300 rounded-lg p-2 text-xs">
+                                      <div className="flex items-center gap-1.5 truncate">
+                                        <Paperclip className="h-3.5 w-3.5 text-emerald-600 shrink-0" />
+                                        <span className="font-semibold text-emerald-950 truncate">{delivFileName}</span>
+                                      </div>
+                                      <Button
+                                        type="button"
+                                        variant="ghost"
+                                        size="sm"
+                                        onClick={() => { setDelivUrl(''); setDelivFileName(''); }}
+                                        className="h-5 text-[10px] text-red-600 hover:bg-red-50 px-1.5 font-semibold"
+                                      >
+                                        Retirer
+                                      </Button>
+                                    </div>
+                                  ) : (
+                                    <label className="flex flex-col items-center justify-center border-2 border-dashed border-emerald-300 hover:border-emerald-500 bg-white rounded-lg p-3.5 cursor-pointer transition gap-1 text-xs text-emerald-900">
+                                      <Upload className="h-5 w-5 text-emerald-600" />
+                                      <span className="font-bold">Cliquez pour joindre un fichier</span>
+                                      <span className="text-[10px] text-slate-500">PDF, Word, Excel, Images, Zip (Taille max : 1 Mo)</span>
+                                      <input
+                                        type="file"
+                                        className="hidden"
+                                        accept=".pdf,.doc,.docx,.xls,.xlsx,.png,.jpg,.jpeg,.zip,.csv,.txt"
+                                        onChange={(e) => {
+                                          const file = e.target.files?.[0];
+                                          if (file) handleFileUpload(file, setDelivUrl, setDelivFileName, 1);
+                                        }}
+                                      />
+                                    </label>
+                                  )}
+                                </div>
+                              ) : (
+                                <Input
+                                  value={delivUrl}
+                                  onChange={(e) => setDelivUrl(e.target.value)}
+                                  placeholder="URL du fichier (https://drive.google.com/...)"
+                                  className="text-xs bg-white"
+                                />
+                              )}
+                            </div>
+
+                            <div className="flex gap-2 pt-1 border-t border-emerald-200">
                               <Button
                                 size="sm"
                                 onClick={() => addDeliverableMutation.mutate()}
                                 disabled={!delivTitle.trim() || addDeliverableMutation.isPending}
-                                className="text-xs bg-emerald-600 hover:bg-emerald-700 text-white"
+                                className="text-xs bg-emerald-600 hover:bg-emerald-700 text-white font-bold"
                               >
-                                Enregistrer le livrable
+                                {addDeliverableMutation.isPending ? 'Enregistrement...' : 'Enregistrer le livrable'}
                               </Button>
-                              <Button size="sm" variant="ghost" onClick={() => setShowDeliverableModal(false)} className="text-xs">
+                              <Button size="sm" variant="ghost" onClick={() => setShowDeliverableModal(false)} className="text-xs text-slate-600">
                                 Annuler
                               </Button>
                             </div>
@@ -4869,9 +5039,26 @@ export function ProjectDetailScreen() {
                                   <span className="font-bold text-slate-900 block">{deliv.title}</span>
                                   {deliv.description && <p className="text-slate-500 mt-0.5">{deliv.description}</p>}
                                   {deliv.fileUrl && (
-                                    <a href={deliv.fileUrl} target="_blank" rel="noreferrer" className="text-indigo-600 hover:underline mt-1 inline-flex items-center gap-1">
-                                      <Paperclip className="h-3 w-3" /> Voir le document
-                                    </a>
+                                    <div className="mt-1.5">
+                                      {deliv.fileUrl.startsWith('data:') ? (
+                                        <a
+                                          href={deliv.fileUrl}
+                                          download={deliv.title ? `${deliv.title.replace(/[^a-zA-Z0-9_-]/g, '_')}` : 'livrable'}
+                                          className="inline-flex items-center gap-1 font-bold text-emerald-700 bg-emerald-50 px-2.5 py-1 rounded border border-emerald-200 hover:bg-emerald-100 text-[11px] transition shadow-2xs"
+                                        >
+                                          <Download className="h-3.5 w-3.5" /> Télécharger la pièce jointe
+                                        </a>
+                                      ) : (
+                                        <a
+                                          href={deliv.fileUrl}
+                                          target="_blank"
+                                          rel="noreferrer"
+                                          className="inline-flex items-center gap-1 font-semibold text-indigo-600 hover:underline text-[11px]"
+                                        >
+                                          <Paperclip className="h-3.5 w-3.5" /> Voir le document externe
+                                        </a>
+                                      )}
+                                    </div>
                                   )}
                                 </div>
                                 <span className={`rounded-full px-2 py-0.5 text-[11px] font-bold ${

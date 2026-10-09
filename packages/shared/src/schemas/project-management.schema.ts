@@ -151,7 +151,7 @@ export const CreatePlanItemUpdateSchema = z.object({
   status: z.enum(['todo', 'in_progress', 'review', 'blocked', 'completed', 'cancelled']).optional(),
   comment: z.string().min(2, 'Le commentaire de compte-rendu est requis'),
   blockerReason: z.string().optional(),
-  attachmentUrl: z.string().optional(),
+  attachmentUrl: z.string().optional().or(z.literal('')),
 });
 
 export type CreatePlanItemUpdateInput = z.infer<typeof CreatePlanItemUpdateSchema>;
@@ -159,7 +159,7 @@ export type CreatePlanItemUpdateInput = z.infer<typeof CreatePlanItemUpdateSchem
 export const CreatePlanItemDeliverableSchema = z.object({
   title: z.string().min(2, 'Le titre du livrable est requis'),
   description: z.string().optional(),
-  fileUrl: z.string().url('URL invalide').optional().or(z.literal('')),
+  fileUrl: z.string().optional().or(z.literal('')),
 });
 
 export type CreatePlanItemDeliverableInput = z.infer<typeof CreatePlanItemDeliverableSchema>;
