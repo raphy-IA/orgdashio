@@ -4616,220 +4616,275 @@ export function ProjectDetailScreen() {
                     )}
 
                     {/* Évolution de l'avancement & Point d'étape */}
-                    <div className="rounded-xl border border-indigo-200 bg-indigo-50/40 p-5 shadow-sm space-y-4">
-                      <div className="flex items-center justify-between">
-                        <div>
-                          <h3 className="flex items-center gap-2 font-bold text-indigo-950 text-sm">
-                            <Sparkles className="h-4 w-4 text-indigo-600" />
-                            Consigner un point d'étape opérationnel (Journal de bord)
-                          </h3>
-                          <p className="text-xs text-slate-500">
-                            Tout changement de progression est tracé et mis à jour selon la gouvernance RACI.
-                          </p>
-                        </div>
-                        <span className="rounded-lg bg-indigo-600 px-3 py-1 text-sm font-bold text-white shadow-sm font-mono">
-                          {logProgress}%
-                        </span>
-                      </div>
+                    {(() => {
+                      const initialProgress = currentTask.progressPct || 0;
+                      const initialBlocked = currentTask.status === 'blocked';
+                      const hasPendingEvolution = logProgress !== initialProgress || logIsBlocked !== initialBlocked;
 
-                      {/* Quick Preset Buttons */}
-                      <div className="flex flex-wrap items-center gap-1.5">
-                        {[0, 25, 50, 75, 100].map((pct) => (
-                          <button
-                            key={pct}
-                            type="button"
-                            onClick={() => {
-                              setLogProgress(pct);
-                              if (pct === 100) setLogIsBlocked(false);
-                            }}
-                            className={`px-2.5 py-1 rounded-lg text-xs font-bold transition border ${
-                              logProgress === pct
-                                ? 'bg-indigo-600 text-white border-indigo-600 shadow-xs'
-                                : 'bg-white text-slate-700 border-slate-200 hover:bg-slate-100'
-                            }`}
-                          >
-                            {pct === 0 ? '0% (À faire)' : pct === 100 ? '100% (Demander revue)' : `${pct}%`}
-                          </button>
-                        ))}
-                      </div>
+                      return (
+                        <div className="rounded-xl border border-indigo-200 bg-indigo-50/40 p-5 shadow-sm space-y-4">
+                          <div className="flex items-center justify-between">
+                            <div>
+                              <h3 className="flex items-center gap-2 font-bold text-indigo-950 text-sm">
+                                <Sparkles className="h-4 w-4 text-indigo-600" />
+                                Faire évoluer l'avancement réel & Statut
+                              </h3>
+                              <p className="text-xs text-slate-500">
+                                Ajustez l'avancement (%) ou signalez un blocage pour consigner un point d'étape.
+                              </p>
+                            </div>
+                            <span className="rounded-lg bg-indigo-600 px-3 py-1 text-sm font-bold text-white shadow-sm font-mono">
+                              {logProgress}%
+                            </span>
+                          </div>
 
-                      {/* Slider */}
-                      <div>
-                        <input
-                          type="range"
-                          min={0}
-                          max={100}
-                          step={5}
-                          value={logProgress}
-                          onChange={(e) => setLogProgress(Number(e.target.value))}
-                          className="h-2.5 w-full cursor-pointer appearance-none rounded-lg bg-indigo-200 accent-indigo-600"
-                        />
-                      </div>
+                          {/* Quick Preset Buttons */}
+                          <div className="flex flex-wrap items-center gap-1.5">
+                            {[0, 25, 50, 75, 100].map((pct) => (
+                              <button
+                                key={pct}
+                                type="button"
+                                onClick={() => {
+                                  setLogProgress(pct);
+                                  if (pct === 100) setLogIsBlocked(false);
+                                }}
+                                className={`px-2.5 py-1 rounded-lg text-xs font-bold transition border ${
+                                  logProgress === pct
+                                    ? 'bg-indigo-600 text-white border-indigo-600 shadow-xs'
+                                    : 'bg-white text-slate-700 border-slate-200 hover:bg-slate-100'
+                                }`}
+                              >
+                                {pct === 0 ? '0% (À faire)' : pct === 100 ? '100% (Demander revue)' : `${pct}%`}
+                              </button>
+                            ))}
+                          </div>
 
-                      {/* Statut projeté automatique */}
-                      <div className="flex items-center justify-between rounded-lg bg-white p-3 border border-indigo-100 text-xs">
-                        <span className="text-slate-600 font-medium">Statut résultant :</span>
-                        <span className={`inline-flex items-center gap-1 font-bold ${
-                          logIsBlocked
-                            ? 'text-red-700'
-                            : logProgress >= 100
-                              ? 'text-amber-700'
-                              : logProgress > 0
-                                ? 'text-indigo-700'
-                                : 'text-slate-600'
-                        }`}>
-                          {logIsBlocked
-                            ? '🔴 Bloqué'
-                            : logProgress >= 100
-                              ? '🛡️ En révision (Visa RACI A requis)'
-                              : logProgress > 0
-                                ? '⏳ En cours'
-                                : '⚪ À faire (0%)'}
-                        </span>
-                      </div>
-
-                      {/* Option Signalement de blocage ou attente */}
-                      <div className="rounded-lg border bg-white p-3">
-                        <label className="flex items-center gap-2 text-xs font-bold text-slate-700 cursor-pointer">
-                          <input
-                            type="checkbox"
-                            checked={logIsBlocked}
-                            onChange={(e) => setLogIsBlocked(e.target.checked)}
-                            className="h-4 w-4 rounded border-slate-300 text-red-600 focus:ring-red-500"
-                          />
-                          Signaler un blocage ou une attente extérieure
-                        </label>
-                        {logIsBlocked && (
-                          <div className="mt-2">
-                            <Input
-                              value={logBlocker}
-                              onChange={(e) => setLogBlocker(e.target.value)}
-                              placeholder="Raison du blocage (ex: attente de validation, pièce manquante...)"
-                              className="border-red-300 bg-red-50/50 text-xs"
+                          {/* Slider */}
+                          <div>
+                            <input
+                              type="range"
+                              min={0}
+                              max={100}
+                              step={5}
+                              value={logProgress}
+                              onChange={(e) => setLogProgress(Number(e.target.value))}
+                              className="h-2.5 w-full cursor-pointer appearance-none rounded-lg bg-indigo-200 accent-indigo-600"
                             />
+                          </div>
+
+                          {/* Statut projeté automatique */}
+                          <div className="flex items-center justify-between rounded-lg bg-white p-3 border border-indigo-100 text-xs">
+                            <span className="text-slate-600 font-medium">Statut résultant :</span>
+                            <span className={`inline-flex items-center gap-1 font-bold ${
+                              logIsBlocked
+                                ? 'text-red-700'
+                                : logProgress >= 100
+                                  ? 'text-amber-700'
+                                  : logProgress > 0
+                                    ? 'text-indigo-700'
+                                    : 'text-slate-600'
+                            }`}>
+                              {logIsBlocked
+                                ? '🔴 Bloqué'
+                                : logProgress >= 100
+                                  ? '🛡️ En révision (Visa RACI A requis)'
+                                  : logProgress > 0
+                                    ? '⏳ En cours'
+                                    : '⚪ À faire (0%)'}
+                            </span>
+                          </div>
+
+                          {/* Option Signalement de blocage ou attente */}
+                          <div className="rounded-lg border bg-white p-3">
+                            <label className="flex items-center gap-2 text-xs font-bold text-slate-700 cursor-pointer">
+                              <input
+                                type="checkbox"
+                                checked={logIsBlocked}
+                                onChange={(e) => setLogIsBlocked(e.target.checked)}
+                                className="h-4 w-4 rounded border-slate-300 text-red-600 focus:ring-red-500"
+                              />
+                              Signaler un blocage ou une attente extérieure
+                            </label>
+                          </div>
+
+                          {/* Zone conditionnelle : uniquement en cas d'évolution d'avancement ou blocage */}
+                          {!hasPendingEvolution ? (
+                            <div className="rounded-lg border border-dashed border-indigo-200 bg-white/70 p-3.5 text-center text-xs text-slate-500">
+                              💡 <strong>Aucun changement en attente :</strong> Modifiez le curseur ci-dessus ou cochez un blocage pour consigner un point d'étape opérationnel.
+                            </div>
+                          ) : (
+                            <div className="rounded-xl border-2 border-indigo-300 bg-white p-4 shadow-xs space-y-3 animate-in fade-in-50 duration-200">
+                              <div className="flex items-center justify-between border-b border-indigo-100 pb-2">
+                                <span className="text-xs font-bold text-indigo-950 flex items-center gap-1.5">
+                                  📝 Renseignement obligatoire du point d'étape
+                                </span>
+                                <span className="text-[11px] font-semibold text-indigo-700 bg-indigo-50 px-2 py-0.5 rounded border border-indigo-100">
+                                  {initialProgress}% → <strong>{logProgress}%</strong> {logIsBlocked ? '(Bloqué)' : ''}
+                                </span>
+                              </div>
+
+                              {/* Raison du blocage (si coché) */}
+                              {logIsBlocked && (
+                                <div>
+                                  <label className="mb-1 block text-xs font-bold text-red-700">
+                                    Motif du blocage *
+                                  </label>
+                                  <Input
+                                    value={logBlocker}
+                                    onChange={(e) => setLogBlocker(e.target.value)}
+                                    placeholder="Précisez la cause exacte du blocage (pièce manquante, attente de validation...)"
+                                    className="border-red-300 bg-red-50/50 text-xs text-red-900 font-medium"
+                                  />
+                                </div>
+                              )}
+
+                              {/* Justificatif / Pièce jointe optionnelle */}
+                              <div>
+                                <label className="mb-1 block text-xs font-semibold text-slate-700">
+                                  {logProgress >= 100
+                                    ? "Lien vers livrable / justificatif de fin de tâche (URL cloud, Drive...)"
+                                    : "Lien vers justificatif d'étape (optionnel)"}
+                                </label>
+                                <Input
+                                  value={logAttachmentUrl}
+                                  onChange={(e) => setLogAttachmentUrl(e.target.value)}
+                                  placeholder="https://drive.google.com/... ou https://sharepoint.com/..."
+                                  className="bg-white text-xs"
+                                />
+                              </div>
+
+                              {/* Commentaire de compte-rendu */}
+                              <div>
+                                <label className="mb-1 block text-xs font-semibold text-slate-700">
+                                  Commentaire / Note d'évolution *
+                                </label>
+                                <textarea
+                                  value={logComment}
+                                  onChange={(e) => setLogComment(e.target.value)}
+                                  rows={2}
+                                  className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500"
+                                  placeholder="Détaillez l'état d'avancement des travaux, réalisations ou difficultés..."
+                                />
+                              </div>
+
+                              <div className="flex items-center gap-2 pt-1">
+                                <Button
+                                  size="sm"
+                                  onClick={() => addUpdateLogMutation.mutate()}
+                                  disabled={
+                                    !logComment.trim() ||
+                                    (logIsBlocked && !logBlocker.trim()) ||
+                                    addUpdateLogMutation.isPending
+                                  }
+                                  className="bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs"
+                                >
+                                  <Send className="mr-1.5 h-3.5 w-3.5" />
+                                  {addUpdateLogMutation.isPending ? 'Enregistrement...' : 'Consigner le point d\'étape'}
+                                </Button>
+                                <Button
+                                  size="sm"
+                                  variant="ghost"
+                                  onClick={() => {
+                                    setLogProgress(initialProgress);
+                                    setLogIsBlocked(initialBlocked);
+                                    setLogBlocker('');
+                                    setLogComment('');
+                                    setLogAttachmentUrl('');
+                                  }}
+                                  className="text-xs text-slate-500 hover:text-slate-800"
+                                >
+                                  Annuler
+                                </Button>
+                              </div>
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })()}
+
+                    {/* Livrables & Preuves d'achèvement : Affiché uniquement si la tâche est à 100%, en révision/terminée, ou a déjà des livrables */}
+                    {(currentTask.progressPct >= 100 || currentTask.status === 'review' || currentTask.status === 'completed' || taskDeliverables.length > 0) && (
+                      <div className="rounded-xl border bg-white p-5 shadow-sm space-y-4">
+                        <div className="flex items-center justify-between border-b pb-3">
+                          <div>
+                            <h3 className="flex items-center gap-2 font-bold text-slate-900 text-sm">
+                              <PackageCheck className="h-5 w-5 text-emerald-600" />
+                              Livrables & Preuves d'Achèvement
+                            </h3>
+                            <p className="text-xs text-slate-500">
+                              Comptes-rendus, documents finaux et validation formelle de fin de tâche.
+                            </p>
+                          </div>
+                          <Button size="sm" onClick={() => setShowDeliverableModal(!showDeliverableModal)} className="text-xs">
+                            <Plus className="mr-1 h-4 w-4" />
+                            Déposer un livrable
+                          </Button>
+                        </div>
+
+                        {showDeliverableModal && (
+                          <div className="rounded-lg border border-emerald-200 bg-emerald-50 p-4 space-y-3">
+                            <h4 className="text-xs font-bold text-emerald-900">Nouveau livrable de fin de tâche</h4>
+                            <Input
+                              value={delivTitle}
+                              onChange={(e) => setDelivTitle(e.target.value)}
+                              placeholder="Intitulé du livrable (ex: Rapport d'évaluation final)"
+                              className="text-xs bg-white"
+                            />
+                            <textarea
+                              value={delivDesc}
+                              onChange={(e) => setDelivDesc(e.target.value)}
+                              rows={2}
+                              className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs"
+                              placeholder="Détails ou synthèse des résultats..."
+                            />
+                            <Input
+                              value={delivUrl}
+                              onChange={(e) => setDelivUrl(e.target.value)}
+                              placeholder="URL du fichier (Drive, Cloud, etc.)"
+                              className="text-xs bg-white"
+                            />
+                            <div className="flex gap-2">
+                              <Button
+                                size="sm"
+                                onClick={() => addDeliverableMutation.mutate()}
+                                disabled={!delivTitle.trim() || addDeliverableMutation.isPending}
+                                className="text-xs bg-emerald-600 hover:bg-emerald-700 text-white"
+                              >
+                                Enregistrer le livrable
+                              </Button>
+                              <Button size="sm" variant="ghost" onClick={() => setShowDeliverableModal(false)} className="text-xs">
+                                Annuler
+                              </Button>
+                            </div>
+                          </div>
+                        )}
+
+                        {taskDeliverables.length === 0 ? (
+                          <p className="text-xs text-slate-400 italic">Aucun livrable déposé pour cette tâche.</p>
+                        ) : (
+                          <div className="space-y-2">
+                            {taskDeliverables.map((deliv: any) => (
+                              <div key={deliv.id} className="rounded-lg border p-3 flex items-center justify-between text-xs">
+                                <div>
+                                  <span className="font-bold text-slate-900 block">{deliv.title}</span>
+                                  {deliv.description && <p className="text-slate-500 mt-0.5">{deliv.description}</p>}
+                                  {deliv.fileUrl && (
+                                    <a href={deliv.fileUrl} target="_blank" rel="noreferrer" className="text-indigo-600 hover:underline mt-1 inline-flex items-center gap-1">
+                                      <Paperclip className="h-3 w-3" /> Voir le document
+                                    </a>
+                                  )}
+                                </div>
+                                <span className={`rounded-full px-2 py-0.5 text-[11px] font-bold ${
+                                  deliv.status === 'approved' ? 'bg-emerald-100 text-emerald-800' : deliv.status === 'rejected' ? 'bg-red-100 text-red-800' : 'bg-amber-100 text-amber-800'
+                                }`}>
+                                  {deliv.status === 'approved' ? 'Approuvé' : deliv.status === 'rejected' ? 'Rejeté' : 'En attente'}
+                                </span>
+                              </div>
+                            ))}
                           </div>
                         )}
                       </div>
-
-                      {/* Justificatif / Pièce jointe optionnelle */}
-                      <div>
-                        <label className="mb-1 block text-xs font-semibold text-slate-700">
-                          Lien vers livrable / justificatif (URL cloud, document...)
-                        </label>
-                        <Input
-                          value={logAttachmentUrl}
-                          onChange={(e) => setLogAttachmentUrl(e.target.value)}
-                          placeholder="https://drive.google.com/... ou https://sharepoint.com/..."
-                          className="bg-white text-xs"
-                        />
-                      </div>
-
-                      {/* Commentaire de compte-rendu */}
-                      <div>
-                        <label className="mb-1 block text-xs font-semibold text-slate-700">
-                          Commentaire / Note d'évolution *
-                        </label>
-                        <textarea
-                          value={logComment}
-                          onChange={(e) => setLogComment(e.target.value)}
-                          rows={2}
-                          className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500"
-                          placeholder="Ex: 50% réalisé, travaux en cours par l'équipe..."
-                        />
-                      </div>
-
-                      <Button
-                        size="sm"
-                        onClick={() => addUpdateLogMutation.mutate()}
-                        disabled={!logComment.trim() || addUpdateLogMutation.isPending}
-                        className="bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs"
-                      >
-                        <Send className="mr-1.5 h-3.5 w-3.5" />
-                        {addUpdateLogMutation.isPending ? 'Enregistrement...' : 'Consigner le point d\'étape'}
-                      </Button>
-                    </div>
-
-                    {/* Livrables & Preuves d'achèvement */}
-                    <div className="rounded-xl border bg-white p-5 shadow-sm space-y-4">
-                      <div className="flex items-center justify-between border-b pb-3">
-                        <div>
-                          <h3 className="flex items-center gap-2 font-bold text-slate-900 text-sm">
-                            <PackageCheck className="h-5 w-5 text-emerald-600" />
-                            Livrables & Preuves d'Achèvement
-                          </h3>
-                          <p className="text-xs text-slate-500">
-                            Comptes-rendus, documents finaux et validation formelle.
-                          </p>
-                        </div>
-                        <Button size="sm" onClick={() => setShowDeliverableModal(!showDeliverableModal)} className="text-xs">
-                          <Plus className="mr-1 h-4 w-4" />
-                          Déposer un livrable
-                        </Button>
-                      </div>
-
-                      {showDeliverableModal && (
-                        <div className="rounded-lg border border-emerald-200 bg-emerald-50 p-4 space-y-3">
-                          <h4 className="text-xs font-bold text-emerald-900">Nouveau livrable de fin de tâche</h4>
-                          <Input
-                            value={delivTitle}
-                            onChange={(e) => setDelivTitle(e.target.value)}
-                            placeholder="Intitulé du livrable (ex: Rapport d'évaluation final)"
-                            className="text-xs bg-white"
-                          />
-                          <textarea
-                            value={delivDesc}
-                            onChange={(e) => setDelivDesc(e.target.value)}
-                            rows={2}
-                            className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs"
-                            placeholder="Détails ou synthèse des résultats..."
-                          />
-                          <Input
-                            value={delivUrl}
-                            onChange={(e) => setDelivUrl(e.target.value)}
-                            placeholder="URL du fichier (Drive, Cloud, etc.)"
-                            className="text-xs bg-white"
-                          />
-                          <div className="flex gap-2">
-                            <Button
-                              size="sm"
-                              onClick={() => addDeliverableMutation.mutate()}
-                              disabled={!delivTitle.trim() || addDeliverableMutation.isPending}
-                              className="text-xs bg-emerald-600 hover:bg-emerald-700 text-white"
-                            >
-                              Enregistrer le livrable
-                            </Button>
-                            <Button size="sm" variant="ghost" onClick={() => setShowDeliverableModal(false)} className="text-xs">
-                              Annuler
-                            </Button>
-                          </div>
-                        </div>
-                      )}
-
-                      {taskDeliverables.length === 0 ? (
-                        <p className="text-xs text-slate-400 italic">Aucun livrable déposé pour cette tâche.</p>
-                      ) : (
-                        <div className="space-y-2">
-                          {taskDeliverables.map((deliv: any) => (
-                            <div key={deliv.id} className="rounded-lg border p-3 flex items-center justify-between text-xs">
-                              <div>
-                                <span className="font-bold text-slate-900 block">{deliv.title}</span>
-                                {deliv.description && <p className="text-slate-500 mt-0.5">{deliv.description}</p>}
-                                {deliv.fileUrl && (
-                                  <a href={deliv.fileUrl} target="_blank" rel="noreferrer" className="text-indigo-600 hover:underline mt-1 inline-flex items-center gap-1">
-                                    <Paperclip className="h-3 w-3" /> Voir le document
-                                  </a>
-                                )}
-                              </div>
-                              <span className={`rounded-full px-2 py-0.5 text-[11px] font-bold ${
-                                deliv.status === 'approved' ? 'bg-emerald-100 text-emerald-800' : deliv.status === 'rejected' ? 'bg-red-100 text-red-800' : 'bg-amber-100 text-amber-800'
-                              }`}>
-                                {deliv.status === 'approved' ? 'Approuvé' : deliv.status === 'rejected' ? 'Rejeté' : 'En attente'}
-                              </span>
-                            </div>
-                          ))}
-                        </div>
-                      )}
-                    </div>
+                    )}
 
                     {/* Historique du journal de bord */}
                     <div className="rounded-xl border bg-white p-5 shadow-sm space-y-3">
