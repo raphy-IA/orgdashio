@@ -58,6 +58,7 @@ import { BudgetPlanningView } from './components/BudgetPlanningView';
 import { TaskExecutionHub } from './components/TaskExecutionHub';
 import { ProjectMonitoringHub } from './components/ProjectMonitoringHub';
 import { ProjectOverviewView } from './components/ProjectOverviewView';
+import { ProjectStrategicHub } from './components/strategy/ProjectStrategicHub';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 type TabKey = 'overview' | 'strategy' | 'planning' | 'execution' | 'monitoring';
@@ -604,16 +605,17 @@ export function ProjectDetailScreen() {
 
   // ── Mutations ──
   const addResultNode = useMutation({
-    mutationFn: async () => {
+    mutationFn: async (nodePayload?: { level?: string; title?: string; description?: string | null; parentId?: string | null }) => {
+      const payload = nodePayload || {
+        level: rnLevel,
+        title: rnTitle,
+        description: rnDesc || undefined,
+        parentId: rnParentId || undefined,
+      };
       const res = await fetch(`/api/v1/projects/${id}/result-nodes`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          level: rnLevel,
-          title: rnTitle,
-          description: rnDesc || undefined,
-          parentId: rnParentId || undefined,
-        }),
+        body: JSON.stringify(payload),
       });
       if (!res.ok) throw new Error('Erreur');
       return res.json();
@@ -1010,18 +1012,32 @@ export function ProjectDetailScreen() {
     },
   });
 
+  const updateProjectMutation = useMutation({
+    mutationFn: async (updates: any) => {
+      const res = await fetch(`/api/v1/projects/${id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(updates),
+      });
+      if (!res.ok) throw new Error('Erreur lors de la mise à jour du projet');
+      return res.json();
+    },
+    onSuccess: () => invalidate(),
+  });
+
   const addFunding = useMutation({
-    mutationFn: async () => {
+    mutationFn: async (fundingPayload?: any) => {
+      const payload = fundingPayload || {
+        donorName: fsName,
+        fundingType: fsType,
+        amount: parseFloat(fsAmount),
+        currency: 'CAD',
+        reportDueAt: fsDue || undefined,
+      };
       const res = await fetch(`/api/v1/projects/${id}/funding-sources`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          donorName: fsName,
-          fundingType: fsType,
-          amount: parseFloat(fsAmount),
-          currency: 'CAD',
-          reportDueAt: fsDue || undefined,
-        }),
+        body: JSON.stringify(payload),
       });
       if (!res.ok) throw new Error('Erreur');
       return res.json();
@@ -1096,18 +1112,19 @@ export function ProjectDetailScreen() {
   });
 
   const addMemberMutation = useMutation({
-    mutationFn: async () => {
+    mutationFn: async (memberPayload?: any) => {
+      const payload = memberPayload || {
+        partyId: tmPartyId || undefined,
+        name: tmName,
+        email: tmEmail || undefined,
+        role: tmRole,
+        raciRole: tmRaciRole,
+        allocationPct: parseInt(tmAllocation) || 100,
+      };
       const res = await fetch(`/api/v1/projects/${id}/members`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          partyId: tmPartyId || undefined,
-          name: tmName,
-          email: tmEmail || undefined,
-          role: tmRole,
-          raciRole: tmRaciRole,
-          allocationPct: parseInt(tmAllocation) || 100,
-        }),
+        body: JSON.stringify(payload),
       });
       if (!res.ok) throw new Error('Erreur ajout membre');
       return res.json();
@@ -1661,870 +1678,49 @@ export function ProjectDetailScreen() {
         {/* PILIER 1: CADRAGE & STRATÉGIE                                   */}
         {/* ═══════════════════════════════════════════════════════════════ */}
         {activeTab === 'strategy' && (
-          <div className="space-y-6">
-            {/* Sub-tab Navigation */}
-            <div className="flex items-center gap-1.5 p-1 bg-slate-200/80 rounded-xl w-fit border border-slate-300 shadow-2xs">
-              <button
-                onClick={() => setStrategySubTab('logframe')}
-                className={`flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg text-xs font-bold transition ${
-                  strategySubTab === 'logframe' ? 'bg-white text-indigo-700 shadow-xs' : 'text-slate-600 hover:text-slate-900'
-                }`}
-              >
-                <Target className="h-3.5 w-3.5" />
-                Cadre Logique & Objectifs
-              </button>
-              <button
-                onClick={() => setStrategySubTab('funding')}
-                className={`flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg text-xs font-bold transition ${
-                  strategySubTab === 'funding' ? 'bg-white text-violet-700 shadow-xs' : 'text-slate-600 hover:text-slate-900'
-                }`}
-              >
-                <HandCoins className="h-3.5 w-3.5" />
-                Bailleurs & Financements ({fundingSources.length})
-              </button>
-              <button
-                onClick={() => setStrategySubTab('team')}
-                className={`flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg text-xs font-bold transition ${
-                  strategySubTab === 'team' ? 'bg-white text-indigo-700 shadow-xs' : 'text-slate-600 hover:text-slate-900'
-                }`}
-              >
-                <Users className="h-3.5 w-3.5" />
-                Équipe & Matrice RACI ({members.length})
-              </button>
-            </div>
-
-            {/* Sub-tab 1: Cadre Logique */}
-            {strategySubTab === 'logframe' && (
-              <div className="space-y-4">
-            <div className="flex items-center justify-between">
-              <div>
-                <h2 className="text-base font-bold text-slate-800">Cadre Logique (Chaîne de Résultats)</h2>
-                <p className="text-sm text-slate-500">Hiérarchie Impact → Résultat → Extrant</p>
-              </div>
-              <Button size="sm" onClick={() => setShowResultNodeForm(!showResultNodeForm)}>
-                <Plus className="mr-2 h-4 w-4" />
-                Ajouter un nœud
-              </Button>
-            </div>
-
-            {/* Add Result Node Form */}
-            {showResultNodeForm && (
-              <div className="rounded-xl border border-indigo-200 bg-indigo-50 p-5 shadow-sm">
-                <h3 className="mb-4 text-sm font-semibold text-indigo-800">Nouveau nœud de résultat</h3>
-                <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-                  <div>
-                    <label className="mb-1 block text-xs font-medium text-slate-600">Niveau</label>
-                    <select
-                      value={rnLevel}
-                      onChange={(e) => setRnLevel(e.target.value as typeof rnLevel)}
-                      className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm"
-                    >
-                      <option value="impact">Impact</option>
-                      <option value="outcome">Résultat (Outcome)</option>
-                      <option value="output">Extrant (Output)</option>
-                    </select>
-                  </div>
-                  <div>
-                    <label className="mb-1 block text-xs font-medium text-slate-600">Nœud parent (optionnel)</label>
-                    <select
-                      value={rnParentId}
-                      onChange={(e) => setRnParentId(e.target.value)}
-                      className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm"
-                    >
-                      <option value="">— Aucun (racine) —</option>
-                      {resultNodes.map((rn: any) => (
-                        <option key={rn.id} value={rn.id}>
-                          [{LEVEL_CONFIG[rn.level as keyof typeof LEVEL_CONFIG]?.label}] {rn.title}
-                        </option>
-                      ))}
-                    </select>
-                  </div>
-                  <div className="sm:col-span-2">
-                    <label className="mb-1 block text-xs font-medium text-slate-600">Titre *</label>
-                    <Input value={rnTitle} onChange={(e) => setRnTitle(e.target.value)} placeholder="Ex: Améliorer l'accès à la formation..." />
-                  </div>
-                  <div className="sm:col-span-2">
-                    <label className="mb-1 block text-xs font-medium text-slate-600">Description (optionnel)</label>
-                    <textarea
-                      value={rnDesc}
-                      onChange={(e) => setRnDesc(e.target.value)}
-                      rows={2}
-                      className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm"
-                      placeholder="Contexte, indicateurs visés..."
-                    />
-                  </div>
-                </div>
-                <div className="mt-4 flex gap-2">
-                  <Button size="sm" onClick={() => addResultNode.mutate()} disabled={!rnTitle.trim() || addResultNode.isPending}>
-                    Enregistrer
-                  </Button>
-                  <Button size="sm" variant="ghost" onClick={() => setShowResultNodeForm(false)}>
-                    Annuler
-                  </Button>
-                </div>
-              </div>
-            )}
-
-            {/* Result Nodes Tree */}
-            {resultNodes.length === 0 ? (
-              <div className="rounded-xl border border-dashed border-slate-200 bg-white p-10 text-center">
-                <Target className="mx-auto mb-3 h-10 w-10 text-slate-300" />
-                <p className="text-sm font-medium text-slate-500">Aucun nœud de résultat défini</p>
-                <p className="mt-1 text-xs text-slate-400">Commencez par définir l'impact principal du projet.</p>
-              </div>
-            ) : (
-              <div className="space-y-2">
-                {(['impact', 'outcome', 'output'] as const).map((level) => {
-                  const nodes = resultNodes.filter((n: any) => n.level === level);
-                  if (nodes.length === 0) return null;
-                  const cfg = LEVEL_CONFIG[level];
-                  return (
-                    <div key={level}>
-                      <div className={`mb-1 flex items-center gap-2 text-xs font-bold uppercase tracking-wider`} style={{ paddingLeft: `${cfg.indent * 24}px` }}>
-                        <span className={`rounded-full border px-2 py-0.5 ${cfg.color}`}>{cfg.label}</span>
-                      </div>
-                      {nodes.map((node: any) => (
-                        <div
-                          key={node.id}
-                          className={`mb-2 rounded-lg border bg-white p-4 shadow-sm flex items-start justify-between gap-4`}
-                          style={{ marginLeft: `${cfg.indent * 24}px` }}
-                        >
-                          <div>
-                            <p className="font-medium text-slate-800">{node.title}</p>
-                            {node.description && (
-                              <p className="mt-1 text-sm text-slate-500">{node.description}</p>
-                            )}
-                          </div>
-                          <button
-                            type="button"
-                            onClick={() => {
-                              if (window.confirm(`Supprimer le nœud de résultat "${node.title}" ?`)) {
-                                deleteResultNode.mutate(node.id);
-                              }
-                            }}
-                            className="text-slate-400 hover:text-rose-600 p-1.5 rounded hover:bg-rose-50 transition-colors flex-shrink-0"
-                            title="Supprimer ce nœud"
-                          >
-                            <Trash2 className="h-4 w-4" />
-                          </button>
-                        </div>
-                      ))}
-                    </div>
-                  );
-                })}
-              </div>
-            )}
-          </div>
-            )}
-
-            {/* Sub-tab 2: Bailleurs & Financements */}
-            {strategySubTab === 'funding' && (
-              <div className="space-y-4">
-            <div className="flex items-center justify-between">
-              <div>
-                <h2 className="text-base font-bold text-slate-800">Sources de Financement</h2>
-                <p className="text-sm text-slate-500">Bailleurs de fonds, subventions et dons</p>
-              </div>
-              <Button size="sm" onClick={() => setShowFundingForm(!showFundingForm)}>
-                <Plus className="mr-2 h-4 w-4" />
-                Ajouter un bailleur
-              </Button>
-            </div>
-
-            {/* Funding form */}
-            {showFundingForm && (
-              <div className="rounded-xl border border-violet-200 bg-violet-50 p-5 shadow-sm">
-                <h3 className="mb-4 text-sm font-semibold text-violet-800">Nouveau bailleur de fonds</h3>
-                <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-                  <div>
-                    <label className="mb-1 block text-xs font-medium text-slate-600">Nom du bailleur *</label>
-                    <Input value={fsName} onChange={(e) => setFsName(e.target.value)} placeholder="Ex: Fondation XYZ, MSSS..." />
-                  </div>
-                  <div>
-                    <label className="mb-1 block text-xs font-medium text-slate-600">Type de financement</label>
-                    <select
-                      value={fsType}
-                      onChange={(e) => setFsType(e.target.value)}
-                      className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm"
-                    >
-                      {Object.entries(FUNDING_TYPE_LABELS).map(([k, v]) => (
-                        <option key={k} value={k}>{v}</option>
-                      ))}
-                    </select>
-                  </div>
-                  <div>
-                    <label className="mb-1 block text-xs font-medium text-slate-600">Montant (CAD) *</label>
-                    <Input type="number" value={fsAmount} onChange={(e) => setFsAmount(e.target.value)} placeholder="0.00" />
-                  </div>
-                  <div>
-                    <label className="mb-1 block text-xs font-medium text-slate-600">Date de rapport due</label>
-                    <Input type="date" value={fsDue} onChange={(e) => setFsDue(e.target.value)} />
-                  </div>
-                </div>
-                <div className="mt-4 flex gap-2">
-                  <Button size="sm" onClick={() => addFunding.mutate()} disabled={!fsName.trim() || !fsAmount || addFunding.isPending}>
-                    Enregistrer
-                  </Button>
-                  <Button size="sm" variant="ghost" onClick={() => setShowFundingForm(false)}>Annuler</Button>
-                </div>
-              </div>
-            )}
-
-            {/* Total */}
-            {fundingSources.length > 0 && (
-              <div className="flex items-center justify-between rounded-xl border bg-violet-50 px-5 py-4">
-                <span className="text-sm font-semibold text-violet-800">Total financé</span>
-                <span className="text-xl font-bold text-violet-900">{fmt(totalFunding)}</span>
-              </div>
-            )}
-
-            {/* Funding cards */}
-            {fundingSources.length === 0 ? (
-              <div className="rounded-xl border border-dashed border-slate-200 bg-white p-10 text-center">
-                <HandCoins className="mx-auto mb-3 h-10 w-10 text-slate-300" />
-                <p className="text-sm font-medium text-slate-500">Aucune source de financement</p>
-                <p className="mt-1 text-xs text-slate-400">Ajoutez les bailleurs de fonds du projet.</p>
-              </div>
-            ) : (
-              <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
-                {fundingSources.map((fs: any) => (
-                  <div key={fs.id} className="relative rounded-xl border bg-white p-5 shadow-sm group">
-                    <div className="mb-3 flex items-start justify-between">
-                      <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-violet-100">
-                        <HandCoins className="h-5 w-5 text-violet-600" />
-                      </div>
-                      <div className="flex items-center gap-2">
-                        <span className="rounded-full bg-slate-100 px-2 py-0.5 text-xs font-medium text-slate-600">
-                          {FUNDING_TYPE_LABELS[fs.fundingType] || fs.fundingType}
-                        </span>
-                        <Button
-                          size="sm"
-                          variant="ghost"
-                          className="h-7 w-7 p-0 text-slate-300 hover:text-red-600 hover:bg-red-50"
-                          title="Supprimer cette source de financement"
-                          onClick={() => {
-                            if (window.confirm(`Supprimer le financement "${fs.donorName}" (${fmt(fs.amount)}) ?`)) {
-                              deleteFundingSource.mutate(fs.id);
-                            }
-                          }}
-                        >
-                          <Trash2 className="h-3.5 w-3.5" />
-                        </Button>
-                      </div>
-                    </div>
-                    <h3 className="font-semibold text-slate-800">{fs.donorName}</h3>
-                    <p className="mt-1 text-xl font-bold text-violet-700">{fmt(fs.amount, fs.currency || 'CAD')}</p>
-                    {fs.reportDueAt && (
-                      <p className="mt-2 text-xs text-slate-400">
-                        Rapport dû: <span className="font-medium text-slate-600">{fs.reportDueAt}</span>
-                      </p>
-                    )}
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
-            )}
-
-            {/* Sub-tab 3: Équipe & RACI */}
-            {strategySubTab === 'team' && (() => {
-              // Sort items for RACI Matrix
-          const sortedPlanItems = [...planItems].sort((a: any, b: any) => {
-            const partsA = (a.wbs || '').split('.').map((n: string) => parseInt(n, 10) || 0);
-            const partsB = (b.wbs || '').split('.').map((n: string) => parseInt(n, 10) || 0);
-            const len = Math.max(partsA.length, partsB.length);
-            for (let i = 0; i < len; i++) {
-              const valA = partsA[i] ?? -1;
-              const valB = partsB[i] ?? -1;
-              if (valA !== valB) return valA - valB;
-            }
-            return (a.title || '').localeCompare(b.title || '');
-          });
-
-          // Filter plan items for RACI view
-          const filteredRaciItems = sortedPlanItems.filter((item: any) => {
-            if (raciFilterType !== 'all' && item.type !== raciFilterType) return false;
-            if (raciSearch.trim() && !item.title.toLowerCase().includes(raciSearch.toLowerCase()) && !item.wbs.includes(raciSearch)) {
-              return false;
-            }
-            return true;
-          });
-
-          // Compute overall RACI coverage (items with at least 1 R and 1 A)
-          const compliantItemsCount = planItems.filter((item: any) => {
-            const itemRacis = raci.filter((r: any) => r.planItemId === item.id);
-            const countA = itemRacis.filter((r: any) => r.raciRole === 'A').length;
-            const countR = itemRacis.filter((r: any) => r.raciRole === 'R').length;
-            return countA === 1 && countR >= 1;
-          }).length;
-
-          const raciCoveragePct = planItems.length > 0 ? Math.round((compliantItemsCount / planItems.length) * 100) : 0;
-
-          return (
-            <div className="space-y-8">
-              {/* Header & KPI Summary */}
-              <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-                <div>
-                  <h2 className="text-xl font-bold text-slate-900 flex items-center gap-2">
-                    <Users className="h-6 w-6 text-indigo-600" />
-                    Parties Prenantes & Matrice RACI
-                  </h2>
-                  <p className="text-sm text-slate-500 mt-1">
-                    Affectation des membres de l'organisation et gouvernance fine des responsabilités par Phase, Activité et Livrable
-                  </p>
-                </div>
-                <Button
-                  onClick={() => {
-                    setShowMemberForm(true);
-                    setTmSourceType('personnel');
-                    setTmPartyId('');
-                    setTmName('');
-                    setTmEmail('');
-                  }}
-                  className="shadow-sm"
-                >
-                  <Plus className="mr-2 h-4 w-4" />
-                  Ajouter une partie prenante
-                </Button>
-              </div>
-
-              {/* KPI Cards */}
-              <div className="grid grid-cols-1 gap-4 sm:grid-cols-4">
-                <div className="rounded-xl border bg-white p-4 shadow-sm">
-                  <span className="text-xs font-semibold uppercase tracking-wider text-slate-500">Parties prenantes</span>
-                  <p className="mt-1 text-2xl font-bold text-slate-900">{members.length}</p>
-                  <p className="text-xs text-slate-400 mt-0.5">Affectées à ce projet</p>
-                </div>
-                <div className="rounded-xl border bg-white p-4 shadow-sm">
-                  <span className="text-xs font-semibold uppercase tracking-wider text-slate-500">Éléments WBS couverts</span>
-                  <p className="mt-1 text-2xl font-bold text-indigo-600">{compliantItemsCount} / {planItems.length}</p>
-                  <p className="text-xs text-slate-400 mt-0.5">Avec Approbateur (A) & Réalisateur (R)</p>
-                </div>
-                <div className="rounded-xl border bg-white p-4 shadow-sm">
-                  <span className="text-xs font-semibold uppercase tracking-wider text-slate-500">Conformité RACI</span>
-                  <p className={`mt-1 text-2xl font-bold ${raciCoveragePct >= 80 ? 'text-emerald-600' : raciCoveragePct >= 50 ? 'text-amber-600' : 'text-slate-700'}`}>
-                    {raciCoveragePct}%
-                  </p>
-                  <p className="text-xs text-slate-400 mt-0.5">Qualité de la gouvernance</p>
-                </div>
-                <div className="rounded-xl border bg-white p-4 shadow-sm">
-                  <span className="text-xs font-semibold uppercase tracking-wider text-slate-500">Affectations actives</span>
-                  <p className="mt-1 text-2xl font-bold text-purple-600">{raci.length}</p>
-                  <p className="text-xs text-slate-400 mt-0.5">Rôles attribués dans la grille</p>
-                </div>
-              </div>
-
-              {/* Stakeholder Addition Modal / Form */}
-              {showMemberForm && (
-                <div className="rounded-xl border border-indigo-200 bg-indigo-50/70 p-6 shadow-md animate-in fade-in duration-200">
-                  <div className="flex items-center justify-between border-b border-indigo-100 pb-3 mb-4">
-                    <div>
-                      <h3 className="text-base font-bold text-indigo-950 flex items-center gap-2">
-                        <UserCheck className="h-5 w-5 text-indigo-600" />
-                        Ajouter une partie prenante ou un membre au projet
-                      </h3>
-                      <p className="text-xs text-slate-600">
-                        Sélectionnez un membre existant du personnel ou ajoutez un partenaire / consultant externe
-                      </p>
-                    </div>
-                    <Button variant="ghost" size="sm" onClick={() => setShowMemberForm(false)}>
-                      <X className="h-5 w-5" />
-                    </Button>
-                  </div>
-
-                  {/* Mode Selector Tabs */}
-                  <div className="mb-4 flex gap-2">
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setTmSourceType('personnel');
-                        setTmPartyId('');
-                        setTmName('');
-                        setTmEmail('');
-                      }}
-                      className={`rounded-lg px-4 py-2 text-xs font-bold transition ${
-                        tmSourceType === 'personnel'
-                          ? 'bg-indigo-600 text-white shadow-sm'
-                          : 'bg-white text-slate-700 hover:bg-slate-100 border'
-                      }`}
-                    >
-                      👥 Personnel / Membre de l'organisation
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setTmSourceType('external');
-                        setTmPartyId('');
-                        setTmName('');
-                        setTmEmail('');
-                      }}
-                      className={`rounded-lg px-4 py-2 text-xs font-bold transition ${
-                        tmSourceType === 'external'
-                          ? 'bg-indigo-600 text-white shadow-sm'
-                          : 'bg-white text-slate-700 hover:bg-slate-100 border'
-                      }`}
-                    >
-                      🌐 Partie prenante externe / Consultant / Partenaire
-                    </button>
-                  </div>
-
-                  <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
-                    {/* Personnel Selector from Org People Directory */}
-                    {tmSourceType === 'personnel' ? (
-                      <div className="sm:col-span-2">
-                        <label className="mb-1 block text-xs font-bold text-slate-700">
-                          Sélectionner un membre du personnel / contact existant *
-                        </label>
-                        <select
-                          value={tmPartyId}
-                          onChange={(e) => {
-                            const pId = e.target.value;
-                            setTmPartyId(pId);
-                            const found = orgPeople.find((p: any) => p.id === pId);
-                            if (found) {
-                              setTmName(`${found.firstName || ''} ${found.lastName || ''}`.trim() || 'Sans nom');
-                              setTmEmail(found.email || '');
-                            } else {
-                              setTmName('');
-                              setTmEmail('');
-                            }
-                          }}
-                          className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500"
-                        >
-                          <option value="">— Choisir dans le répertoire de l'organisation —</option>
-                          {orgPeople.map((p: any) => (
-                            <option key={p.id} value={p.id}>
-                              {p.firstName} {p.lastName} {p.email ? `(${p.email})` : ''}
-                            </option>
-                          ))}
-                        </select>
-                        {orgPeople.length === 0 && (
-                          <p className="mt-1 text-xs text-amber-600">
-                            Aucune personne enregistrée dans l'annuaire. Vous pouvez basculer en mode externe ou enregistrer du personnel dans le module Personnes.
-                          </p>
-                        )}
-                      </div>
-                    ) : (
-                      <>
-                        <div>
-                          <label className="mb-1 block text-xs font-bold text-slate-700">Nom complet *</label>
-                          <Input
-                            value={tmName}
-                            onChange={(e) => setTmName(e.target.value)}
-                            placeholder="Ex: Jean Dupont"
-                            className="bg-white"
-                          />
-                        </div>
-                        <div>
-                          <label className="mb-1 block text-xs font-bold text-slate-700">Courriel</label>
-                          <Input
-                            type="email"
-                            value={tmEmail}
-                            onChange={(e) => setTmEmail(e.target.value)}
-                            placeholder="jean.dupont@partenaire.org"
-                            className="bg-white"
-                          />
-                        </div>
-                      </>
-                    )}
-
-                    {/* Role in Project */}
-                    <div>
-                      <label className="mb-1 block text-xs font-bold text-slate-700">Rôle dans le projet *</label>
-                      <select
-                        value={tmRole}
-                        onChange={(e) => setTmRole(e.target.value as ProjectMember['role'])}
-                        className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500"
-                      >
-                        {Object.entries(MEMBER_ROLE_LABELS).map(([k, v]) => (
-                          <option key={k} value={k}>{v.label}</option>
-                        ))}
-                      </select>
-                    </div>
-
-                    {/* Allocation % */}
-                    <div>
-                      <label className="mb-1 block text-xs font-bold text-slate-700">Taux d'allocation prévisionnel (%)</label>
-                      <Input
-                        type="number"
-                        min={1}
-                        max={100}
-                        value={tmAllocation}
-                        onChange={(e) => setTmAllocation(e.target.value)}
-                        className="bg-white"
-                      />
-                    </div>
-                  </div>
-
-                  <div className="mt-5 flex items-center justify-end gap-2">
-                    <Button variant="ghost" size="sm" onClick={() => setShowMemberForm(false)}>
-                      Annuler
-                    </Button>
-                    <Button
-                      size="sm"
-                      onClick={() => addMemberMutation.mutate()}
-                      disabled={!tmName.trim() || addMemberMutation.isPending}
-                    >
-                      <Check className="mr-1.5 h-4 w-4" />
-                      Confirmer l'affectation
-                    </Button>
-                  </div>
-                </div>
-              )}
-
-              {/* ─────────────────────────────────────────────────────────── */}
-              {/* SECTION 1: RÉPERTOIRE DES PARTIES PRENANTES & ÉQUIPE PROJET */}
-              {/* ─────────────────────────────────────────────────────────── */}
-              <div className="rounded-xl border bg-white shadow-sm overflow-hidden">
-                <div className="flex items-center justify-between border-b bg-slate-50 px-6 py-4">
-                  <div>
-                    <h3 className="font-bold text-slate-900">1. Répertoire des Parties Prenantes & Équipe Projet</h3>
-                    <p className="text-xs text-slate-500">Liste des intervenants avec bilan de leurs responsabilités sur le projet</p>
-                  </div>
-                  <span className="text-xs font-semibold text-slate-500">{members.length} membre(s)</span>
-                </div>
-
-                {members.length === 0 ? (
-                  <div className="p-8 text-center text-slate-400">
-                    <Users className="mx-auto mb-2 h-8 w-8 text-slate-300" />
-                    <p className="text-sm font-medium">Aucune partie prenante affectée au projet.</p>
-                    <p className="text-xs mt-1">Ajoutez des membres de l'organisation pour pouvoir leur assigner des rôles RACI.</p>
-                  </div>
-                ) : (
-                  <table className="w-full text-left text-sm">
-                    <thead className="border-b bg-slate-50/70 text-xs font-semibold uppercase text-slate-500">
-                      <tr>
-                        <th className="px-6 py-3">Nom & Contact</th>
-                        <th className="px-6 py-3">Provenance</th>
-                        <th className="px-6 py-3">Rôle projet</th>
-                        <th className="px-6 py-3 text-center">Implication</th>
-                        <th className="px-6 py-3 text-center">Bilan des Rôles RACI</th>
-                        <th className="px-6 py-3 text-right">Action</th>
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-slate-100">
-                      {members.map((member: any) => {
-                        const roleCfg = MEMBER_ROLE_LABELS[member.role] || MEMBER_ROLE_LABELS.contributor;
-                        const memberRacis = raci.filter((r: any) => r.projectMemberId === member.id);
-                        const countR = memberRacis.filter((r: any) => r.raciRole === 'R').length;
-                        const countA = memberRacis.filter((r: any) => r.raciRole === 'A').length;
-                        const countC = memberRacis.filter((r: any) => r.raciRole === 'C').length;
-                        const countI = memberRacis.filter((r: any) => r.raciRole === 'I').length;
-
-                        return (
-                          <tr key={member.id} className="hover:bg-slate-50">
-                            <td className="px-6 py-3">
-                              <div className="font-bold text-slate-900">{member.name}</div>
-                              {member.email && <div className="text-xs text-slate-400">{member.email}</div>}
-                            </td>
-                            <td className="px-6 py-3">
-                              <span className={`inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-xs font-semibold ${
-                                member.partyId || member.userId
-                                  ? 'bg-blue-50 text-blue-700 border border-blue-200'
-                                  : 'bg-slate-100 text-slate-600 border border-slate-200'
-                              }`}>
-                                {member.partyId || member.userId ? '🏢 Membre Organisation' : '🌐 Externe / Partenaire'}
-                              </span>
-                            </td>
-                            <td className="px-6 py-3">
-                              <span className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-semibold border ${roleCfg.color}`}>
-                                {roleCfg.label}
-                              </span>
-                            </td>
-                            <td className="px-6 py-3 text-center font-mono text-xs font-bold text-slate-700">
-                              {member.allocationPct}%
-                            </td>
-                            <td className="px-6 py-3">
-                              <div className="flex items-center justify-center gap-1.5">
-                                <span title="Réalisateur (R)" className="inline-flex items-center gap-0.5 rounded px-1.5 py-0.5 text-[11px] font-bold bg-indigo-100 text-indigo-800 border border-indigo-200">
-                                  R: {countR}
-                                </span>
-                                <span title="Approbateur (A)" className="inline-flex items-center gap-0.5 rounded px-1.5 py-0.5 text-[11px] font-bold bg-amber-100 text-amber-900 border border-amber-200">
-                                  A: {countA}
-                                </span>
-                                <span title="Consulté (C)" className="inline-flex items-center gap-0.5 rounded px-1.5 py-0.5 text-[11px] font-bold bg-purple-100 text-purple-800 border border-purple-200">
-                                  C: {countC}
-                                </span>
-                                <span title="Informé (I)" className="inline-flex items-center gap-0.5 rounded px-1.5 py-0.5 text-[11px] font-bold bg-teal-100 text-teal-800 border border-teal-200">
-                                  I: {countI}
-                                </span>
-                              </div>
-                            </td>
-                            <td className="px-6 py-3 text-right">
-                              <Button
-                                size="sm"
-                                variant="ghost"
-                                className="text-red-600 hover:bg-red-50 hover:text-red-700 h-8 w-8 p-0"
-                                onClick={() => removeMemberMutation.mutate(member.id)}
-                              >
-                                <Trash2 className="h-4 w-4" />
-                              </Button>
-                            </td>
-                          </tr>
-                        );
-                      })}
-                    </tbody>
-                  </table>
-                )}
-              </div>
-
-              {/* ─────────────────────────────────────────────────────────── */}
-              {/* SECTION 2: MATRICE RACI 2D PAR PHASE / ACTIVITÉ / TÂCHE     */}
-              {/* ─────────────────────────────────────────────────────────── */}
-              <div className="rounded-xl border bg-white shadow-sm overflow-hidden">
-                {/* RACI Matrix Header & Toolbar */}
-                <div className="border-b bg-slate-50 p-6 space-y-4">
-                  <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-                    <div>
-                      <h3 className="text-base font-bold text-slate-900 flex items-center gap-2">
-                        <ShieldCheck className="h-5 w-5 text-indigo-600" />
-                        2. Matrice RACI 2D par Phase, Activité et Livrable
-                      </h3>
-                      <p className="text-xs text-slate-500 mt-0.5">
-                        Définissez les responsabilités précises pour chaque élément WBS en attribuant les rôles aux parties prenantes
-                      </p>
-                    </div>
-                  </div>
-
-                  {/* Filter Toolbar */}
-                  <div className="flex flex-wrap items-center justify-between gap-3 pt-2">
-                    {/* Type filter buttons */}
-                    <div className="flex flex-wrap gap-1">
-                      {[
-                        { key: 'all', label: 'Tout afficher' },
-                        { key: 'phase', label: 'Phases' },
-                        { key: 'activity', label: 'Activités' },
-                        { key: 'task', label: 'Tâches' },
-                        { key: 'deliverable', label: 'Livrables' },
-                      ].map((f) => (
-                        <button
-                          key={f.key}
-                          type="button"
-                          onClick={() => setRaciFilterType(f.key)}
-                          className={`rounded-lg px-3 py-1.5 text-xs font-semibold transition ${
-                            raciFilterType === f.key
-                              ? 'bg-indigo-600 text-white shadow-sm'
-                              : 'bg-white text-slate-600 border hover:bg-slate-100'
-                          }`}
-                        >
-                          {f.label}
-                        </button>
-                      ))}
-                    </div>
-
-                    {/* Quick Search */}
-                    <div className="w-64">
-                      <Input
-                        value={raciSearch}
-                        onChange={(e) => setRaciSearch(e.target.value)}
-                        placeholder="Rechercher une phase ou activité..."
-                        className="h-8 text-xs bg-white"
-                      />
-                    </div>
-                  </div>
-                </div>
-
-                {/* RACI Matrix Table */}
-                {planItems.length === 0 ? (
-                  <div className="p-10 text-center text-slate-400">
-                    <Layers className="mx-auto mb-2 h-8 w-8 text-slate-300" />
-                    <p className="text-sm font-medium">Aucun élément dans le WBS pour l'instant.</p>
-                    <p className="text-xs mt-1">Créez des phases, activités ou tâches dans l'onglet Planification (WBS) pour construire la matrice RACI.</p>
-                  </div>
-                ) : members.length === 0 ? (
-                  <div className="p-10 text-center text-slate-400">
-                    <Users className="mx-auto mb-2 h-8 w-8 text-slate-300" />
-                    <p className="text-sm font-medium">Veuillez d'abord ajouter au moins une partie prenante ci-dessus.</p>
-                  </div>
-                ) : (
-                  <div className="overflow-x-auto">
-                    <table className="w-full text-left text-xs border-collapse">
-                      <thead className="border-b bg-slate-100/90 text-slate-700 font-bold sticky top-0 z-10">
-                        <tr>
-                          {/* WBS Item Column */}
-                          <th className="min-w-[280px] max-w-[340px] px-4 py-3.5 border-r border-slate-200">
-                            Élément du Projet (WBS)
-                          </th>
-
-                          {/* Dynamic Member Columns */}
-                          {members.map((member: any) => (
-                            <th key={member.id} className="min-w-[130px] px-3 py-3 text-center border-r border-slate-200 bg-slate-50/60">
-                              <div className="font-bold text-slate-900 truncate" title={member.name}>
-                                {member.name}
-                              </div>
-                              <div className="text-[10px] font-medium text-slate-500 truncate" title={MEMBER_ROLE_LABELS[member.role]?.label || member.role}>
-                                {MEMBER_ROLE_LABELS[member.role]?.label || member.role}
-                              </div>
-                            </th>
-                          ))}
-
-                          {/* Governance Checker Column */}
-                          <th className="min-w-[170px] px-4 py-3.5 text-center bg-slate-100">
-                            Gouvernance RACI
-                          </th>
-                        </tr>
-                      </thead>
-
-                      <tbody className="divide-y divide-slate-200">
-                        {filteredRaciItems.map((item: any) => {
-                          const depth = (item.wbs.split('.').length - 1);
-                          const typeCfg = TYPE_CONFIG[item.type] || TYPE_CONFIG.activity;
-
-                          // Governance check
-                          const itemRacis = raci.filter((r: any) => r.planItemId === item.id);
-                          const countA = itemRacis.filter((r: any) => r.raciRole === 'A').length;
-                          const countR = itemRacis.filter((r: any) => r.raciRole === 'R').length;
-
-                          const isCompliant = countA === 1 && countR >= 1;
-
-                          return (
-                            <tr key={item.id} className={`hover:bg-indigo-50/30 transition ${item.type === 'phase' ? 'bg-slate-50/60 font-semibold' : ''}`}>
-                              {/* WBS Title & Info */}
-                              <td className="px-4 py-3 border-r border-slate-200">
-                                <div className="flex items-center gap-2" style={{ paddingLeft: `${depth * 14}px` }}>
-                                  <span className="font-mono text-[11px] font-bold text-slate-500">{item.wbs}</span>
-                                  <span className={`inline-flex items-center gap-0.5 rounded px-1.5 py-0.5 text-[10px] font-bold ${typeCfg.badgeClass}`}>
-                                    {typeCfg.icon}
-                                    {typeCfg.label}
-                                  </span>
-                                  <span className="font-medium text-slate-900 truncate" title={item.title}>
-                                    {item.title}
-                                  </span>
-                                </div>
-                              </td>
-
-                              {/* Member RACI Cells */}
-                              {members.map((member: any) => {
-                                const assignment = raci.find(
-                                  (r: any) => r.planItemId === item.id && r.projectMemberId === member.id
-                                );
-                                const currentRole = assignment?.raciRole as ('R' | 'A' | 'C' | 'I' | undefined);
-
-                                return (
-                                  <td key={member.id} className="px-2 py-2 text-center border-r border-slate-200">
-                                    <div className="flex items-center justify-center">
-                                      <select
-                                        value={currentRole || ''}
-                                        onChange={(e) => {
-                                          const val = e.target.value as 'R' | 'A' | 'C' | 'I' | '';
-                                          setRaciMutation.mutate({
-                                            planItemId: item.id,
-                                            projectMemberId: member.id,
-                                            raciRole: val ? val : null,
-                                          });
-                                        }}
-                                        className={`w-24 rounded-lg px-2 py-1 text-xs font-bold text-center border cursor-pointer transition ${
-                                          currentRole === 'R'
-                                            ? 'bg-indigo-600 text-white border-indigo-700 shadow-sm'
-                                            : currentRole === 'A'
-                                              ? 'bg-amber-500 text-white border-amber-600 shadow-sm'
-                                              : currentRole === 'C'
-                                                ? 'bg-purple-600 text-white border-purple-700 shadow-sm'
-                                                : currentRole === 'I'
-                                                  ? 'bg-teal-600 text-white border-teal-700 shadow-sm'
-                                                  : 'bg-slate-50 text-slate-400 border-slate-200 hover:border-slate-300'
-                                        }`}
-                                      >
-                                        <option value="">— Aucun —</option>
-                                        <option value="R">R (Réalisateur)</option>
-                                        <option value="A">A (Approbateur)</option>
-                                        <option value="C">C (Consulté)</option>
-                                        <option value="I">I (Informé)</option>
-                                      </select>
-                                    </div>
-                                  </td>
-                                );
-                              })}
-
-                              {/* Governance status */}
-                              <td className="px-4 py-2 text-center">
-                                {isCompliant ? (
-                                  <span className="inline-flex items-center gap-1 rounded-full bg-emerald-100 px-2.5 py-0.5 text-[11px] font-bold text-emerald-800">
-                                    <CheckCircle2 className="h-3 w-3" />
-                                    Conforme (1 A, {countR} R)
-                                  </span>
-                                ) : countA === 0 ? (
-                                  <span className="inline-flex items-center gap-1 rounded-full bg-amber-100 px-2.5 py-0.5 text-[11px] font-bold text-amber-900" title="Chaque élément du projet devrait avoir un décideur / approbateur unique">
-                                    <AlertTriangle className="h-3 w-3 text-amber-700" />
-                                    Aucun Approbateur (A)
-                                  </span>
-                                ) : countA > 1 ? (
-                                  <span className="inline-flex items-center gap-1 rounded-full bg-red-100 px-2.5 py-0.5 text-[11px] font-bold text-red-800" title="Il est déconseillé d'avoir plusieurs 'A' (confusion sur la responsabilité finale)">
-                                    <AlertTriangle className="h-3 w-3 text-red-700" />
-                                    Conflit ({countA} 'A')
-                                  </span>
-                                ) : (
-                                  <span className="inline-flex items-center gap-1 rounded-full bg-blue-100 px-2.5 py-0.5 text-[11px] font-bold text-blue-800">
-                                    ℹ️ Aucun Réalisateur (R)
-                                  </span>
-                                )}
-                              </td>
-                            </tr>
-                          );
-                        })}
-                      </tbody>
-
-                      {/* Summary Footer: Totals per member */}
-                      <tfoot className="border-t-2 border-slate-300 bg-slate-100 text-slate-700 font-bold">
-                        <tr>
-                          <td className="px-4 py-3 border-r border-slate-200">
-                            Total des Rôles par Partie Prenante
-                          </td>
-                          {members.map((member: any) => {
-                            const memberRacis = raci.filter((r: any) => r.projectMemberId === member.id);
-                            const countR = memberRacis.filter((r: any) => r.raciRole === 'R').length;
-                            const countA = memberRacis.filter((r: any) => r.raciRole === 'A').length;
-                            const countC = memberRacis.filter((r: any) => r.raciRole === 'C').length;
-                            const countI = memberRacis.filter((r: any) => r.raciRole === 'I').length;
-
-                            return (
-                              <td key={member.id} className="px-2 py-3 text-center border-r border-slate-200">
-                                <div className="flex flex-col gap-0.5 text-[10px]">
-                                  <span className="text-indigo-700">R: {countR}</span>
-                                  <span className="text-amber-700">A: {countA}</span>
-                                  <span className="text-purple-700">C: {countC}</span>
-                                  <span className="text-teal-700">I: {countI}</span>
-                                </div>
-                              </td>
-                            );
-                          })}
-                          <td className="px-4 py-3 text-center text-[11px] text-slate-500">
-                            {raci.length} rôles attribués
-                          </td>
-                        </tr>
-                      </tfoot>
-                    </table>
-                  </div>
-                )}
-              </div>
-
-              {/* RACI Best Practices & Legend Guide */}
-              <div className="rounded-xl border bg-slate-50 p-6">
-                <h4 className="font-bold text-slate-900 mb-3 flex items-center gap-2">
-                  <ShieldCheck className="h-4 w-4 text-indigo-600" />
-                  Guide Méthodologique RACI & Bonnes Pratiques de Gestion de Projet
-                </h4>
-                <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
-                  {Object.entries(RACI_CONFIG).map(([key, cfg]) => (
-                    <div key={key} className="rounded-lg border bg-white p-4 shadow-sm">
-                      <div className="flex items-center gap-2">
-                        <span className={`inline-flex h-6 w-6 items-center justify-center rounded text-xs font-bold ${cfg.color}`}>
-                          {key}
-                        </span>
-                        <span className="font-bold text-slate-800 text-xs">{cfg.label}</span>
-                      </div>
-                      <p className="mt-2 text-xs text-slate-600 leading-relaxed">{cfg.desc}</p>
-                    </div>
-                  ))}
-                </div>
-                <div className="mt-4 rounded-lg bg-indigo-50 border border-indigo-100 p-3 text-xs text-indigo-900">
-                  💡 <strong>Règle d'or de la gouvernance :</strong> Chaque phase, activité ou tâche doit comporter <strong>exactement 1 Approbateur (A)</strong> (évite la dilution des responsabilités) et au moins <strong>1 Réalisateur (R)</strong>. Les parties prenantes consultées (C) et informées (I) facilitent la coordination sans alourdir la décision.
-                </div>
-              </div>
-            </div>
-          );
-            })()}
-          </div>
+          <ProjectStrategicHub
+            project={proj}
+            fundingSources={fundingSources}
+            members={members}
+            planItems={planItems}
+            resultNodes={resultNodes}
+            raci={raci}
+            orgPeople={orgPeople}
+            initialSubTab={strategySubTab}
+            onUpdateProject={async (updates) => {
+              await updateProjectMutation.mutateAsync(updates);
+            }}
+            onAddResultNode={async (node) => {
+              await addResultNode.mutateAsync(node);
+            }}
+            onDeleteResultNode={async (nodeId) => {
+              await deleteResultNode.mutateAsync(nodeId);
+            }}
+            onAddFundingSource={async (source) => {
+              await addFunding.mutateAsync(source);
+            }}
+            onDeleteFundingSource={async (sourceId) => {
+              await deleteFundingSource.mutateAsync(sourceId);
+            }}
+            onAddMember={async (member) => {
+              await addMemberMutation.mutateAsync(member);
+            }}
+            onRemoveMember={async (memberId) => {
+              await removeMemberMutation.mutateAsync(memberId);
+            }}
+            onSetRaciRole={async (planItemId, projectMemberId, raciRole) => {
+              await setRaciMutation.mutateAsync({ planItemId, projectMemberId, raciRole });
+            }}
+            onSelectTask={(task) => setSelectedTask(task)}
+            onNavigateTab={(tab, subTab) => {
+              setActiveTab(tab as TabKey);
+              if (subTab && tab === 'planning') {
+                setPlanningSubTab(subTab as any);
+              } else if (subTab && tab === 'monitoring') {
+                setMonitoringSubTab(subTab as any);
+              }
+            }}
+          />
         )}
 
         {/* ═══════════════════════════════════════════════════════════════ */}
