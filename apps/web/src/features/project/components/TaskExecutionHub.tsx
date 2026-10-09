@@ -34,6 +34,8 @@ import {
   ShieldCheck,
   Coins,
   Scale,
+  Target,
+  FileCheck2,
 } from 'lucide-react';
 
 interface TaskExecutionHubProps {
@@ -56,11 +58,11 @@ interface TaskExecutionHubProps {
 }
 
 const STATUS_CONFIG: Record<string, { label: string; icon: string; color: string; bg: string; badge: string; border: string }> = {
-  todo: { label: 'À faire', icon: '⚪', color: 'text-slate-700', bg: 'bg-slate-50', badge: 'bg-slate-100 text-slate-700', border: 'border-slate-200' },
-  in_progress: { label: 'En cours', icon: '⏳', color: 'text-indigo-700', bg: 'bg-indigo-50/60', badge: 'bg-indigo-100 text-indigo-800', border: 'border-indigo-200' },
-  review: { label: 'En révision', icon: '🔍', color: 'text-amber-700', bg: 'bg-amber-50/60', badge: 'bg-amber-100 text-amber-800', border: 'border-amber-200' },
-  blocked: { label: 'Bloqué', icon: '🔴', color: 'text-red-700', bg: 'bg-red-50/60', badge: 'bg-red-100 text-red-800', border: 'border-red-300' },
-  completed: { label: 'Terminé', icon: '✅', color: 'text-emerald-700', bg: 'bg-emerald-50/60', badge: 'bg-emerald-100 text-emerald-800', border: 'border-emerald-200' },
+  todo: { label: 'À faire', icon: '⚪', color: 'text-slate-700', bg: 'bg-slate-50', badge: 'bg-slate-100 text-slate-700 border-slate-200', border: 'border-slate-200' },
+  in_progress: { label: 'En cours', icon: '⏳', color: 'text-indigo-700', bg: 'bg-indigo-50/60', badge: 'bg-indigo-100 text-indigo-800 border-indigo-200', border: 'border-indigo-200' },
+  review: { label: 'En révision (Visa A requis)', icon: '🔍', color: 'text-amber-700', bg: 'bg-amber-50/60', badge: 'bg-amber-100 text-amber-900 border-amber-300 font-bold', border: 'border-amber-300' },
+  blocked: { label: 'Bloqué', icon: '🔴', color: 'text-red-700', bg: 'bg-red-50/60', badge: 'bg-red-100 text-red-800 border-red-300 font-bold', border: 'border-red-300' },
+  completed: { label: 'Terminé & Validé', icon: '✅', color: 'text-emerald-700', bg: 'bg-emerald-50/60', badge: 'bg-emerald-100 text-emerald-800 border-emerald-200', border: 'border-emerald-200' },
 };
 
 const CATEGORY_LABELS: Record<string, string> = {
@@ -85,12 +87,10 @@ export function TaskExecutionHub({
   deliverables,
   updates,
   onSelectTask,
-  onUpdateTaskStatus,
   onAddExpense,
   onApproveExpense,
   onAddDeliverable,
   onVerifyDeliverable,
-  onAddUpdateLog,
   isUpdating,
 }: TaskExecutionHubProps) {
   const [activeSubTab, setActiveSubTab] = useState<'tasks' | 'expenses' | 'deliverables'>('tasks');
@@ -120,11 +120,6 @@ export function TaskExecutionHub({
   const [delivTitle, setDelivTitle] = useState('');
   const [delivDesc, setDelivDesc] = useState('');
   const [delivUrl, setDelivUrl] = useState('');
-  const [delivFilterStatus, setDelivFilterStatus] = useState('all');
-
-  // Quick verify modal
-  const [verifyingDeliv, setVerifyingDeliv] = useState<any | null>(null);
-  const [verifierName, setVerifierName] = useState('Gestionnaire de projet');
 
   const fmt = (val: number) =>
     new Intl.NumberFormat('fr-CA', { style: 'currency', currency: 'CAD', maximumFractionDigits: 0 }).format(val);
@@ -136,6 +131,15 @@ export function TaskExecutionHub({
       if (m) return m;
     }
     const raciEntry = raci.find((r: any) => r.planItemId === task.id && r.raciRole === 'R');
+    if (raciEntry) {
+      const m = members.find((mem: any) => mem.id === raciEntry.projectMemberId);
+      if (m) return m;
+    }
+    return null;
+  };
+
+  const getTaskAccountable = (task: any) => {
+    const raciEntry = raci.find((r: any) => r.planItemId === task.id && r.raciRole === 'A');
     if (raciEntry) {
       const m = members.find((mem: any) => mem.id === raciEntry.projectMemberId);
       if (m) return m;
@@ -189,7 +193,6 @@ export function TaskExecutionHub({
       // Phase / Parent
       if (selectedPhaseId !== 'all') {
         if (item.parentId !== selectedPhaseId && !item.wbs.startsWith(selectedPhaseId + '.')) {
-          // Check if parent matches
           const parentItem = planItems.find((p: any) => p.id === item.parentId);
           if (!parentItem || (parentItem.id !== selectedPhaseId && parentItem.parentId !== selectedPhaseId)) {
             return false;
@@ -201,6 +204,8 @@ export function TaskExecutionHub({
       if (statusFilter !== 'all') {
         if (statusFilter === 'blocked') {
           if (item.status !== 'blocked') return false;
+        } else if (statusFilter === 'review') {
+          if (item.status !== 'review') return false;
         } else if (statusFilter === 'overdue') {
           if (!item.endDate || item.status === 'completed') return false;
           const isOverdue = new Date(item.endDate) < new Date(new Date().toISOString().split('T')[0]);
@@ -223,7 +228,6 @@ export function TaskExecutionHub({
   const totalPendingExpenses = expenses
     .filter((e: any) => e.status === 'submitted')
     .reduce((s: number, e: any) => s + parseFloat(e.amount || '0'), 0);
-  const totalExpensesAll = totalApprovedExpenses + totalPendingExpenses;
   const remainingBudget = totalBudgetBAC - totalApprovedExpenses;
   const budgetBurnRate = totalBudgetBAC > 0 ? (totalApprovedExpenses / totalBudgetBAC) * 100 : 0;
 
@@ -232,17 +236,6 @@ export function TaskExecutionHub({
   const pendingDeliverablesCount = deliverables.filter((d: any) => d.status === 'pending').length;
   const rejectedDeliverablesCount = deliverables.filter((d: any) => d.status === 'rejected').length;
   const deliverableValidationRate = deliverables.length > 0 ? (approvedDeliverablesCount / deliverables.length) * 100 : 0;
-
-  // ── Quick Status Change Handler ──────────────────────────────────────────
-  const handleQuickStatusChange = async (task: any, newStatus: string) => {
-    if (!onUpdateTaskStatus) return;
-    let newProgress = task.progressPct || 0;
-    if (newStatus === 'completed') newProgress = 100;
-    else if (newStatus === 'todo') newProgress = 0;
-    else if (newStatus === 'in_progress' && newProgress === 0) newProgress = 25;
-
-    await onUpdateTaskStatus(task.id, newStatus, newProgress);
-  };
 
   // ── Submit Expense Handler ───────────────────────────────────────────────
   const handleSubmitExpense = async (e: React.FormEvent) => {
@@ -447,7 +440,7 @@ export function TaskExecutionHub({
                 <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider mr-1">Statut :</span>
                 {[
                   { id: 'all', label: `Toutes (${tasksAndMilestones.length})` },
-                  { id: 'todo', label: `⚪ À faire (${tasksAndMilestones.filter((t) => t.status === 'todo').length})` },
+                  { id: 'todo', label: `⚪ À faire (${tasksAndMilestones.filter((t) => (t.status || 'todo') === 'todo').length})` },
                   { id: 'in_progress', label: `⏳ En cours (${tasksAndMilestones.filter((t) => t.status === 'in_progress').length})` },
                   { id: 'review', label: `🔍 En révision (${tasksAndMilestones.filter((t) => t.status === 'review').length})` },
                   { id: 'blocked', label: `🔴 Bloquées (${tasksAndMilestones.filter((t) => t.status === 'blocked').length})` },
@@ -533,7 +526,7 @@ export function TaskExecutionHub({
                 const colPv = columnTasks.reduce((s: number, t: any) => s + parseFloat(t.estimatedCost || '0'), 0);
 
                 return (
-                  <div key={statusKey} className="flex flex-col rounded-xl border border-slate-200 bg-slate-50/70 p-2.5 min-h-[420px] shadow-2xs">
+                  <div key={statusKey} className="flex flex-col rounded-xl border border-slate-200 bg-slate-50/70 p-2.5 min-h-[440px] shadow-2xs">
                     {/* Column Header */}
                     <div className="flex items-center justify-between pb-2 mb-2 border-b border-slate-200 px-1">
                       <div className="flex items-center gap-1.5">
@@ -563,6 +556,7 @@ export function TaskExecutionHub({
                       ) : (
                         columnTasks.map((task: any) => {
                           const assignee = getTaskAssignee(task);
+                          const accountable = getTaskAccountable(task);
                           const taskUpdates = updates.filter((u: any) => u.planItemId === task.id);
                           const taskDelivs = deliverables.filter((d: any) => d.planItemId === task.id);
                           const isMilestone = task.type === 'milestone';
@@ -572,43 +566,51 @@ export function TaskExecutionHub({
                           return (
                             <div
                               key={task.id}
-                              className={`group relative rounded-xl border bg-white p-3.5 shadow-2xs transition hover:shadow-md hover:border-indigo-400 ${
+                              onClick={() => onSelectTask(task)}
+                              className={`group relative rounded-xl border bg-white p-3.5 shadow-2xs transition hover:shadow-md hover:border-indigo-500 cursor-pointer ${
                                 task.status === 'blocked'
                                   ? 'border-red-300 bg-red-50/20'
+                                  : task.status === 'review'
+                                  ? 'border-amber-300 bg-amber-50/20'
                                   : isOverdue
-                                  ? 'border-amber-300 bg-amber-50/10'
+                                  ? 'border-amber-200 bg-amber-50/10'
                                   : 'border-slate-200'
                               }`}
                             >
-                              {/* Top row: WBS code + Quick Status Dropdown */}
+                              {/* Top row: WBS code + Immutable Status Badge */}
                               <div className="flex items-center justify-between gap-1 mb-1.5">
                                 <span className="font-mono text-[11px] font-bold text-indigo-700 bg-indigo-50 px-1.5 py-0.5 rounded border border-indigo-100">
                                   {task.wbs}
                                 </span>
 
-                                {/* Quick Status Selector */}
-                                <select
-                                  value={task.status || 'todo'}
-                                  onClick={(e) => e.stopPropagation()}
-                                  onChange={(e) => handleQuickStatusChange(task, e.target.value)}
-                                  className="h-5 rounded border border-slate-200 bg-slate-50 px-1 text-[10px] font-bold text-slate-700 hover:bg-slate-100 focus:ring-1 focus:ring-indigo-500 cursor-pointer"
-                                  title="Changer le statut en 1 clic"
+                                <span
+                                  className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-bold border ${cfg.badge}`}
+                                  title="Statut issu du traitement tracé"
                                 >
-                                  {Object.entries(STATUS_CONFIG).map(([k, c]) => (
-                                    <option key={k} value={k}>
-                                      {c.icon} {c.label}
-                                    </option>
-                                  ))}
-                                </select>
+                                  {cfg.icon} {cfg.label.split(' ')[0]}
+                                </span>
                               </div>
 
-                              {/* Title (Click opens drawer) */}
-                              <p
-                                onClick={() => onSelectTask(task)}
-                                className="text-xs font-bold text-slate-900 line-clamp-2 cursor-pointer hover:text-indigo-600 transition"
-                              >
+                              {/* Title */}
+                              <p className="text-xs font-bold text-slate-900 line-clamp-2 group-hover:text-indigo-600 transition">
                                 {task.title}
                               </p>
+
+                              {/* Objectives / Deliverables Expected Badge */}
+                              {(task.objectives || task.deliverablesExpected) && (
+                                <div className="mt-1.5 flex items-center gap-2 text-[10px] text-slate-500">
+                                  {task.objectives && (
+                                    <span className="flex items-center gap-0.5 text-indigo-600" title={`Objectif : ${task.objectives}`}>
+                                      <Target className="h-2.5 w-2.5" /> Objectif défini
+                                    </span>
+                                  )}
+                                  {task.deliverablesExpected && (
+                                    <span className="flex items-center gap-0.5 text-emerald-600" title={`Livrable attendu : ${task.deliverablesExpected}`}>
+                                      <FileCheck2 className="h-2.5 w-2.5" /> Livrable exigé
+                                    </span>
+                                  )}
+                                </div>
+                              )}
 
                               {/* Due Date & Assignee Row */}
                               <div className="mt-2.5 flex items-center justify-between text-[11px] text-slate-500">
@@ -632,10 +634,10 @@ export function TaskExecutionHub({
                                 {assignee ? (
                                   <span
                                     className="flex items-center gap-1 text-[11px] font-semibold text-slate-700 bg-slate-100 px-1.5 py-0.5 rounded-full"
-                                    title={`Responsable : ${assignee.name}`}
+                                    title={`Responsable Réalisation (R) : ${assignee.name}`}
                                   >
                                     <User className="h-2.5 w-2.5 text-indigo-600" />
-                                    <span className="max-w-[80px] truncate">{assignee.name.split(' ')[0]}</span>
+                                    <span className="max-w-[70px] truncate">{assignee.name.split(' ')[0]}</span>
                                   </span>
                                 ) : (
                                   <span className="text-[10px] text-slate-300">Non assigné</span>
@@ -646,7 +648,7 @@ export function TaskExecutionHub({
                               <div className="mt-2.5">
                                 <div className="flex items-center justify-between text-[10px] font-bold text-slate-600 mb-1">
                                   <span>Avancement</span>
-                                  <span>{task.progressPct || 0}%</span>
+                                  <span className="font-mono">{task.progressPct || 0}%</span>
                                 </div>
                                 <div className="h-1.5 w-full bg-slate-100 rounded-full overflow-hidden">
                                   <div
@@ -655,12 +657,21 @@ export function TaskExecutionHub({
                                         ? 'bg-emerald-500'
                                         : task.status === 'blocked'
                                         ? 'bg-red-500'
+                                        : task.status === 'review'
+                                        ? 'bg-amber-500'
                                         : 'bg-indigo-600'
                                     }`}
                                     style={{ width: `${Math.min(100, Math.max(0, task.progressPct || 0))}%` }}
                                   />
                                 </div>
                               </div>
+
+                              {/* Review Banner if in review */}
+                              {task.status === 'review' && (
+                                <div className="mt-2 rounded bg-amber-100/70 p-1 text-[10px] font-bold text-amber-900 text-center border border-amber-200">
+                                  ⚠️ 100% déclaré • Visa formel RACI (A) requis
+                                </div>
+                              )}
 
                               {/* Financial indicator: PV vs AC */}
                               {(task.estimatedCost > 0 || actualSpent > 0) && (
@@ -677,26 +688,23 @@ export function TaskExecutionHub({
                                 <div className="flex items-center gap-2.5">
                                   <span
                                     className="flex items-center gap-1 text-[10px] text-slate-500"
-                                    title={`${taskUpdates.length} log(s) d'étape`}
+                                    title={`${taskUpdates.length} log(s) d'étape tracé(s)`}
                                   >
                                     <MessageSquare className="h-3 w-3 text-indigo-500" />
                                     {taskUpdates.length}
                                   </span>
                                   <span
                                     className="flex items-center gap-1 text-[10px] text-slate-500"
-                                    title={`${taskDelivs.length} livrable(s)`}
+                                    title={`${taskDelivs.length} livrable(s) déposé(s)`}
                                   >
                                     <PackageCheck className="h-3 w-3 text-emerald-500" />
                                     {taskDelivs.length}
                                   </span>
                                 </div>
 
-                                <button
-                                  onClick={() => onSelectTask(task)}
-                                  className="text-[10px] font-bold text-indigo-600 hover:text-indigo-800 flex items-center gap-0.5 opacity-80 group-hover:opacity-100 transition"
-                                >
-                                  Journal <ArrowRight className="h-2.5 w-2.5" />
-                                </button>
+                                <span className="text-[10px] font-bold text-indigo-600 group-hover:text-indigo-800 flex items-center gap-0.5">
+                                  Traiter <ArrowRight className="h-2.5 w-2.5" />
+                                </span>
                               </div>
                             </div>
                           );
@@ -716,13 +724,13 @@ export function TaskExecutionHub({
                 <thead className="border-b bg-slate-50 font-semibold uppercase text-slate-500 text-[11px]">
                   <tr>
                     <th className="px-4 py-3">WBS</th>
-                    <th className="px-4 py-3">Tâche & Livrables</th>
-                    <th className="px-4 py-3">Responsable RACI</th>
+                    <th className="px-4 py-3">Tâche, Objectifs & Livrables</th>
+                    <th className="px-4 py-3">Responsable (R) & Approbateur (A)</th>
                     <th className="px-4 py-3">Échéance</th>
                     <th className="px-4 py-3 text-right">Budget (PV)</th>
                     <th className="px-4 py-3 text-right">Dépensé (AC)</th>
                     <th className="px-4 py-3">Avancement</th>
-                    <th className="px-4 py-3">Statut</th>
+                    <th className="px-4 py-3">Statut Traité</th>
                     <th className="px-4 py-3 text-right">Actions</th>
                   </tr>
                 </thead>
@@ -736,22 +744,29 @@ export function TaskExecutionHub({
                   ) : (
                     filteredTasks.map((task: any) => {
                       const assignee = getTaskAssignee(task);
+                      const accountable = getTaskAccountable(task);
                       const taskUpdates = updates.filter((u: any) => u.planItemId === task.id);
                       const taskDelivs = deliverables.filter((d: any) => d.planItemId === task.id);
                       const actualSpent = getTaskActualCost(task.id, task.wbs);
                       const isOverdue = task.endDate && task.status !== 'completed' && new Date(task.endDate) < new Date(new Date().toISOString().split('T')[0]);
+                      const stCfg = STATUS_CONFIG[task.status || 'todo'] || STATUS_CONFIG.todo;
 
                       return (
                         <tr
                           key={task.id}
                           className={`hover:bg-slate-50 transition cursor-pointer ${
-                            task.status === 'blocked' ? 'bg-red-50/20' : ''
+                            task.status === 'blocked' ? 'bg-red-50/20' : task.status === 'review' ? 'bg-amber-50/20' : ''
                           }`}
                           onClick={() => onSelectTask(task)}
                         >
                           <td className="px-4 py-3 font-mono font-bold text-indigo-700">{task.wbs}</td>
                           <td className="px-4 py-3">
                             <div className="font-semibold text-slate-900">{task.title}</div>
+                            {task.objectives && (
+                              <p className="text-[10px] text-slate-500 line-clamp-1 mt-0.5">
+                                🎯 Objectif : {task.objectives}
+                              </p>
+                            )}
                             <div className="flex items-center gap-2 mt-0.5 text-[10px] text-slate-400">
                               <span>{taskUpdates.length} log{taskUpdates.length > 1 ? 's' : ''}</span>
                               <span>•</span>
@@ -759,14 +774,21 @@ export function TaskExecutionHub({
                             </div>
                           </td>
                           <td className="px-4 py-3">
-                            {assignee ? (
-                              <span className="inline-flex items-center gap-1 font-medium text-slate-800">
-                                <User className="h-3 w-3 text-indigo-600" />
-                                {assignee.name}
-                              </span>
-                            ) : (
-                              <span className="text-slate-400 italic">Non assigné</span>
-                            )}
+                            <div className="space-y-0.5">
+                              {assignee ? (
+                                <span className="inline-flex items-center gap-1 font-medium text-slate-800 text-xs">
+                                  <span className="font-bold text-indigo-600 bg-indigo-50 px-1 rounded text-[10px]">R</span>
+                                  {assignee.name}
+                                </span>
+                              ) : (
+                                <span className="text-slate-400 italic text-[11px]">R: Non assigné</span>
+                              )}
+                              {accountable && (
+                                <span className="block text-[10px] text-slate-500">
+                                  <strong className="text-amber-700">A :</strong> {accountable.name}
+                                </span>
+                              )}
+                            </div>
                           </td>
                           <td className="px-4 py-3">
                             {task.endDate ? (
@@ -789,34 +811,34 @@ export function TaskExecutionHub({
                             <div className="flex items-center gap-2">
                               <div className="h-1.5 flex-1 bg-slate-100 rounded-full overflow-hidden">
                                 <div
-                                  className="h-full bg-indigo-600 rounded-full"
+                                  className={`h-full rounded-full ${
+                                    (task.progressPct || 0) >= 100
+                                      ? 'bg-emerald-500'
+                                      : task.status === 'blocked'
+                                      ? 'bg-red-500'
+                                      : task.status === 'review'
+                                      ? 'bg-amber-500'
+                                      : 'bg-indigo-600'
+                                  }`}
                                   style={{ width: `${Math.min(100, Math.max(0, task.progressPct || 0))}%` }}
                                 />
                               </div>
                               <span className="font-mono text-[10px] font-bold text-slate-600">{task.progressPct || 0}%</span>
                             </div>
                           </td>
-                          <td className="px-4 py-3" onClick={(e) => e.stopPropagation()}>
-                            <select
-                              value={task.status || 'todo'}
-                              onChange={(e) => handleQuickStatusChange(task, e.target.value)}
-                              className="h-6 rounded border border-slate-200 bg-white px-1.5 text-[11px] font-semibold text-slate-700 cursor-pointer focus:border-indigo-500"
-                            >
-                              {Object.entries(STATUS_CONFIG).map(([k, c]) => (
-                                <option key={k} value={k}>
-                                  {c.icon} {c.label}
-                                </option>
-                              ))}
-                            </select>
+                          <td className="px-4 py-3">
+                            <span className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-bold border ${stCfg.badge}`}>
+                              {stCfg.icon} {stCfg.label}
+                            </span>
                           </td>
                           <td className="px-4 py-3 text-right" onClick={(e) => e.stopPropagation()}>
                             <Button
                               size="sm"
                               variant="outline"
                               onClick={() => onSelectTask(task)}
-                              className="h-7 text-[11px] text-indigo-700 border-indigo-200 hover:bg-indigo-50"
+                              className="h-7 text-[11px] text-indigo-700 border-indigo-200 hover:bg-indigo-50 font-bold"
                             >
-                              Journal
+                              Traiter
                             </Button>
                           </td>
                         </tr>
@@ -941,7 +963,6 @@ export function TaskExecutionHub({
                   })
                   .map((exp: any) => {
                     const bl = budgetLines.find((b: any) => b.id === exp.budgetLineId);
-                    // Match linked task from notes if present
                     let linkedTask: any = null;
                     if (exp.notes) {
                       const matchWbs = exp.notes.match(/\[WBS:([^\]]+)\]/);
@@ -1019,7 +1040,7 @@ export function TaskExecutionHub({
                               variant="outline"
                               onClick={() => onApproveExpense(exp.id)}
                               disabled={isUpdating}
-                              className="h-7 text-xs text-emerald-700 border-emerald-300 hover:bg-emerald-50"
+                              className="h-7 text-xs text-emerald-700 border-emerald-300 hover:bg-emerald-50 font-bold"
                             >
                               <Check className="mr-1 h-3 w-3" />
                               Approuver
@@ -1057,7 +1078,7 @@ export function TaskExecutionHub({
             <div className="rounded-xl border border-amber-200 bg-amber-50/40 p-4 shadow-2xs">
               <span className="text-[11px] font-bold uppercase tracking-wider text-amber-800">En Attente de Revue</span>
               <p className="mt-1 text-xl font-bold text-amber-700">{pendingDeliverablesCount}</p>
-              <span className="text-[10px] text-amber-600">Nécessite vérification</span>
+              <span className="text-[10px] text-amber-600">Nécessite vérification formelle</span>
             </div>
 
             <div className="rounded-xl border border-red-200 bg-red-50/40 p-4 shadow-2xs">
@@ -1075,7 +1096,7 @@ export function TaskExecutionHub({
                   <th className="px-5 py-3">Livrable & Document</th>
                   <th className="px-5 py-3">Tâche WBS Rattachée</th>
                   <th className="px-5 py-3 text-center">Statut</th>
-                  <th className="px-5 py-3">Vérification</th>
+                  <th className="px-5 py-3">Vérification Formelle</th>
                   <th className="px-5 py-3 text-right">Actions</th>
                 </tr>
               </thead>
@@ -1103,7 +1124,7 @@ export function TaskExecutionHub({
                               className="inline-flex items-center gap-1 text-[11px] font-semibold text-indigo-600 hover:text-indigo-800 mt-1"
                             >
                               <Paperclip className="h-3 w-3" />
-                              Ouvrir le document / lien
+                              Ouvrir la preuve / lien
                             </a>
                           )}
                         </td>
@@ -1124,12 +1145,12 @@ export function TaskExecutionHub({
                         </td>
                         <td className="px-5 py-3 text-center">
                           <span
-                            className={`inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-[11px] font-bold ${
+                            className={`inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-[11px] font-bold border ${
                               deliv.status === 'approved'
-                                ? 'bg-emerald-100 text-emerald-800'
+                                ? 'bg-emerald-100 text-emerald-800 border-emerald-200'
                                 : deliv.status === 'rejected'
-                                ? 'bg-red-100 text-red-800'
-                                : 'bg-amber-100 text-amber-800'
+                                ? 'bg-red-100 text-red-800 border-red-200'
+                                : 'bg-amber-100 text-amber-800 border-amber-200'
                             }`}
                           >
                             {deliv.status === 'approved' ? 'Validé' : deliv.status === 'rejected' ? 'Rejeté' : 'En attente'}
@@ -1155,9 +1176,9 @@ export function TaskExecutionHub({
                               <Button
                                 size="sm"
                                 variant="outline"
-                                onClick={() => onVerifyDeliverable(deliv.planItemId, deliv.id, 'approved', verifierName)}
+                                onClick={() => onVerifyDeliverable(deliv.planItemId, deliv.id, 'approved', 'Gestionnaire de Projet')}
                                 disabled={isUpdating}
-                                className="h-7 text-xs text-emerald-700 border-emerald-300 hover:bg-emerald-50"
+                                className="h-7 text-xs text-emerald-700 border-emerald-300 hover:bg-emerald-50 font-bold"
                               >
                                 <Check className="mr-1 h-3 w-3" />
                                 Valider
@@ -1165,9 +1186,9 @@ export function TaskExecutionHub({
                               <Button
                                 size="sm"
                                 variant="outline"
-                                onClick={() => onVerifyDeliverable(deliv.planItemId, deliv.id, 'rejected', verifierName)}
+                                onClick={() => onVerifyDeliverable(deliv.planItemId, deliv.id, 'rejected', 'Gestionnaire de Projet')}
                                 disabled={isUpdating}
-                                className="h-7 text-xs text-red-700 border-red-300 hover:bg-red-50"
+                                className="h-7 text-xs text-red-700 border-red-300 hover:bg-red-50 font-bold"
                               >
                                 <X className="mr-1 h-3 w-3" />
                                 Rejeter

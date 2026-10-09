@@ -25,6 +25,7 @@ import {
   planItemUpdate,
   planItemDeliverable,
   planItemRaci,
+  notification,
   CreateProgramInput,
   CreateProjectInput,
   UpdateProjectInput,
@@ -540,6 +541,9 @@ export class ProjectService {
           type: input.type,
           wbs: finalWbs,
           title: input.title,
+          description: input.description,
+          objectives: input.objectives,
+          deliverablesExpected: input.deliverablesExpected,
           startDate: input.startDate,
           endDate: input.endDate,
           durationDays: input.durationDays,
@@ -979,6 +983,9 @@ export class ProjectService {
         .update(planItem)
         .set({
           ...(input.title !== undefined && { title: input.title }),
+          ...(input.description !== undefined && { description: input.description }),
+          ...(input.objectives !== undefined && { objectives: input.objectives }),
+          ...(input.deliverablesExpected !== undefined && { deliverablesExpected: input.deliverablesExpected }),
           ...(input.startDate !== undefined && { startDate: input.startDate }),
           ...(input.endDate !== undefined && { endDate: input.endDate }),
           ...(input.durationDays !== undefined && { durationDays: input.durationDays }),
@@ -1127,7 +1134,25 @@ export class ProjectService {
 
       if (!targetItem) throw new NotFoundException('Élément de plan non trouvé');
 
-      // Create update log entry
+      // 1. Resolve effective status & progress
+      let resolvedStatus = input.status;
+      const resolvedProgress = input.progressPct ?? targetItem.progressPct;
+
+      if (input.blockerReason) {
+        resolvedStatus = 'blocked';
+      } else if (!resolvedStatus) {
+        if (resolvedProgress === 100) {
+          resolvedStatus = targetItem.status === 'completed' ? 'completed' : 'review';
+        } else if (resolvedProgress > 0 && resolvedProgress < 100) {
+          resolvedStatus = 'in_progress';
+        } else if (resolvedProgress === 0) {
+          resolvedStatus = 'todo';
+        } else {
+          resolvedStatus = targetItem.status;
+        }
+      }
+
+      // 2. Create update log entry (immutable audit trail)
       const [updateEntry] = await tx
         .insert(planItemUpdate)
         .values({
@@ -1135,35 +1160,98 @@ export class ProjectService {
           planItemId: itemId,
           authorName: input.authorName,
           authorUserId: userId,
-          progressPct: input.progressPct ?? targetItem.progressPct,
-          status: input.status ?? targetItem.status,
+          progressPct: resolvedProgress,
+          status: resolvedStatus,
           comment: input.comment,
           blockerReason: input.blockerReason,
+          attachmentUrl: input.attachmentUrl,
         })
         .returning();
 
-      // Automatically update planItem progress and status if provided
-      const updateData: any = {};
-      if (input.progressPct !== undefined) {
-        updateData.progressPct = input.progressPct;
-        if (input.progressPct === 100 && !input.status) {
-          updateData.status = 'completed';
-        } else if (input.progressPct > 0 && input.progressPct < 100 && targetItem.status === 'todo' && !input.status) {
-          updateData.status = 'in_progress';
-        }
-      }
-      if (input.status !== undefined) {
-        updateData.status = input.status;
-        if (input.status === 'completed' && input.progressPct === undefined) {
-          updateData.progressPct = 100;
-        }
-      }
+      // 3. Update planItem status & progress
+      const updateData: any = {
+        progressPct: resolvedProgress,
+        status: resolvedStatus,
+      };
 
-      if (Object.keys(updateData).length > 0) {
-        await tx
-          .update(planItem)
-          .set(updateData)
-          .where(and(eq(planItem.id, itemId), eq(planItem.tenantId, tenantId), eq(planItem.projectId, projectId)));
+      await tx
+        .update(planItem)
+        .set(updateData)
+        .where(and(eq(planItem.id, itemId), eq(planItem.tenantId, tenantId), eq(planItem.projectId, projectId)));
+
+      // 4. Dispatch RACI Notifications
+      try {
+        const [proj] = await tx.select().from(project).where(eq(project.id, projectId));
+        const itemRacis = await tx
+          .select()
+          .from(planItemRaci)
+          .where(and(eq(planItemRaci.tenantId, tenantId), eq(planItemRaci.planItemId, itemId)));
+        const allMembers = await tx
+          .select()
+          .from(projectMember)
+          .where(and(eq(projectMember.tenantId, tenantId), eq(projectMember.projectId, projectId)));
+
+        const targetUserIds = new Set<string>();
+
+        if (resolvedStatus === 'review') {
+          // Notify Accountable (A) & Managers
+          for (const r of itemRacis.filter((x: any) => x.raciRole === 'A')) {
+            const m = allMembers.find((mem: any) => mem.id === r.projectMemberId);
+            if (m?.userId) targetUserIds.add(m.userId);
+          }
+          for (const m of allMembers.filter((mem: any) => mem.role === 'manager' && mem.userId)) {
+            targetUserIds.add(m.userId!);
+          }
+
+          for (const uid of targetUserIds) {
+            await tx.insert(notification).values({
+              tenantId,
+              userId: uid,
+              eventType: 'task_review',
+              title: `🔍 Revue requise : ${targetItem.wbs} - ${targetItem.title}`,
+              message: `${input.authorName} a déclaré l'avancement à 100% et demande votre visa formel sur le projet "${proj?.name || ''}".`,
+              linkUrl: `/projects/${projectId}?tab=execution`,
+            });
+          }
+        } else if (resolvedStatus === 'blocked') {
+          // Notify Accountable (A) & Consulted (C) & Managers
+          for (const r of itemRacis.filter((x: any) => x.raciRole === 'A' || x.raciRole === 'C')) {
+            const m = allMembers.find((mem: any) => mem.id === r.projectMemberId);
+            if (m?.userId) targetUserIds.add(m.userId);
+          }
+          for (const m of allMembers.filter((mem: any) => mem.role === 'manager' && mem.userId)) {
+            targetUserIds.add(m.userId!);
+          }
+
+          for (const uid of targetUserIds) {
+            await tx.insert(notification).values({
+              tenantId,
+              userId: uid,
+              eventType: 'task_blocked',
+              title: `🛑 Blocage signalé : ${targetItem.wbs} - ${targetItem.title}`,
+              message: `Blocage signalé par ${input.authorName} : "${input.blockerReason || input.comment}".`,
+              linkUrl: `/projects/${projectId}?tab=execution`,
+            });
+          }
+        } else if (resolvedStatus === 'completed') {
+          // Notify Responsible (R) & Informed (I)
+          for (const r of itemRacis.filter((x: any) => x.raciRole === 'R' || x.raciRole === 'I')) {
+            const m = allMembers.find((mem: any) => mem.id === r.projectMemberId);
+            if (m?.userId) targetUserIds.add(m.userId);
+          }
+          for (const uid of targetUserIds) {
+            await tx.insert(notification).values({
+              tenantId,
+              userId: uid,
+              eventType: 'task_completed',
+              title: `✅ Tâche clôturée : ${targetItem.wbs} - ${targetItem.title}`,
+              message: `La tâche a été officiellement validée et clôturée par ${input.authorName}.`,
+              linkUrl: `/projects/${projectId}?tab=execution`,
+            });
+          }
+        }
+      } catch (notifErr) {
+        console.warn('Notification dispatch skipped or failed:', notifErr);
       }
 
       await this.recalculateWbsAndProjectRollup(tx, tenantId, projectId);

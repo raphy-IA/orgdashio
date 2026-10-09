@@ -1196,6 +1196,9 @@ export const planItem = pgTable(
     }).notNull(),
     wbs: text('wbs').notNull(),
     title: text('title').notNull(),
+    description: text('description'),
+    objectives: text('objectives'),
+    deliverablesExpected: text('deliverables_expected'),
     startDate: date('start_date'),
     endDate: date('end_date'),
     durationDays: integer('duration_days').default(1),
@@ -1205,7 +1208,7 @@ export const planItem = pgTable(
     pessimisticDays: integer('pessimistic_days'),
     progressPct: integer('progress_pct').notNull().default(0),
     status: text('status', {
-      enum: ['todo', 'in_progress', 'blocked', 'completed', 'cancelled'],
+      enum: ['todo', 'in_progress', 'review', 'blocked', 'completed', 'cancelled'],
     })
       .notNull()
       .default('todo'),
@@ -1314,10 +1317,11 @@ export const planItemUpdate = pgTable(
     authorUserId: uuid('author_user_id'),
     progressPct: integer('progress_pct'),
     status: text('status', {
-      enum: ['todo', 'in_progress', 'blocked', 'completed', 'cancelled'],
+      enum: ['todo', 'in_progress', 'review', 'blocked', 'completed', 'cancelled'],
     }),
     comment: text('comment').notNull(),
     blockerReason: text('blocker_reason'),
+    attachmentUrl: text('attachment_url'),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
   },
   (table) => ({
@@ -1342,6 +1346,7 @@ export const planItemDeliverable = pgTable(
     status: text('status', { enum: ['pending', 'approved', 'rejected'] }).notNull().default('pending'),
     verifiedBy: text('verified_by'),
     verifiedAt: timestamp('verified_at', { withTimezone: true }),
+    reviewComment: text('review_comment'),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
   },
   (table) => ({

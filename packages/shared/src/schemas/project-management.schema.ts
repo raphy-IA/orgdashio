@@ -26,6 +26,9 @@ export const CreatePlanItemSchema = z.object({
   type: z.enum(['phase', 'activity', 'task', 'milestone', 'deliverable']),
   wbs: z.string().optional(),
   title: z.string().min(2, 'Le titre de la tâche est requis'),
+  description: z.string().optional(),
+  objectives: z.string().optional(),
+  deliverablesExpected: z.string().optional(),
   startDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
   endDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
   durationDays: z.number().int().min(0).default(1),
@@ -70,6 +73,7 @@ export type UpdateBudgetLineInput = z.infer<typeof UpdateBudgetLineSchema>;
 
 export const CreateExpenseSchema = z.object({
   budgetLineId: z.string().uuid('ID ligne budgétaire invalide'),
+  planItemId: z.string().uuid('ID tâche invalide').optional().nullable(),
   date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Format de date YYYY-MM-DD'),
   vendor: z.string().min(2, 'Le fournisseur est requis'),
   amount: z.number().positive('Le montant doit être supérieur à 0'),
@@ -93,6 +97,9 @@ export type CreateRaidItemInput = z.infer<typeof CreateRaidItemSchema>;
 
 export const UpdatePlanItemSchema = z.object({
   title: z.string().min(2).optional(),
+  description: z.string().optional(),
+  objectives: z.string().optional(),
+  deliverablesExpected: z.string().optional(),
   startDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
   endDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
   durationDays: z.number().int().min(0).optional(),
@@ -101,7 +108,7 @@ export const UpdatePlanItemSchema = z.object({
   mostLikelyDays: z.number().int().min(1).optional().nullable(),
   pessimisticDays: z.number().int().min(1).optional().nullable(),
   progressPct: z.number().int().min(0).max(100).optional(),
-  status: z.enum(['todo', 'in_progress', 'blocked', 'completed', 'cancelled']).optional(),
+  status: z.enum(['todo', 'in_progress', 'review', 'blocked', 'completed', 'cancelled']).optional(),
   assigneePartyId: z.string().uuid().nullable().optional(),
 });
 
@@ -141,9 +148,10 @@ export type SetPlanItemRaciInput = z.infer<typeof SetPlanItemRaciSchema>;
 export const CreatePlanItemUpdateSchema = z.object({
   authorName: z.string().min(2, "Nom de l'auteur requis"),
   progressPct: z.number().int().min(0).max(100).optional(),
-  status: z.enum(['todo', 'in_progress', 'blocked', 'completed', 'cancelled']).optional(),
-  comment: z.string().min(2, 'Le commentaire est requis'),
+  status: z.enum(['todo', 'in_progress', 'review', 'blocked', 'completed', 'cancelled']).optional(),
+  comment: z.string().min(2, 'Le commentaire de compte-rendu est requis'),
   blockerReason: z.string().optional(),
+  attachmentUrl: z.string().optional(),
 });
 
 export type CreatePlanItemUpdateInput = z.infer<typeof CreatePlanItemUpdateSchema>;
@@ -159,6 +167,7 @@ export type CreatePlanItemDeliverableInput = z.infer<typeof CreatePlanItemDelive
 export const VerifyDeliverableSchema = z.object({
   status: z.enum(['approved', 'rejected']),
   verifiedBy: z.string().min(2, 'Nom du vérificateur requis'),
+  comment: z.string().optional(),
 });
 
 export type VerifyDeliverableInput = z.infer<typeof VerifyDeliverableSchema>;

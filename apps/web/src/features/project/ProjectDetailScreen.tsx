@@ -112,6 +112,9 @@ interface PlanItem {
   type: 'phase' | 'activity' | 'task' | 'milestone' | 'deliverable';
   wbs: string;
   title: string;
+  description?: string | null;
+  objectives?: string | null;
+  deliverablesExpected?: string | null;
   startDate?: string | null;
   endDate?: string | null;
   durationDays?: number | null;
@@ -120,7 +123,7 @@ interface PlanItem {
   mostLikelyDays?: number | null;
   pessimisticDays?: number | null;
   progressPct?: number | null;
-  status: 'todo' | 'in_progress' | 'blocked' | 'completed' | 'cancelled';
+  status: 'todo' | 'in_progress' | 'review' | 'blocked' | 'completed' | 'cancelled';
   assigneePartyId?: string | null;
 }
 
@@ -412,6 +415,9 @@ export function ProjectDetailScreen() {
   const [piType, setPiType] = useState<PlanItem['type']>('task');
   const [piWbs, setPiWbs] = useState('');
   const [piTitle, setPiTitle] = useState('');
+  const [piDesc, setPiDesc] = useState('');
+  const [piObjectives, setPiObjectives] = useState('');
+  const [piDeliverablesExpected, setPiDeliverablesExpected] = useState('');
   const [piStart, setPiStart] = useState('');
   const [piEnd, setPiEnd] = useState('');
   const [piDuration, setPiDuration] = useState('5');
@@ -479,9 +485,15 @@ export function ProjectDetailScreen() {
   const [logProgress, setLogProgress] = useState<number>(0);
   const [logIsBlocked, setLogIsBlocked] = useState(false);
   const [logBlocker, setLogBlocker] = useState('');
+  const [logAttachmentUrl, setLogAttachmentUrl] = useState('');
+  const [reviewRejectReason, setReviewRejectReason] = useState('');
+  const [showReviewRejectInput, setShowReviewRejectInput] = useState(false);
 
   // Task Estimation & Parameters (inside drawer)
   const [taskTitle, setTaskTitle] = useState('');
+  const [taskDesc, setTaskDesc] = useState('');
+  const [taskObjectives, setTaskObjectives] = useState('');
+  const [taskDelivExpected, setTaskDelivExpected] = useState('');
   const [taskWbs, setTaskWbs] = useState('');
   const [taskType, setTaskType] = useState<PlanItem['type']>('task');
   const [taskStart, setTaskStart] = useState('');
@@ -505,12 +517,19 @@ export function ProjectDetailScreen() {
   useEffect(() => {
     if (selectedTask) {
       setTaskTitle(selectedTask.title || '');
+      setTaskDesc(selectedTask.description || '');
+      setTaskObjectives(selectedTask.objectives || '');
+      setTaskDelivExpected(selectedTask.deliverablesExpected || '');
       setTaskWbs(selectedTask.wbs || '');
       setTaskType(selectedTask.type || 'task');
       setTaskStart(selectedTask.startDate || '');
       setTaskEnd(selectedTask.endDate || '');
       setLogProgress(selectedTask.progressPct || 0);
       setLogIsBlocked(selectedTask.status === 'blocked');
+      setLogBlocker('');
+      setLogAttachmentUrl('');
+      setReviewRejectReason('');
+      setShowReviewRejectInput(false);
       setTaskDuration(selectedTask.durationDays !== undefined && selectedTask.durationDays !== null ? String(selectedTask.durationDays) : '1');
       setTaskCost(selectedTask.estimatedCost !== undefined && selectedTask.estimatedCost !== null ? String(selectedTask.estimatedCost) : '0');
       setTaskOptimistic(selectedTask.optimisticDays !== undefined && selectedTask.optimisticDays !== null ? String(selectedTask.optimisticDays) : '');
@@ -609,6 +628,9 @@ export function ProjectDetailScreen() {
           type: piType,
           wbs: piWbs || undefined,
           title: piTitle,
+          description: piDesc.trim() || undefined,
+          objectives: piObjectives.trim() || undefined,
+          deliverablesExpected: piDeliverablesExpected.trim() || undefined,
           startDate: calculatedStart,
           endDate: calculatedEnd,
           parentId: piParentId || undefined,
@@ -627,7 +649,7 @@ export function ProjectDetailScreen() {
     },
     onSuccess: () => {
       invalidate();
-      setPiTitle(''); setPiWbs(''); setPiStart(''); setPiEnd(''); setPiParentId(''); setPiDuration('5');
+      setPiTitle(''); setPiDesc(''); setPiObjectives(''); setPiDeliverablesExpected(''); setPiWbs(''); setPiStart(''); setPiEnd(''); setPiParentId(''); setPiDuration('5');
       setPiEstimatedCost(''); setPiOptimistic(''); setPiMostLikely(''); setPiPessimistic('');
       setShowPlanItemForm(false);
     },
@@ -800,6 +822,9 @@ export function ProjectDetailScreen() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           title: taskTitle.trim() || undefined,
+          description: taskDesc.trim() || undefined,
+          objectives: taskObjectives.trim() || undefined,
+          deliverablesExpected: taskDelivExpected.trim() || undefined,
           wbs: taskWbs.trim() || undefined,
           type: taskType,
           startDate: calculatedStart,
@@ -1103,7 +1128,7 @@ export function ProjectDetailScreen() {
       const computedStatus = logIsBlocked
         ? 'blocked'
         : logProgress >= 100
-          ? 'completed'
+          ? 'review'
           : logProgress > 0
             ? 'in_progress'
             : 'todo';
@@ -1112,23 +1137,83 @@ export function ProjectDetailScreen() {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          authorName: taskAssignee?.name || 'Responsable de la tâche',
+          authorName: taskAssignee?.name || 'Responsable de la tâche (RACI R)',
           progressPct: logProgress,
           status: computedStatus,
           comment: logComment,
           blockerReason: logIsBlocked ? logBlocker : undefined,
+          attachmentUrl: logAttachmentUrl.trim() || undefined,
         }),
       });
-      if (!res.ok) throw new Error('Erreur publication mise à jour');
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error(err.message || 'Erreur publication mise à jour');
+      }
       return res.json();
     },
     onSuccess: () => {
       invalidate();
       setLogComment('');
       setLogBlocker('');
+      setLogAttachmentUrl('');
       setLogIsBlocked(false);
       setSelectedTask(null);
     },
+    onError: (err: any) => alert(err.message),
+  });
+
+  const approveReviewMutation = useMutation({
+    mutationFn: async () => {
+      if (!selectedTask) return;
+      const res = await fetch(`/api/v1/projects/${id}/plan-items/${selectedTask.id}/updates`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          authorName: 'Approbateur RACI (A) / Manager',
+          progressPct: 100,
+          status: 'completed',
+          comment: 'Validation et visa de conformité accordés (RACI A). Tâche clôturée avec succès.',
+        }),
+      });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error(err.message || 'Erreur lors de la validation du visa');
+      }
+      return res.json();
+    },
+    onSuccess: () => {
+      invalidate();
+      setSelectedTask(null);
+    },
+    onError: (err: any) => alert(err.message),
+  });
+
+  const rejectReviewMutation = useMutation({
+    mutationFn: async () => {
+      if (!selectedTask || !reviewRejectReason.trim()) return;
+      const res = await fetch(`/api/v1/projects/${id}/plan-items/${selectedTask.id}/updates`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          authorName: 'Approbateur RACI (A) / Manager',
+          progressPct: 80,
+          status: 'in_progress',
+          comment: `Demande de corrections / Révision requise : ${reviewRejectReason.trim()}`,
+        }),
+      });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error(err.message || 'Erreur lors du renvoi pour révision');
+      }
+      return res.json();
+    },
+    onSuccess: () => {
+      invalidate();
+      setShowReviewRejectInput(false);
+      setReviewRejectReason('');
+      setSelectedTask(null);
+    },
+    onError: (err: any) => alert(err.message),
   });
 
   const updateTaskQuickStatusMutation = useMutation({
@@ -2835,6 +2920,51 @@ export function ProjectDetailScreen() {
                           />
                         </div>
 
+                        {/* Qualitative Framing */}
+                        <div className="sm:col-span-3 space-y-3 bg-slate-50/80 p-3.5 rounded-xl border border-slate-200">
+                          <span className="text-xs font-bold text-slate-800 flex items-center gap-1.5">
+                            📝 Cadrage Qualitatif & Cahier des Charges
+                          </span>
+                          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                            <div>
+                              <label className="mb-1 block text-[11px] font-semibold text-slate-700">
+                                Description & Contexte
+                              </label>
+                              <textarea
+                                value={piDesc}
+                                onChange={(e) => setPiDesc(e.target.value)}
+                                rows={2}
+                                placeholder="Périmètre, contexte et consignes d'exécution..."
+                                className="w-full rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-xs text-slate-800"
+                              />
+                            </div>
+                            <div>
+                              <label className="mb-1 block text-[11px] font-semibold text-slate-700">
+                                Objectifs & Critères (DoD)
+                              </label>
+                              <textarea
+                                value={piObjectives}
+                                onChange={(e) => setPiObjectives(e.target.value)}
+                                rows={2}
+                                placeholder="Objectifs opérationnels, critères de réussite..."
+                                className="w-full rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-xs text-slate-800"
+                              />
+                            </div>
+                            <div>
+                              <label className="mb-1 block text-[11px] font-semibold text-slate-700">
+                                Livrables Attendus
+                              </label>
+                              <textarea
+                                value={piDeliverablesExpected}
+                                onChange={(e) => setPiDeliverablesExpected(e.target.value)}
+                                rows={2}
+                                placeholder="Rapports, PV, code, maquette à livrer..."
+                                className="w-full rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-xs text-slate-800"
+                              />
+                            </div>
+                          </div>
+                        </div>
+
                         {piType === 'milestone' ? (
                           <div className="sm:col-span-3 grid grid-cols-1 sm:grid-cols-2 gap-3 bg-amber-50/70 p-3.5 rounded-xl border border-amber-200">
                             <div>
@@ -3736,6 +3866,40 @@ export function ProjectDetailScreen() {
                             className="bg-white text-xs font-medium"
                           />
                         </div>
+
+                        <div className="sm:col-span-3">
+                          <label className="mb-1 block text-xs font-semibold text-slate-700">Description & Périmètre d'action</label>
+                          <textarea
+                            value={taskDesc}
+                            onChange={(e) => setTaskDesc(e.target.value)}
+                            rows={2}
+                            placeholder="Description détaillée, consignes techniques ou contexte d'exécution..."
+                            className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500"
+                          />
+                        </div>
+
+                        <div className="sm:col-span-3 grid grid-cols-1 sm:grid-cols-2 gap-3">
+                          <div>
+                            <label className="mb-1 block text-xs font-semibold text-slate-700">Objectifs opérationnels / Critères d'acceptation (DoD)</label>
+                            <textarea
+                              value={taskObjectives}
+                              onChange={(e) => setTaskObjectives(e.target.value)}
+                              rows={2}
+                              placeholder="Critères de conformité et résultats précis attendus..."
+                              className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500"
+                            />
+                          </div>
+                          <div>
+                            <label className="mb-1 block text-xs font-semibold text-slate-700">Livrables attendus (Justificatifs / Documents)</label>
+                            <textarea
+                              value={taskDelivExpected}
+                              onChange={(e) => setTaskDelivExpected(e.target.value)}
+                              rows={2}
+                              placeholder="Fichiers, rapports, PV de recette ou maquettes à produire..."
+                              className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500"
+                            />
+                          </div>
+                        </div>
                       </div>
                     </div>
 
@@ -4352,16 +4516,115 @@ export function ProjectDetailScreen() {
                       </div>
                     </div>
 
+                    {/* Cahier des Charges & Cadrage WBS (Référence d'Exécution) */}
+                    {(currentTask.description || currentTask.objectives || currentTask.deliverablesExpected) && (
+                      <div className="rounded-xl border border-blue-200 bg-blue-50/40 p-4 space-y-3 text-xs">
+                        <span className="text-xs font-bold text-blue-950 flex items-center gap-1.5">
+                          📋 Cahier des Charges & Cadrage Opérationnel
+                        </span>
+                        {currentTask.description && (
+                          <div>
+                            <span className="font-semibold text-blue-900 block text-[11px]">Description & Périmètre :</span>
+                            <p className="text-slate-700 mt-0.5 leading-relaxed">{currentTask.description}</p>
+                          </div>
+                        )}
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1 border-t border-blue-100">
+                          {currentTask.objectives && (
+                            <div>
+                              <span className="font-semibold text-blue-900 block text-[11px]">🎯 Objectifs & DoD :</span>
+                              <p className="text-slate-700 mt-0.5 leading-relaxed">{currentTask.objectives}</p>
+                            </div>
+                          )}
+                          {currentTask.deliverablesExpected && (
+                            <div>
+                              <span className="font-semibold text-blue-900 block text-[11px]">📦 Livrables attendus :</span>
+                              <p className="text-slate-700 mt-0.5 leading-relaxed">{currentTask.deliverablesExpected}</p>
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Visa de Conformité RACI (A) si la tâche est en 'review' */}
+                    {currentTask.status === 'review' && (
+                      <div className="rounded-xl border-2 border-amber-300 bg-amber-50 p-5 shadow-sm space-y-3">
+                        <div className="flex items-start justify-between">
+                          <div>
+                            <span className="inline-flex items-center gap-1.5 rounded-full bg-amber-200 px-2.5 py-0.5 text-xs font-bold text-amber-900">
+                              🛡️ Revue RACI Requise (100% déclaré)
+                            </span>
+                            <h4 className="mt-1.5 text-sm font-bold text-amber-950">
+                              Visa de Conformité & Clôture Définitive
+                            </h4>
+                            <p className="mt-0.5 text-xs text-amber-800">
+                              L'exécutant a déclaré l'achèvement à 100%. En tant qu'Approbateur RACI (A) ou Manager, vérifiez les livrables avant de délivrer le visa de conformité ou demandez des ajustements.
+                            </p>
+                          </div>
+                        </div>
+
+                        {!showReviewRejectInput ? (
+                          <div className="flex flex-wrap items-center gap-2 pt-1">
+                            <Button
+                              size="sm"
+                              onClick={() => approveReviewMutation.mutate()}
+                              disabled={approveReviewMutation.isPending}
+                              className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs"
+                            >
+                              <CheckCircle2 className="mr-1.5 h-3.5 w-3.5" />
+                              {approveReviewMutation.isPending ? 'Validation...' : 'Approuver et Clôturer (Visa A)'}
+                            </Button>
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              onClick={() => setShowReviewRejectInput(true)}
+                              className="border-amber-300 text-amber-900 hover:bg-amber-100 font-bold text-xs"
+                            >
+                              Demander des corrections
+                            </Button>
+                          </div>
+                        ) : (
+                          <div className="space-y-2 pt-2 border-t border-amber-200">
+                            <label className="block text-xs font-bold text-amber-900">Motif des corrections demandées *</label>
+                            <textarea
+                              value={reviewRejectReason}
+                              onChange={(e) => setReviewRejectReason(e.target.value)}
+                              rows={2}
+                              placeholder="Précisez ce qui doit être corrigé ou complété avant nouvelle revue..."
+                              className="w-full rounded-lg border border-amber-300 bg-white px-3 py-2 text-xs text-slate-800"
+                            />
+                            <div className="flex gap-2">
+                              <Button
+                                size="sm"
+                                onClick={() => rejectReviewMutation.mutate()}
+                                disabled={!reviewRejectReason.trim() || rejectReviewMutation.isPending}
+                                className="bg-amber-700 hover:bg-amber-800 text-white font-bold text-xs"
+                              >
+                                {rejectReviewMutation.isPending ? 'Envoi...' : 'Renvoyer pour correction'}
+                              </Button>
+                              <Button
+                                size="sm"
+                                variant="ghost"
+                                onClick={() => setShowReviewRejectInput(false)}
+                                className="text-xs text-slate-600"
+                              >
+                                Annuler
+                              </Button>
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    )}
+
                     {/* Évolution de l'avancement & Point d'étape */}
                     <div className="rounded-xl border border-indigo-200 bg-indigo-50/40 p-5 shadow-sm space-y-4">
                       <div className="flex items-center justify-between">
                         <div>
                           <h3 className="flex items-center gap-2 font-bold text-indigo-950 text-sm">
                             <Sparkles className="h-4 w-4 text-indigo-600" />
-                            Faire évoluer l'avancement réel & Statut
+                            Consigner un point d'étape opérationnel (Journal de bord)
                           </h3>
                           <p className="text-xs text-slate-500">
-                            Ajustez l'avancement (%) pour consigner un point d'étape opérationnel et mettre à jour le statut.
+                            Tout changement de progression est tracé et mis à jour selon la gouvernance RACI.
                           </p>
                         </div>
                         <span className="rounded-lg bg-indigo-600 px-3 py-1 text-sm font-bold text-white shadow-sm font-mono">
@@ -4385,7 +4648,7 @@ export function ProjectDetailScreen() {
                                 : 'bg-white text-slate-700 border-slate-200 hover:bg-slate-100'
                             }`}
                           >
-                            {pct === 0 ? '0% (À faire)' : pct === 100 ? '100% (Terminé)' : `${pct}%`}
+                            {pct === 0 ? '0% (À faire)' : pct === 100 ? '100% (Demander revue)' : `${pct}%`}
                           </button>
                         ))}
                       </div>
@@ -4410,7 +4673,7 @@ export function ProjectDetailScreen() {
                           logIsBlocked
                             ? 'text-red-700'
                             : logProgress >= 100
-                              ? 'text-emerald-700'
+                              ? 'text-amber-700'
                               : logProgress > 0
                                 ? 'text-indigo-700'
                                 : 'text-slate-600'
@@ -4418,7 +4681,7 @@ export function ProjectDetailScreen() {
                           {logIsBlocked
                             ? '🔴 Bloqué'
                             : logProgress >= 100
-                              ? '✅ Terminé (100%)'
+                              ? '🛡️ En révision (Visa RACI A requis)'
                               : logProgress > 0
                                 ? '⏳ En cours'
                                 : '⚪ À faire (0%)'}
@@ -4448,6 +4711,19 @@ export function ProjectDetailScreen() {
                         )}
                       </div>
 
+                      {/* Justificatif / Pièce jointe optionnelle */}
+                      <div>
+                        <label className="mb-1 block text-xs font-semibold text-slate-700">
+                          Lien vers livrable / justificatif (URL cloud, document...)
+                        </label>
+                        <Input
+                          value={logAttachmentUrl}
+                          onChange={(e) => setLogAttachmentUrl(e.target.value)}
+                          placeholder="https://drive.google.com/... ou https://sharepoint.com/..."
+                          className="bg-white text-xs"
+                        />
+                      </div>
+
                       {/* Commentaire de compte-rendu */}
                       <div>
                         <label className="mb-1 block text-xs font-semibold text-slate-700">
@@ -4469,7 +4745,7 @@ export function ProjectDetailScreen() {
                         className="bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs"
                       >
                         <Send className="mr-1.5 h-3.5 w-3.5" />
-                        {addUpdateLogMutation.isPending ? 'Enregistrement...' : 'Mettre à jour et fermer'}
+                        {addUpdateLogMutation.isPending ? 'Enregistrement...' : 'Consigner le point d\'étape'}
                       </Button>
                     </div>
 
@@ -4572,6 +4848,19 @@ export function ProjectDetailScreen() {
                                 <span>{new Date(u.createdAt).toLocaleDateString('fr-CA', { hour: '2-digit', minute: '2-digit' })}</span>
                               </div>
                               <p className="text-slate-800">{u.comment}</p>
+                              {u.attachmentUrl && (
+                                <p className="mt-0.5">
+                                  <a
+                                    href={u.attachmentUrl}
+                                    target="_blank"
+                                    rel="noreferrer"
+                                    className="inline-flex items-center gap-1 font-semibold text-indigo-600 hover:underline text-[11px]"
+                                  >
+                                    <Paperclip className="h-3 w-3" />
+                                    Justificatif joint
+                                  </a>
+                                </p>
+                              )}
                               {u.blockerReason && (
                                 <p className="text-red-600 font-medium">🛑 Blocage : {u.blockerReason}</p>
                               )}
