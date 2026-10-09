@@ -2673,10 +2673,10 @@ export function ProjectDetailScreen() {
                         </div>
 
                         {piType === 'milestone' ? (
-                          <div className="sm:col-span-3 grid grid-cols-1 sm:grid-cols-2 gap-3 bg-amber-50/70 p-3 rounded-lg border border-amber-200">
+                          <div className="sm:col-span-3 grid grid-cols-1 sm:grid-cols-2 gap-3 bg-amber-50/70 p-3.5 rounded-xl border border-amber-200">
                             <div>
                               <label className="mb-1 block text-xs font-bold text-amber-900">
-                                Date cible du jalon *
+                                Date cible / Échéance contractuelle (optionnelle)
                               </label>
                               <Input
                                 type="date"
@@ -2690,18 +2690,21 @@ export function ProjectDetailScreen() {
                             </div>
                             <div>
                               <label className="mb-1 block text-xs font-bold text-amber-900">
-                                Coût estimé planifié (CAD)
+                                Coût / Facturation associée (CAD) - Optionnel
                               </label>
                               <Input
                                 type="number"
                                 value={piEstimatedCost}
                                 onChange={(e) => setPiEstimatedCost(e.target.value)}
                                 placeholder="0.00"
-                                className="bg-white text-xs"
+                                className="bg-white text-xs font-bold"
                               />
                             </div>
-                            <div className="sm:col-span-2 text-xs text-amber-800 flex items-center">
-                              ℹ️ Un jalon est un point de contrôle ou livrable clé (durée = 0 jour).
+                            <div className="sm:col-span-2 text-xs text-amber-900 bg-amber-100/60 p-2.5 rounded-lg border border-amber-200/80 space-y-1">
+                              <span className="font-bold block">🚩 Jalon clé (Durée = 0 jour) :</span>
+                              <p className="text-[11px] text-amber-800 leading-relaxed">
+                                Un jalon est un événement charnière ou point de validation. Sa date de franchissement est <strong>calculée automatiquement par le réseau PERT</strong> dès que toutes ses tâches antécédentes (prédécesseurs) sont terminées.
+                              </p>
                             </div>
                           </div>
                         ) : piType === 'phase' || piType === 'activity' ? (
@@ -4289,33 +4292,65 @@ export function ProjectDetailScreen() {
                       </div>
 
                       {taskType === 'milestone' ? (
-                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 bg-amber-50/70 p-3.5 rounded-xl border border-amber-200">
-                          <div>
-                            <label className="mb-1 block text-xs font-bold text-amber-900">Date cible du jalon *</label>
-                            <Input
-                              type="date"
-                              value={taskStart || taskEnd}
-                              onChange={(e) => {
-                                setTaskStart(e.target.value);
-                                setTaskEnd(e.target.value);
-                              }}
-                              className="bg-white text-xs"
-                            />
+                        <div className="space-y-3">
+                          <div className="rounded-xl border border-amber-200 bg-amber-50/70 p-3.5 space-y-2">
+                            <div className="flex items-center justify-between">
+                              <span className="text-xs font-bold text-amber-950 flex items-center gap-1.5">
+                                <Flag className="h-4 w-4 text-amber-600" />
+                                Date de franchissement calculée au réseau PERT
+                              </span>
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                onClick={() => syncPertScheduleMutation.mutate()}
+                                disabled={syncPertScheduleMutation.isPending}
+                                className="h-7 text-[11px] bg-white border-amber-300 text-amber-900 hover:bg-amber-100 shadow-none font-semibold"
+                              >
+                                🔄 Synchroniser le réseau
+                              </Button>
+                            </div>
+                            <div className="flex items-center gap-3 text-xs">
+                              <span className="font-mono font-bold text-amber-950 bg-white px-2.5 py-1 rounded border border-amber-300">
+                                {selectedTask.startDate || selectedTask.endDate || 'Calculée à la synchronisation PERT'}
+                              </span>
+                              <span className="text-amber-800 font-medium text-[11px]">
+                                (Durée = 0 jour • Point de repère clé)
+                              </span>
+                            </div>
+                            <p className="text-[11px] text-amber-800/90 leading-relaxed">
+                              Positionnée automatiquement d'après la fin de ses prédécesseurs (ou du démarrage du projet si aucun prédécesseur).
+                            </p>
                           </div>
-                          <div>
-                            <label className="mb-1 block text-xs font-bold text-amber-900">Coût Estimé Planifié (CAD) - PV</label>
-                            <Input
-                              type="number"
-                              min="0"
-                              step="0.01"
-                              value={taskCost}
-                              onChange={(e) => setTaskCost(e.target.value)}
-                              placeholder="0.00"
-                              className="bg-white text-xs font-bold"
-                            />
-                          </div>
-                          <div className="sm:col-span-2 text-xs text-amber-800">
-                            ℹ️ Un jalon est un point de repère temporel clé ou un événement majeur (durée = 0 jour).
+
+                          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                            <div>
+                              <label className="mb-1 block text-xs font-bold uppercase tracking-wider text-slate-700">
+                                Date cible contractuelle (optionnelle)
+                              </label>
+                              <Input
+                                type="date"
+                                value={taskStart || taskEnd}
+                                onChange={(e) => {
+                                  setTaskStart(e.target.value);
+                                  setTaskEnd(e.target.value);
+                                }}
+                                className="bg-white text-xs"
+                              />
+                            </div>
+                            <div>
+                              <label className="mb-1 block text-xs font-bold uppercase tracking-wider text-slate-700">
+                                Coût / Facturation associée (CAD) - PV
+                              </label>
+                              <Input
+                                type="number"
+                                min="0"
+                                step="0.01"
+                                value={taskCost}
+                                onChange={(e) => setTaskCost(e.target.value)}
+                                placeholder="0.00"
+                                className="bg-white text-xs font-bold"
+                              />
+                            </div>
                           </div>
                         </div>
                       ) : taskType === 'phase' || taskType === 'activity' ? (
