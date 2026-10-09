@@ -56,6 +56,7 @@ import { GanttChartInteractive } from './components/GanttChartInteractive';
 import { EarnedValueManagementView } from './components/EarnedValueManagementView';
 import { BudgetPlanningView } from './components/BudgetPlanningView';
 import { TaskExecutionHub } from './components/TaskExecutionHub';
+import { ProjectMonitoringHub } from './components/ProjectMonitoringHub';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 type TabKey = 'overview' | 'strategy' | 'planning' | 'execution' | 'monitoring';
@@ -3471,318 +3472,50 @@ export function ProjectDetailScreen() {
         {/* PILIER 4: SUIVI & CONTRÔLE DE PERFORMANCE                       */}
         {/* ═══════════════════════════════════════════════════════════════ */}
         {activeTab === 'monitoring' && (
-          <div className="space-y-6">
-            {/* Sub-tab Navigation */}
-            <div className="flex items-center gap-1.5 p-1 bg-slate-200/80 rounded-xl w-fit border border-slate-300 shadow-2xs">
-              <button
-                onClick={() => setMonitoringSubTab('evm')}
-                className={`flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg text-xs font-bold transition ${
-                  monitoringSubTab === 'evm' ? 'bg-white text-indigo-700 shadow-xs' : 'text-slate-600 hover:text-slate-900'
-                }`}
-              >
-                <TrendingUp className="h-3.5 w-3.5" />
-                Valeur Acquise & EVM (Courbe en S)
-              </button>
-              <button
-                onClick={() => setMonitoringSubTab('raid')}
-                className={`flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg text-xs font-bold transition ${
-                  monitoringSubTab === 'raid' ? 'bg-white text-orange-700 shadow-xs' : 'text-slate-600 hover:text-slate-900'
-                }`}
-              >
-                <AlertTriangle className="h-3.5 w-3.5" />
-                Registre RAID ({raidItems.length})
-              </button>
-              <button
-                onClick={() => setMonitoringSubTab('health')}
-                className={`flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg text-xs font-bold transition ${
-                  monitoringSubTab === 'health' ? 'bg-white text-emerald-700 shadow-xs' : 'text-slate-600 hover:text-slate-900'
-                }`}
-              >
-                <BarChart3 className="h-3.5 w-3.5" />
-                Radar de Santé & Alertes de Dérives
-              </button>
-            </div>
-
-            {/* Sub-tab 1: EVM */}
-            {monitoringSubTab === 'evm' && (
-              <EarnedValueManagementView
-                tasks={planItems}
-                expenses={expenses}
-                budgetTotal={totalBudget}
-              />
-            )}
-
-            {/* Sub-tab 2: RAID */}
-            {monitoringSubTab === 'raid' && (
-              <div className="space-y-4">
-            <div className="flex items-center justify-between">
-              <div>
-                <h2 className="text-base font-bold text-slate-800">Registre RAID</h2>
-                <p className="text-sm text-slate-500">Risques · Hypothèses · Enjeux · Dépendances</p>
-              </div>
-              <Button size="sm" onClick={() => setShowRaidForm(!showRaidForm)}>
-                <Plus className="mr-2 h-4 w-4" />
-                Ajouter un élément
-              </Button>
-            </div>
-
-            {/* RAID form */}
-            {showRaidForm && (
-              <div className="rounded-xl border border-orange-200 bg-orange-50 p-5 shadow-sm">
-                <h3 className="mb-4 text-sm font-semibold text-orange-800">Nouvel élément RAID</h3>
-                <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
-                  <div>
-                    <label className="mb-1 block text-xs font-medium text-slate-600">Type</label>
-                    <select
-                      value={raidType}
-                      onChange={(e) => setRaidType(e.target.value as RaidItem['type'])}
-                      className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm"
-                    >
-                      {Object.entries(RAID_TYPE_CONFIG).map(([k, v]) => (
-                        <option key={k} value={k}>{v.label}</option>
-                      ))}
-                    </select>
-                  </div>
-                  <div className="sm:col-span-2">
-                    <label className="mb-1 block text-xs font-medium text-slate-600">Titre *</label>
-                    <Input value={raidTitle} onChange={(e) => setRaidTitle(e.target.value)} placeholder="Décrivez le risque ou l'enjeu..." />
-                  </div>
-                  <div className="sm:col-span-3">
-                    <label className="mb-1 block text-xs font-medium text-slate-600">Description</label>
-                    <textarea
-                      value={raidDesc}
-                      onChange={(e) => setRaidDesc(e.target.value)}
-                      rows={2}
-                      className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm"
-                      placeholder="Contexte, mitigation, notes..."
-                    />
-                  </div>
-                  <div>
-                    <label className="mb-1 block text-xs font-medium text-slate-600">Probabilité (1-5)</label>
-                    <div className="flex items-center gap-3">
-                      <input
-                        type="range" min={1} max={5} value={raidProb}
-                        onChange={(e) => setRaidProb(e.target.value)}
-                        className="flex-1"
-                      />
-                      <span className="w-6 text-center font-bold text-orange-700">{raidProb}</span>
-                    </div>
-                  </div>
-                  <div>
-                    <label className="mb-1 block text-xs font-medium text-slate-600">Impact (1-5)</label>
-                    <div className="flex items-center gap-3">
-                      <input
-                        type="range" min={1} max={5} value={raidImpact}
-                        onChange={(e) => setRaidImpact(e.target.value)}
-                        className="flex-1"
-                      />
-                      <span className="w-6 text-center font-bold text-orange-700">{raidImpact}</span>
-                    </div>
-                  </div>
-                  <div>
-                    <label className="mb-1 block text-xs font-medium text-slate-600">Responsable</label>
-                    <Input value={raidOwner} onChange={(e) => setRaidOwner(e.target.value)} placeholder="Nom du responsable" />
-                  </div>
-                </div>
-                <div className="mt-2 rounded-lg bg-white/60 px-3 py-2 text-xs text-orange-700">
-                  Score de sévérité: <strong>{parseInt(raidProb) * parseInt(raidImpact)} / 25</strong>
-                </div>
-                <div className="mt-3 flex gap-2">
-                  <Button size="sm" onClick={() => addRaidItem.mutate()} disabled={!raidTitle.trim() || addRaidItem.isPending}>
-                    Enregistrer
-                  </Button>
-                  <Button size="sm" variant="ghost" onClick={() => setShowRaidForm(false)}>Annuler</Button>
-                </div>
-              </div>
-            )}
-
-            {/* RAID Table grouped by type */}
-            {raidItems.length === 0 ? (
-              <div className="rounded-xl border border-dashed border-slate-200 bg-white p-10 text-center">
-                <AlertTriangle className="mx-auto mb-3 h-10 w-10 text-slate-300" />
-                <p className="text-sm font-medium text-slate-500">Aucun élément RAID enregistré</p>
-                <p className="mt-1 text-xs text-slate-400">Identifiez et documentez les risques du projet.</p>
-              </div>
-            ) : (
-              <div className="space-y-4">
-                {(['risk', 'issue', 'assumption', 'dependency'] as const).map((type) => {
-                  const items = raidItems.filter((r: any) => r.type === type);
-                  if (items.length === 0) return null;
-                  const cfg = RAID_TYPE_CONFIG[type];
-                  return (
-                    <div key={type} className="overflow-hidden rounded-xl border bg-white shadow-sm">
-                      <div className={`border-b px-5 py-3`}>
-                        <h3 className={`text-sm font-bold`}>
-                          <span className={`mr-2 rounded-full px-2 py-0.5 ${cfg.color}`}>{cfg.label}</span>
-                          <span className="text-slate-400">({items.length})</span>
-                        </h3>
-                      </div>
-                      <table className="w-full text-sm">
-                        <thead className="border-b bg-slate-50 text-xs font-semibold uppercase text-slate-500">
-                          <tr>
-                            <th className="px-5 py-2 text-left">Titre</th>
-                            <th className="px-5 py-2 text-left">Description</th>
-                            <th className="px-5 py-2 text-center">Sévérité</th>
-                            <th className="px-5 py-2 text-left">Responsable</th>
-                            <th className="px-5 py-2 text-right">Actions</th>
-                          </tr>
-                        </thead>
-                        <tbody className="divide-y divide-slate-100">
-                          {[...items]
-                            .sort((a: any, b: any) => (b.probability || 1) * (b.impact || 1) - (a.probability || 1) * (a.impact || 1))
-                            .map((item: any) => (
-                              <tr key={item.id} className="hover:bg-slate-50">
-                                <td className="px-5 py-3 font-medium text-slate-800">{item.title}</td>
-                                <td className="px-5 py-3 text-slate-500">{item.description || '—'}</td>
-                                <td className="px-5 py-3 text-center">
-                                  <SeverityBadge probability={item.probability} impact={item.impact} />
-                                </td>
-                                <td className="px-5 py-3 text-slate-600">{item.ownerName || '—'}</td>
-                                <td className="px-5 py-3 text-right">
-                                  <Button
-                                    size="sm"
-                                    variant="ghost"
-                                    className="h-7 w-7 p-0 text-slate-400 hover:text-red-600 hover:bg-red-50"
-                                    title="Supprimer cet élément RAID"
-                                    onClick={() => {
-                                      if (window.confirm(`Supprimer l'élément "${item.title}" ?`)) {
-                                        deleteRaidItem.mutate(item.id);
-                                      }
-                                    }}
-                                  >
-                                    <Trash2 className="h-3.5 w-3.5" />
-                                  </Button>
-                                </td>
-                              </tr>
-                            ))}
-                        </tbody>
-                      </table>
-                    </div>
-                  );
-                })}
-              </div>
-            )}
-          </div>
-            )}
-
-            {/* Sub-tab 3: Radar de Santé */}
-            {monitoringSubTab === 'health' && (
-              <div className="space-y-6">
-                {/* Health Banner */}
-                <div className="rounded-xl border bg-white p-6 shadow-sm flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
-                  <div>
-                    <div className="flex items-center gap-2">
-                      <span className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold border ${projectHealth.color}`}>
-                        <CheckCircle2 className="h-4 w-4" />
-                        {projectHealth.label}
-                      </span>
-                      <span className="text-xs text-slate-400 font-medium">• Santé calculée selon délais et blocages</span>
-                    </div>
-                    <h2 className="mt-2 text-xl font-bold text-slate-900">Diagnostic de Santé et Dérives du Projet</h2>
-                    <p className="text-xs text-slate-500 mt-1">
-                      Suivi en continu du respect des jalons, des blocages opérationnels et de la cadence de réalisation.
-                    </p>
-                  </div>
-                  <div className="flex items-center gap-3">
-                    <div className="rounded-lg bg-indigo-50 px-4 py-2 text-center border border-indigo-100">
-                      <span className="block text-[11px] font-bold text-indigo-700 uppercase tracking-wider">Avancement Global</span>
-                      <span className="text-xl font-extrabold text-indigo-900">{overallProgress}%</span>
-                    </div>
-                    <div className="rounded-lg bg-slate-50 px-4 py-2 text-center border border-slate-200">
-                      <span className="block text-[11px] font-bold text-slate-600 uppercase tracking-wider">Tâches Finies</span>
-                      <span className="text-xl font-extrabold text-slate-800">{completedTasks} / {totalTasks}</span>
-                    </div>
-                  </div>
-                </div>
-
-                {/* Blocked Tasks Alert Box */}
-                {blockedTasks > 0 && (
-                  <div className="rounded-xl border border-red-300 bg-red-50/80 p-5 shadow-sm space-y-3">
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center gap-2">
-                        <Flame className="h-5 w-5 text-red-600" />
-                        <h3 className="text-sm font-bold text-red-900">
-                          {blockedTasks} Tâche{blockedTasks > 1 ? 's' : ''} actuellement bloquée{blockedTasks > 1 ? 's' : ''}
-                        </h3>
-                      </div>
-                      <span className="text-xs font-semibold text-red-700">Action requise</span>
-                    </div>
-                    <div className="divide-y divide-red-200/60 rounded-lg bg-white border border-red-200">
-                      {planItems.filter((p: any) => p.status === 'blocked').map((t: any) => {
-                        const taskUpdates = updates.filter((u: any) => u.planItemId === t.id && u.blockerReason);
-                        const latestBlocker = taskUpdates[taskUpdates.length - 1]?.blockerReason || 'Motif non précisé';
-                        const assignee = members.find((m: any) => m.id === t.assigneePartyId);
-                        return (
-                          <div key={t.id} className="p-3.5 flex items-center justify-between gap-4">
-                            <div>
-                              <div className="flex items-center gap-2">
-                                <span className="font-mono text-xs font-bold text-red-800 bg-red-100 px-1.5 py-0.5 rounded">{t.wbs}</span>
-                                <span className="font-bold text-sm text-slate-900">{t.title}</span>
-                                {assignee && (
-                                  <span className="text-xs text-slate-500">({assignee.name})</span>
-                                )}
-                              </div>
-                              <p className="text-xs text-red-700 mt-1 font-medium">
-                                🛑 <strong>Blocage :</strong> {latestBlocker}
-                              </p>
-                            </div>
-                            <Button
-                              size="sm"
-                              onClick={() => setSelectedTask(t)}
-                              className="text-xs font-semibold bg-red-600 hover:bg-red-700 text-white"
-                            >
-                              Débloquer / Intervenir
-                            </Button>
-                          </div>
-                        );
-                      })}
-                    </div>
-                  </div>
-                )}
-
-                {/* Phases Health Breakdown */}
-                <div className="rounded-xl border bg-white p-5 shadow-sm space-y-4">
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <h3 className="text-sm font-bold text-slate-800">Santé par Phase de Projet</h3>
-                      <p className="text-xs text-slate-500">Contrôle des délais et cadence de complétion par phase</p>
-                    </div>
-                  </div>
-
-                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                    {phasesWithHealth.map((ph: any) => (
-                      <div key={ph.id} className="rounded-xl border border-slate-200 bg-slate-50/50 p-4 space-y-3">
-                        <div className="flex items-start justify-between">
-                          <div>
-                            <span className="font-mono text-xs font-bold text-purple-700 bg-purple-100 px-2 py-0.5 rounded">{ph.wbs}</span>
-                            <h4 className="font-bold text-sm text-slate-900 mt-1">{ph.title}</h4>
-                          </div>
-                          <span className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-bold border ${ph.healthColor}`}>
-                            {ph.healthLabel}
-                          </span>
-                        </div>
-
-                        <div>
-                          <div className="flex justify-between text-xs mb-1">
-                            <span className="text-slate-500 font-medium">Avancement</span>
-                            <span className="font-bold text-indigo-700">{ph.progressPct || 0}%</span>
-                          </div>
-                          <ProgressBar value={ph.progressPct || 0} />
-                        </div>
-
-                        <div className="pt-2 border-t border-slate-200/80 flex items-center justify-between text-xs text-slate-500">
-                          <span>{ph.completedChildCount} / {ph.childCount} tâches achevées</span>
-                          {ph.startDate && ph.endDate && (
-                            <span className="text-[11px] text-slate-400">{ph.startDate} → {ph.endDate}</span>
-                          )}
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              </div>
-            )}
-          </div>
+          <ProjectMonitoringHub
+            project={proj}
+            planItems={planItems}
+            expenses={expenses}
+            members={members}
+            deliverables={deliverables}
+            updates={updates}
+            raidItems={raidItems}
+            fundingSources={fundingSources}
+            onSelectTask={(task) => setSelectedTask(task)}
+            onApproveDeliverable={async (delivId) => {
+              const target = deliverables.find((d: any) => d.id === delivId);
+              if (!target) return;
+              await fetch(`/api/v1/projects/${id}/plan-items/${target.planItemId}/deliverables/${delivId}/verify`, {
+                method: 'PATCH',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                  status: 'approved',
+                  verifiedBy: 'Gestionnaire de Projet',
+                }),
+              });
+              invalidate();
+            }}
+            onRejectDeliverable={async (delivId, reason) => {
+              const target = deliverables.find((d: any) => d.id === delivId);
+              if (!target) return;
+              await fetch(`/api/v1/projects/${id}/plan-items/${target.planItemId}/deliverables/${delivId}/verify`, {
+                method: 'PATCH',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                  status: 'rejected',
+                  verifiedBy: 'Gestionnaire de Projet',
+                  reviewComment: reason,
+                }),
+              });
+              invalidate();
+            }}
+            onAddRaidItem={async (item) => {
+              await addRaidItem.mutateAsync();
+            }}
+            onDeleteRaidItem={async (itemId) => {
+              await deleteRaidItem.mutateAsync(itemId);
+            }}
+          />
         )}
       </main>
 
