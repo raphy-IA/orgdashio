@@ -2939,8 +2939,21 @@ export function ProjectDetailScreen() {
                             const assignee = members.find((m: any) => m.id === item.assigneePartyId);
                             const itemPreds = (dependencies || []).filter((d: any) => d.successorId === item.id);
 
+                            const projStartDate = data?.project?.startDate || item.startDate;
+                            let lagDaysFromProj = 0;
+                            if (item.startDate && projStartDate) {
+                              const sProj = new Date(projStartDate + 'T00:00:00Z').getTime();
+                              const sTask = new Date(item.startDate + 'T00:00:00Z').getTime();
+                              lagDaysFromProj = Math.round((sTask - sProj) / (1000 * 60 * 60 * 24));
+                            }
+
                             return (
-                              <tr key={item.id} className="group hover:bg-slate-50 transition-colors">
+                              <tr
+                                key={item.id}
+                                onClick={() => setSelectedTask(item)}
+                                className="group hover:bg-indigo-50/40 cursor-pointer transition-colors"
+                                title="Cliquer pour ouvrir et modifier cet élément"
+                              >
                                 <td className="px-4 py-3 font-mono text-xs font-bold text-slate-600">{item.wbs}</td>
                                 <td className="px-4 py-3">
                                   <span className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-0.5 text-xs font-medium ${typeCfg.badgeClass}`}>
@@ -2979,25 +2992,37 @@ export function ProjectDetailScreen() {
                                     <span className="text-amber-700 bg-amber-50 px-2 py-0.5 rounded font-bold">0 j</span>
                                   ) : (
                                     <span className={isContainer ? 'text-purple-700 font-bold' : 'text-slate-700'}>
-                                      {item.durationDays || 0} j {isContainer ? '(roll-up)' : ''}
+                                      {item.durationDays || 0} j
                                     </span>
                                   )}
                                 </td>
                                 <td className="px-4 py-3 text-xs">
                                   {itemPreds.length === 0 ? (
-                                    <span className="text-slate-300">—</span>
+                                    isContainer ? (
+                                      <span className="text-slate-300">—</span>
+                                    ) : (
+                                      <span
+                                        className="inline-flex items-center gap-1 bg-emerald-50 text-emerald-800 border border-emerald-200 rounded px-1.5 py-0.5 font-mono text-[11px] font-bold"
+                                        title={`Démarrage au début du projet (T0 : ${projStartDate || ''})`}
+                                      >
+                                        <span className="h-1.5 w-1.5 rounded-full bg-emerald-500"></span>
+                                        T0{lagDaysFromProj > 0 ? `+${lagDaysFromProj}j` : lagDaysFromProj < 0 ? `${lagDaysFromProj}j` : ''}
+                                      </span>
+                                    )
                                   ) : (
                                     <div className="flex flex-wrap gap-1">
                                       {itemPreds.map((pred: any) => {
+                                        const isProjStart = pred.predecessorId === 'PROJECT_START';
                                         const predTask = planItems.find((p: any) => p.id === pred.predecessorId);
+                                        const label = isProjStart ? 'T0' : (predTask?.wbs || '?');
                                         return (
                                           <span
                                             key={pred.id}
-                                            className="inline-flex items-center gap-1 bg-violet-50 text-violet-800 border border-violet-200 rounded px-1.5 py-0.5 font-mono text-[11px] font-bold"
-                                            title={`Prédécesseur : ${predTask?.title || 'Tâche'}`}
+                                            className={`inline-flex items-center gap-1 ${isProjStart ? 'bg-emerald-50 text-emerald-800 border-emerald-200' : 'bg-violet-50 text-violet-800 border-violet-200'} border rounded px-1.5 py-0.5 font-mono text-[11px] font-bold`}
+                                            title={isProjStart ? 'Démarrage du projet (T0)' : `Prédécesseur : ${predTask?.title || 'Tâche'}`}
                                           >
-                                            <Link2 className="h-2.5 w-2.5 text-violet-600" />
-                                            {predTask?.wbs || '?'}:{pred.type}{pred.lagDays ? `+${pred.lagDays}j` : ''}
+                                            <Link2 className={`h-2.5 w-2.5 ${isProjStart ? 'text-emerald-600' : 'text-violet-600'}`} />
+                                            {label}:{pred.type}{pred.lagDays ? `+${pred.lagDays}j` : ''}
                                           </span>
                                         );
                                       })}
@@ -3030,19 +3055,10 @@ export function ProjectDetailScreen() {
                                 </td>
                                 <td className="px-4 py-3 text-right whitespace-nowrap">
                                   <div className="flex items-center justify-end gap-1">
-                                    <Button
-                                      size="sm"
-                                      variant="ghost"
-                                      onClick={() => setSelectedTask(item)}
-                                      className="h-7 px-2 text-xs text-indigo-600 hover:text-indigo-800 hover:bg-indigo-50"
-                                      title="Modifier et paramétrer cet élément"
-                                    >
-                                      <Pencil className="h-3.5 w-3.5 mr-1" />
-                                      Modifier
-                                    </Button>
                                     <button
                                       type="button"
-                                      onClick={() => {
+                                      onClick={(e) => {
+                                        e.stopPropagation();
                                         const children = planItems.filter((p: any) => p.parentId === item.id);
                                         const confirmMsg = children.length > 0
                                           ? `Supprimer "${item.wbs} — ${item.title}" supprimera également ses ${children.length} sous-élément(s) rattaché(s). Confirmer ?`
