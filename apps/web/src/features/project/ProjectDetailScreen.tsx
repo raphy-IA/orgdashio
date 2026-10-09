@@ -419,7 +419,6 @@ export function ProjectDetailScreen() {
   const [showPertInputs, setShowPertInputs] = useState(false);
 
   // Dependency Management state (inside task drawer)
-  const [depDirection, setDepDirection] = useState<'predecessor' | 'successor'>('predecessor');
   const [depPredId, setDepPredId] = useState('');
   const [depType, setDepType] = useState<'FS' | 'SS' | 'FF' | 'SF'>('FS');
   const [depLag, setDepLag] = useState('0');
@@ -677,55 +676,19 @@ export function ProjectDetailScreen() {
     mutationFn: async () => {
       if (!selectedTask || !depPredId) return;
 
-      if (depPredId === 'PROJECT_START') {
-        const baseStart = data?.project?.startDate || new Date().toISOString().split('T')[0];
-        const lag = parseInt(depLag) || 0;
-        const d = new Date(baseStart + 'T00:00:00Z');
-        d.setUTCDate(d.getUTCDate() + lag);
-        const targetStartDate = d.toISOString().split('T')[0];
-
-        let dur = parseInt(taskDuration) || selectedTask.durationDays || 1;
-        if (selectedTask.type === 'milestone') dur = 0;
-        const dEnd = new Date(targetStartDate + 'T00:00:00Z');
-        dEnd.setUTCDate(dEnd.getUTCDate() + dur);
-        const targetEndDate = dEnd.toISOString().split('T')[0];
-
-        const res = await fetch(`/api/v1/projects/${id}/plan-items/${selectedTask.id}`, {
-          method: 'PATCH',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            startDate: targetStartDate,
-            endDate: targetEndDate,
-            durationDays: dur,
-          }),
-        });
-        if (!res.ok) {
-          const err = await res.json().catch(() => ({}));
-          throw new Error(err.message || 'Erreur lors de la mise à jour du décalage de démarrage');
-        }
-        await fetch(`/api/v1/projects/${id}/sync-pert-schedule`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-        });
-        return res.json();
-      }
-
-      const predId = depDirection === 'predecessor' ? depPredId : selectedTask.id;
-      const succId = depDirection === 'predecessor' ? selectedTask.id : depPredId;
-
       const res = await fetch(`/api/v1/projects/${id}/dependencies`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          predecessorId: predId,
-          successorId: succId,
+          predecessorId: depPredId,
+          successorId: selectedTask.id,
           type: depType,
           lagDays: parseInt(depLag) || 0,
         }),
       });
       if (!res.ok) {
         const err = await res.json().catch(() => ({}));
-        throw new Error(err.message || 'Erreur lors de l\'ajout de la dépendance (boucle circulaire détectée ?)');
+        throw new Error(err.message || 'Erreur lors de l\'ajout du prédécesseur (boucle circulaire détectée ?)');
       }
       return res.json();
     },
@@ -4566,58 +4529,35 @@ export function ProjectDetailScreen() {
                                 Contraintes de Précédence & Réseau PERT (PDM)
                               </h3>
                               <p className="text-xs text-slate-500">
-                                Prédécesseurs et successeurs régissant l'ordonnancement et le chemin critique.
+                                Définissez les antécédents requis avant cette tâche. Les successeurs sont calculés automatiquement.
                               </p>
                             </div>
                             <Button
                               size="sm"
                               variant="outline"
-                              onClick={() => setShowAddDepForm(!showAddDepForm)}
-                              className="text-xs"
+                              onClick={() => { setShowAddDepForm(!showAddDepForm); setDepPredId(''); setDepLag('0'); }}
+                              className="text-xs font-semibold"
                             >
                               <Plus className="mr-1 h-3.5 w-3.5" />
-                              Ajouter une liaison
+                              Ajouter un prédécesseur
                             </Button>
                           </div>
 
                           {showAddDepForm && (
                             <div className="rounded-xl border border-violet-200 bg-violet-50/60 p-4 space-y-3">
-                              <div className="flex items-center justify-between">
-                                <h4 className="text-xs font-bold text-violet-900">Ajouter une contrainte d'ordonnancement</h4>
-                                <div className="flex rounded-lg border border-violet-200 bg-white p-0.5 text-xs font-semibold">
-                                  <button
-                                    type="button"
-                                    onClick={() => { setDepDirection('predecessor'); setDepPredId(''); }}
-                                    className={`px-2.5 py-1 rounded-md transition ${depDirection === 'predecessor' ? 'bg-violet-600 text-white font-bold' : 'text-slate-600 hover:text-slate-900'}`}
-                                  >
-                                    ⏮️ Prédécesseur (Avant)
-                                  </button>
-                                  <button
-                                    type="button"
-                                    onClick={() => { setDepDirection('successor'); setDepPredId(''); }}
-                                    className={`px-2.5 py-1 rounded-md transition ${depDirection === 'successor' ? 'bg-violet-600 text-white font-bold' : 'text-slate-600 hover:text-slate-900'}`}
-                                  >
-                                    ⏭️ Successeur (Après)
-                                  </button>
-                                </div>
-                              </div>
+                              <h4 className="text-xs font-bold text-violet-900">Ajouter un antécédent (Tâche requise avant)</h4>
 
                               <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
                                 <div className="sm:col-span-1">
                                   <label className="mb-1 block text-xs font-semibold text-slate-700">
-                                    {depDirection === 'predecessor' ? 'Tâche Antécédente (Requise avant) *' : 'Tâche Successeure (Démarrera après) *'}
+                                    Tâche Antécédente (Prédécesseur) *
                                   </label>
                                   <select
                                     value={depPredId}
                                     onChange={(e) => setDepPredId(e.target.value)}
                                     className="w-full rounded-lg border border-slate-200 bg-white px-2.5 py-2 text-xs font-medium text-slate-700"
                                   >
-                                    <option value="">— Sélectionner une tâche —</option>
-                                    {depDirection === 'predecessor' && (
-                                      <option value="PROJECT_START" className="font-bold text-emerald-800 bg-emerald-50">
-                                        🟢 Démarrage du Projet (T₀ : {data?.project?.startDate || 'Date initiale'})
-                                      </option>
-                                    )}
+                                    <option value="">— Sélectionner l'antécédent —</option>
                                     {availablePredecessors.map((p: any) => (
                                       <option key={p.id} value={p.id}>
                                         {p.wbs} — {p.title} ({p.type === 'milestone' ? 'Jalon' : `${p.durationDays || 1}j`})
@@ -4649,14 +4589,14 @@ export function ProjectDetailScreen() {
                                   />
                                 </div>
                               </div>
-                              <div className="flex gap-2">
+                              <div className="flex gap-2 pt-1">
                                 <Button
                                   size="sm"
                                   onClick={() => addDependencyMutation.mutate()}
                                   disabled={!depPredId || addDependencyMutation.isPending}
-                                  className="text-xs"
+                                  className="text-xs bg-violet-600 hover:bg-violet-700 text-white font-bold"
                                 >
-                                  {addDependencyMutation.isPending ? 'Enregistrement...' : 'Lier'}
+                                  {addDependencyMutation.isPending ? 'Enregistrement...' : 'Lier le prédécesseur'}
                                 </Button>
                                 <Button size="sm" variant="ghost" onClick={() => setShowAddDepForm(false)} className="text-xs">
                                   Annuler
@@ -4668,12 +4608,15 @@ export function ProjectDetailScreen() {
                           {/* List of Incoming and Outgoing */}
                           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                             <div>
-                              <span className="text-xs font-bold text-slate-700 block mb-2">
-                                Prédécesseurs (Requis avant) :
-                              </span>
+                              <div className="flex items-center justify-between mb-2">
+                                <span className="text-xs font-bold text-slate-800">
+                                  ⏮️ Prédécesseurs (Requis avant) :
+                                </span>
+                                <span className="text-[11px] text-slate-400 font-medium">{incomingDeps.length} liaison{incomingDeps.length > 1 ? 's' : ''}</span>
+                              </div>
                               {incomingDeps.length === 0 ? (
                                 <div className="rounded-lg border border-slate-200 bg-slate-50 p-2.5 text-xs text-slate-500">
-                                  Aucun prédécesseur direct (Démarre au début du projet).
+                                  Aucun antécédent (Démarre dès le début du projet).
                                 </div>
                               ) : (
                                 <div className="space-y-2">
@@ -4684,16 +4627,17 @@ export function ProjectDetailScreen() {
                                         <div className="flex items-center gap-1.5">
                                           <span className="font-mono font-bold text-indigo-700 bg-indigo-50 px-1.5 py-0.5 rounded">{pred?.wbs || '—'}</span>
                                           <span className="font-medium text-slate-800 truncate max-w-[150px]">{pred?.title || 'Inconnu'}</span>
-                                          <span className="bg-slate-200 text-slate-700 rounded px-1 text-[10px]">{dep.type}</span>
-                                          {dep.lagDays ? <span className="text-[10px] text-slate-500 font-mono">+{dep.lagDays}j</span> : null}
+                                          <span className="bg-slate-200 text-slate-700 rounded px-1 text-[10px] font-semibold">{dep.type}</span>
+                                          {dep.lagDays ? <span className="text-[10px] text-slate-500 font-mono font-bold">+{dep.lagDays}j</span> : null}
                                         </div>
                                         <Button
                                           size="sm"
                                           variant="ghost"
                                           className="h-6 w-6 p-0 text-slate-400 hover:text-red-600"
                                           onClick={() => deleteDependencyMutation.mutate(dep.id)}
+                                          title="Supprimer la contrainte"
                                         >
-                                          <Trash2 className="h-3 w-3" />
+                                          <Trash2 className="h-3.5 w-3.5" />
                                         </Button>
                                       </div>
                                     );
@@ -4703,12 +4647,15 @@ export function ProjectDetailScreen() {
                             </div>
 
                             <div>
-                              <span className="text-xs font-bold text-slate-700 block mb-2">
-                                Successeurs (Dépendent de celle-ci) :
-                              </span>
+                              <div className="flex items-center justify-between mb-2">
+                                <span className="text-xs font-bold text-slate-800">
+                                  ⏭️ Successeurs (Automatique) :
+                                </span>
+                                <span className="text-[11px] text-slate-400 font-medium">{outgoingDeps.length} tâche{outgoingDeps.length > 1 ? 's' : ''}</span>
+                              </div>
                               {outgoingDeps.length === 0 ? (
                                 <div className="rounded-lg border border-slate-200 bg-slate-50 p-2.5 text-xs text-slate-500">
-                                  Aucun successeur direct.
+                                  Aucune tâche subséquente.
                                 </div>
                               ) : (
                                 <div className="space-y-2">
@@ -4719,16 +4666,17 @@ export function ProjectDetailScreen() {
                                         <div className="flex items-center gap-1.5">
                                           <span className="font-mono font-bold text-violet-700 bg-violet-50 px-1.5 py-0.5 rounded">{succ?.wbs || '—'}</span>
                                           <span className="font-medium text-slate-800 truncate max-w-[150px]">{succ?.title || 'Inconnu'}</span>
-                                          <span className="bg-slate-200 text-slate-700 rounded px-1 text-[10px]">{dep.type}</span>
-                                          {dep.lagDays ? <span className="text-[10px] text-slate-500 font-mono">+{dep.lagDays}j</span> : null}
+                                          <span className="bg-slate-200 text-slate-700 rounded px-1 text-[10px] font-semibold">{dep.type}</span>
+                                          {dep.lagDays ? <span className="text-[10px] text-slate-500 font-mono font-bold">+{dep.lagDays}j</span> : null}
                                         </div>
                                         <Button
                                           size="sm"
                                           variant="ghost"
                                           className="h-6 w-6 p-0 text-slate-400 hover:text-red-600"
                                           onClick={() => deleteDependencyMutation.mutate(dep.id)}
+                                          title="Supprimer la contrainte"
                                         >
-                                          <Trash2 className="h-3 w-3" />
+                                          <Trash2 className="h-3.5 w-3.5" />
                                         </Button>
                                       </div>
                                     );
