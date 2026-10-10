@@ -1,11 +1,13 @@
 import React, { useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
+import { useTranslation } from 'react-i18next';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Button, Input, Badge } from '@orgdashio/ui';
 import { ArrowLeft, Clock, Users, Award, Plus, CheckCircle, AlertCircle } from 'lucide-react';
 import { Navbar } from '../../components/Navbar';
 
 export function TrainingSessionDetailScreen() {
+  const { t } = useTranslation();
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const queryClient = useQueryClient();

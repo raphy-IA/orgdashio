@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
+import { useTranslation } from 'react-i18next';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Button, Input, Badge } from '@orgdashio/ui';
 import {
@@ -24,6 +25,7 @@ import { Navbar } from '../../components/Navbar';
 import { EMPLOYMENT_TYPE_CONFIG, STAFF_STATUS_CONFIG } from './PeopleListScreen';
 
 export function PersonDetailScreen() {
+  const { t } = useTranslation();
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const queryClient = useQueryClient();
@@ -127,7 +129,7 @@ export function PersonDetailScreen() {
     return (
       <div className="min-h-screen bg-slate-50">
         <Navbar />
-        <div className="flex items-center justify-center p-8 text-slate-500">Chargement de la fiche...</div>
+        <div className="flex items-center justify-center p-8 text-slate-500">{t('common.loading')}</div>
       </div>
     );
   }
@@ -183,13 +185,13 @@ export function PersonDetailScreen() {
         <div className="flex items-center justify-between">
           <Button variant="ghost" size="sm" onClick={() => navigate('/people')}>
             <ArrowLeft className="mr-2 h-4 w-4" />
-            Retour au répertoire
+            {t('common.back')}
           </Button>
 
           {isStaff && (
             <Button size="sm" onClick={openEditModal}>
               <Pencil className="mr-2 h-4 w-4" />
-              Modifier les informations
+              {t('common.edit')}
             </Button>
           )}
         </div>
@@ -209,19 +211,19 @@ export function PersonDetailScreen() {
                 </h1>
                 {isStaff && employmentCfg && (
                   <span className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-semibold border ${employmentCfg.color}`}>
-                    {employmentCfg.label}
+                    {t(employmentCfg.labelKey)}
                   </span>
                 )}
                 {!isStaff && (
                   <span className="inline-flex items-center rounded-full bg-emerald-100 px-2.5 py-0.5 text-xs font-semibold text-emerald-800">
-                    Bénéficiaire / Usager
+                    {t('people.beneficiaries')}
                   </span>
                 )}
               </div>
               <p className="text-sm text-slate-500 mt-1 flex items-center gap-3">
                 {personParty.email && <span className="flex items-center gap-1"><Mail className="h-3.5 w-3.5 text-slate-400" /> {personParty.email}</span>}
                 {personParty.phone && <span className="flex items-center gap-1"><Phone className="h-3.5 w-3.5 text-slate-400" /> {personParty.phone}</span>}
-                {!personParty.email && !personParty.phone && <span>Aucune coordonnée enregistrée</span>}
+                {!personParty.email && !personParty.phone && <span>{t('people.noCoordinates')}</span>}
               </p>
             </div>
           </div>
@@ -229,7 +231,7 @@ export function PersonDetailScreen() {
           <div>
             {statusCfg && (
               <span className={`inline-flex items-center rounded-full px-3 py-1 text-xs font-bold ${statusCfg.color}`}>
-                {statusCfg.label}
+                {t(statusCfg.labelKey)}
               </span>
             )}
           </div>
@@ -241,41 +243,41 @@ export function PersonDetailScreen() {
             <div>
               <h2 className="text-base font-bold text-slate-900 flex items-center gap-2 border-b pb-3">
                 <Briefcase className="h-5 w-5 text-indigo-600" />
-                Informations Professionnelles & Rôle dans l'Organisation
+                {t('people.staff')}
               </h2>
 
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-6 text-sm mt-4">
                 <div>
-                  <span className="text-xs font-semibold uppercase text-slate-400">Poste / Fonction</span>
+                  <span className="text-xs font-semibold uppercase text-slate-400">{t('people.role')}</span>
                   <p className="mt-1 font-bold text-slate-900 text-base">{staff.jobTitle}</p>
                 </div>
 
                 <div>
-                  <span className="text-xs font-semibold uppercase text-slate-400">Département / Pôle</span>
+                  <span className="text-xs font-semibold uppercase text-slate-400">{t('people.department')}</span>
                   <p className="mt-1 font-semibold text-slate-800 flex items-center gap-1">
                     <Building2 className="h-4 w-4 text-indigo-500" />
-                    {staff.department?.name || 'Non rattaché'}
+                    {staff.department?.name || '—'}
                   </p>
                 </div>
 
                 <div>
-                  <span className="text-xs font-semibold uppercase text-slate-400">Date d'embauche / adhésion</span>
+                  <span className="text-xs font-semibold uppercase text-slate-400">{t('people.since')}</span>
                   <p className="mt-1 font-semibold text-slate-800 flex items-center gap-1">
                     <Calendar className="h-4 w-4 text-indigo-500" />
-                    {staff.hireDate || 'Non renseignée'}
+                    {staff.hireDate || '—'}
                   </p>
                 </div>
 
                 {staff.emergencyContact && (
                   <div className="sm:col-span-2">
-                    <span className="text-xs font-semibold uppercase text-slate-400">Contact d'urgence</span>
+                    <span className="text-xs font-semibold uppercase text-slate-400">{t('people.emergencyContact')}</span>
                     <p className="mt-1 text-slate-800">{staff.emergencyContact}</p>
                   </div>
                 )}
 
                 {staff.notes && (
                   <div className="sm:col-span-3 rounded-lg bg-slate-50 p-4 border border-slate-100">
-                    <span className="text-xs font-semibold uppercase text-slate-400">Notes RH & Compétences</span>
+                    <span className="text-xs font-semibold uppercase text-slate-400">{t('common.details')}</span>
                     <p className="mt-1 text-slate-700 whitespace-pre-wrap text-xs leading-relaxed">{staff.notes}</p>
                   </div>
                 )}
@@ -286,7 +288,7 @@ export function PersonDetailScreen() {
             <div className="border-t pt-4">
               <h3 className="text-sm font-bold text-slate-900 flex items-center gap-2 mb-3">
                 <KeyRound className="h-4 w-4 text-indigo-600" />
-                Compte Utilisateur & Accès Applicatif
+                {t('people.accountAccess')}
               </h3>
 
               {hasAccount ? (
@@ -294,26 +296,26 @@ export function PersonDetailScreen() {
                   <div className="flex items-center justify-between">
                     <div className="flex items-center gap-2">
                       <ShieldCheck className="h-5 w-5 text-emerald-600" />
-                      <span className="font-bold text-emerald-950 text-sm">Compte d'accès activé</span>
+                      <span className="font-bold text-emerald-950 text-sm">{t('people.activeAccount')}</span>
                     </div>
                     <span className="rounded-full bg-emerald-100 px-2.5 py-0.5 text-xs font-bold text-emerald-800">
-                      Actif
+                      {t('people.statuses.active')}
                     </span>
                   </div>
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs text-emerald-900 pt-1">
-                    <div><strong>Identifiant (Login) :</strong> {staff.userAccount.email}</div>
-                    <div><strong>Rôle attribué :</strong> {staff.roles?.[0]?.name || 'Utilisateur standard'}</div>
+                    <div><strong>{t('people.email')} :</strong> {staff.userAccount?.email}</div>
+                    <div><strong>{t('people.role')} :</strong> {staff.roles?.[0]?.name || t('people.activeAccount')}</div>
                   </div>
                   <div className="text-[11px] text-slate-500 pt-1">
-                    Toute modification de l'adresse courriel dans la fiche synchronise automatiquement l'identifiant de connexion.
+                    {t('people.modals.loginSyncInfo')}
                   </div>
                 </div>
               ) : (
                 <div className="rounded-xl bg-slate-50 border border-slate-200 p-4 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
                   <div>
-                    <div className="font-bold text-slate-800 text-sm">Aucun compte applicatif associé</div>
+                    <div className="font-bold text-slate-800 text-sm">{t('people.noAccount')}</div>
                     <p className="text-xs text-slate-500 mt-0.5">
-                      Ce collaborateur ne possède pas encore d'accès pour se connecter à la plateforme.
+                      {t('people.modals.autoAccountCreate')}
                     </p>
                   </div>
                   {personParty.email ? (
@@ -326,11 +328,11 @@ export function PersonDetailScreen() {
                       }}
                     >
                       <KeyRound className="mr-2 h-4 w-4" />
-                      Activer le compte
+                      {t('people.createAccess')}
                     </Button>
                   ) : (
                     <span className="text-xs text-amber-700 bg-amber-50 px-2.5 py-1 rounded border border-amber-200">
-                      Renseignez un courriel pour activer un compte
+                      {t('people.modals.loginSyncInfo')}
                     </span>
                   )}
                 </div>
@@ -345,22 +347,22 @@ export function PersonDetailScreen() {
           <div className="rounded-xl border bg-white p-6 shadow-sm space-y-4">
             <h2 className="text-base font-bold text-slate-900 flex items-center gap-2 border-b pb-3">
               <ShieldCheck className="h-5 w-5 text-emerald-600" />
-              Consentements & Conformité (Loi 25)
+              {t('people.consentStatus')}
             </h2>
             {consents.length === 0 ? (
-              <p className="text-xs text-slate-400 italic">Aucun consentement spécifique consigné.</p>
+              <p className="text-xs text-slate-400 italic">{t('common.empty')}</p>
             ) : (
               <div className="divide-y text-sm">
                 {consents.map((c: any) => (
                   <div key={c.id} className="py-2.5 flex justify-between items-center">
                     <div>
-                      <span className="font-semibold text-slate-800">Finalité : {c.purposeCode || 'Générale'}</span>
-                      <div className="text-xs text-slate-400">Version {c.version}</div>
+                      <span className="font-semibold text-slate-800">{c.purposeCode || 'Loi 25'}</span>
+                      <div className="text-xs text-slate-400">v{c.version}</div>
                     </div>
                     <span className={`rounded-full px-2.5 py-0.5 text-xs font-bold ${
                       c.status === 'granted' ? 'bg-emerald-100 text-emerald-800' : 'bg-red-100 text-red-800'
                     }`}>
-                      {c.status === 'granted' ? 'Accordé' : c.status}
+                      {c.status === 'granted' ? t('common.yes') : c.status}
                     </span>
                   </div>
                 ))}
@@ -372,16 +374,16 @@ export function PersonDetailScreen() {
           <div className="rounded-xl border bg-white p-6 shadow-sm space-y-4">
             <h2 className="text-base font-bold text-slate-900 flex items-center gap-2 border-b pb-3">
               <HeartHandshake className="h-5 w-5 text-indigo-600" />
-              Prestations & Services Rendus
+              {t('cases.interventionPlan')}
             </h2>
             {serviceDeliveries.length === 0 ? (
-              <p className="text-xs text-slate-400 italic">Aucune prestation de service consignée.</p>
+              <p className="text-xs text-slate-400 italic">{t('common.empty')}</p>
             ) : (
               <div className="divide-y text-sm">
                 {serviceDeliveries.map((s: any) => (
                   <div key={s.id} className="py-2.5">
                     <div className="font-semibold text-slate-900">{s.serviceType || 'Service'}</div>
-                    <div className="text-xs text-slate-500">{s.deliveredAt} — {s.notes || 'Sans note particulière'}</div>
+                    <div className="text-xs text-slate-500">{s.deliveredAt} — {s.notes || '—'}</div>
                   </div>
                 ))}
               </div>
@@ -402,7 +404,7 @@ export function PersonDetailScreen() {
             <div className="flex items-center justify-between border-b pb-3">
               <h2 className="text-lg font-bold text-slate-900 flex items-center gap-2">
                 <Pencil className="h-5 w-5 text-indigo-600" />
-                Modifier la fiche et les accès
+                {t('people.modals.editStaff')}
               </h2>
               <Button variant="ghost" size="sm" onClick={() => setShowEditModal(false)}>
                 <X className="h-5 w-5" />
@@ -413,47 +415,47 @@ export function PersonDetailScreen() {
 
             <form onSubmit={handleEditSubmit} className="space-y-4">
               <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-                <Input label="Prénom *" value={editFirstName} onChange={(e) => setEditFirstName(e.target.value)} required />
-                <Input label="Nom *" value={editLastName} onChange={(e) => setEditLastName(e.target.value)} required />
+                <Input label={`${t('people.firstName')} *`} value={editFirstName} onChange={(e) => setEditFirstName(e.target.value)} required />
+                <Input label={`${t('people.lastName')} *`} value={editLastName} onChange={(e) => setEditLastName(e.target.value)} required />
                 <Input
-                  label="Courriel (Login)"
+                  label={t('people.email')}
                   type="email"
                   value={editEmail}
                   onChange={(e) => setEditEmail(e.target.value)}
                   placeholder="personne@association.org"
                 />
-                <Input label="Téléphone" value={editPhone} onChange={(e) => setEditPhone(e.target.value)} />
+                <Input label={t('people.phone')} value={editPhone} onChange={(e) => setEditPhone(e.target.value)} />
               </div>
 
               <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 border-t pt-4">
                 <div>
-                  <label className="mb-1 block text-xs font-bold text-slate-700">Titre du Poste / Fonction *</label>
+                  <label className="mb-1 block text-xs font-bold text-slate-700">{t('people.role')} *</label>
                   <Input value={editJobTitle} onChange={(e) => setEditJobTitle(e.target.value)} required />
                 </div>
 
                 <div>
-                  <label className="mb-1 block text-xs font-bold text-slate-700">Type d'engagement *</label>
+                  <label className="mb-1 block text-xs font-bold text-slate-700">{t('people.contractType')} *</label>
                   <select
                     value={editEmploymentType}
                     onChange={(e) => setEditEmploymentType(e.target.value)}
                     className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm"
                   >
-                    <option value="employee">Salarié(e)</option>
-                    <option value="board_member">Conseil d'Administration / Direction</option>
-                    <option value="contractor">Contractuel(le) / Consultant</option>
-                    <option value="intern">Stagiaire</option>
-                    <option value="volunteer">Bénévole</option>
+                    <option value="employee">{t('people.types.employee')}</option>
+                    <option value="board_member">{t('people.types.board_member')}</option>
+                    <option value="contractor">{t('people.types.contractor')}</option>
+                    <option value="intern">{t('people.types.intern')}</option>
+                    <option value="volunteer">{t('people.types.volunteer')}</option>
                   </select>
                 </div>
 
                 <div>
-                  <label className="mb-1 block text-xs font-bold text-slate-700">Département / Pôle</label>
+                  <label className="mb-1 block text-xs font-bold text-slate-700">{t('people.department')}</label>
                   <select
                     value={editDepartmentId}
                     onChange={(e) => setEditDepartmentId(e.target.value)}
                     className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm"
                   >
-                    <option value="">— Aucun département —</option>
+                    <option value="">— {t('common.all')} —</option>
                     {departments.map((d: any) => (
                       <option key={d.id} value={d.id}>{d.name}</option>
                     ))}
@@ -461,25 +463,25 @@ export function PersonDetailScreen() {
                 </div>
 
                 <div>
-                  <label className="mb-1 block text-xs font-bold text-slate-700">Statut</label>
+                  <label className="mb-1 block text-xs font-bold text-slate-700">{t('common.status')}</label>
                   <select
                     value={editStatus}
                     onChange={(e) => setEditStatus(e.target.value)}
                     className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm"
                   >
-                    <option value="active">Actif</option>
-                    <option value="on_leave">En congé</option>
-                    <option value="inactive">Inactif</option>
-                    <option value="archived">Archivé</option>
+                    <option value="active">{t('people.statuses.active')}</option>
+                    <option value="on_leave">{t('people.statuses.on_leave')}</option>
+                    <option value="inactive">{t('people.statuses.inactive')}</option>
+                    <option value="archived">{t('people.statuses.archived')}</option>
                   </select>
                 </div>
 
                 <div>
-                  <label className="mb-1 block text-xs font-bold text-slate-700">Date d'embauche</label>
+                  <label className="mb-1 block text-xs font-bold text-slate-700">{t('people.since')}</label>
                   <Input type="date" value={editHireDate} onChange={(e) => setEditHireDate(e.target.value)} />
                 </div>
 
-                <Input label="Contact d'urgence" value={editEmergencyContact} onChange={(e) => setEditEmergencyContact(e.target.value)} />
+                <Input label={t('people.emergencyContact')} value={editEmergencyContact} onChange={(e) => setEditEmergencyContact(e.target.value)} />
               </div>
 
               {/* Account sync section */}
@@ -487,17 +489,17 @@ export function PersonDetailScreen() {
                 <div className="rounded-xl bg-indigo-50/70 border border-indigo-100 p-4 space-y-3">
                   <div className="text-xs font-bold text-indigo-950 flex items-center gap-2">
                     <KeyRound className="h-4 w-4 text-indigo-600" />
-                    Synchronisation du compte d'accès (Login)
+                    {t('people.modals.userAccountLinked')}
                   </div>
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                     <div>
-                      <label className="mb-1 block text-xs font-semibold text-slate-700">Rôle système</label>
+                      <label className="mb-1 block text-xs font-semibold text-slate-700">{t('people.modals.roleAssigned')}</label>
                       <select
                         value={editRoleId}
                         onChange={(e) => setEditRoleId(e.target.value)}
                         className="w-full rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-xs"
                       >
-                        <option value="">— Rôle standard —</option>
+                        <option value="">{t('people.modals.defaultRole')}</option>
                         {roles.map((r: any) => (
                           <option key={r.id} value={r.id}>{r.name} ({r.code})</option>
                         ))}
@@ -505,7 +507,7 @@ export function PersonDetailScreen() {
                     </div>
 
                     <div>
-                      <label className="mb-1 block text-xs font-semibold text-slate-700">Changer le mot de passe (laisser vide si inchangé)</label>
+                      <label className="mb-1 block text-xs font-semibold text-slate-700">{t('people.modals.temporaryPassword')}</label>
                       <Input
                         type="text"
                         value={editPassword}
@@ -520,10 +522,10 @@ export function PersonDetailScreen() {
 
               <div className="flex justify-end space-x-3 pt-4 border-t">
                 <Button type="button" variant="outline" onClick={() => setShowEditModal(false)}>
-                  Annuler
+                  {t('common.cancel')}
                 </Button>
                 <Button type="submit" disabled={updateStaffMutation.isPending}>
-                  {updateStaffMutation.isPending ? 'Enregistrement...' : 'Enregistrer les modifications'}
+                  {updateStaffMutation.isPending ? t('common.saving') : t('common.saveChanges')}
                 </Button>
               </div>
             </form>
@@ -538,7 +540,7 @@ export function PersonDetailScreen() {
             <div className="flex items-center justify-between border-b pb-3">
               <h3 className="text-base font-bold text-slate-900 flex items-center gap-2">
                 <KeyRound className="h-5 w-5 text-indigo-600" />
-                Activer le compte d'accès
+                {t('people.modals.activateAccount')}
               </h3>
               <Button variant="ghost" size="sm" onClick={() => setShowAccountModal(false)}>
                 <X className="h-5 w-5" />
@@ -546,19 +548,19 @@ export function PersonDetailScreen() {
             </div>
 
             <div className="rounded-lg bg-slate-50 p-3 border text-xs space-y-1">
-              <div><strong>Collaborateur :</strong> {personParty.firstName} {personParty.lastName}</div>
-              <div><strong>Login (Courriel) :</strong> {personParty.email}</div>
+              <div><strong>{t('people.fullName')} :</strong> {personParty.firstName} {personParty.lastName}</div>
+              <div><strong>{t('people.email')} :</strong> {personParty.email}</div>
             </div>
 
             <div className="space-y-3">
               <div>
-                <label className="mb-1 block text-xs font-bold text-slate-700">Rôle d'accès</label>
+                <label className="mb-1 block text-xs font-bold text-slate-700">{t('people.modals.roleAssigned')}</label>
                 <select
                   value={accountRoleId}
                   onChange={(e) => setAccountRoleId(e.target.value)}
                   className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm"
                 >
-                  <option value="">— Rôle standard —</option>
+                  <option value="">{t('people.modals.defaultRole')}</option>
                   {roles.map((r: any) => (
                     <option key={r.id} value={r.id}>{r.name} ({r.code})</option>
                   ))}
@@ -566,7 +568,7 @@ export function PersonDetailScreen() {
               </div>
 
               <div>
-                <label className="mb-1 block text-xs font-bold text-slate-700">Mot de passe temporaire initial</label>
+                <label className="mb-1 block text-xs font-bold text-slate-700">{t('people.modals.temporaryPassword')}</label>
                 <Input
                   type="text"
                   value={accountPassword}
@@ -579,7 +581,7 @@ export function PersonDetailScreen() {
 
             <div className="flex justify-end gap-2 pt-3 border-t">
               <Button variant="ghost" size="sm" onClick={() => setShowAccountModal(false)}>
-                Annuler
+                {t('common.cancel')}
               </Button>
               <Button
                 size="sm"
@@ -589,7 +591,7 @@ export function PersonDetailScreen() {
                 })}
                 disabled={createAccountMutation.isPending}
               >
-                {createAccountMutation.isPending ? 'Création...' : 'Créer et activer le compte'}
+                {createAccountMutation.isPending ? t('common.loading') : t('people.modals.createAndActivate')}
               </Button>
             </div>
           </div>

@@ -45,4 +45,33 @@ export class NotificationService {
       return res;
     });
   }
+
+  async markAllAsRead(tenantId: string, userId: string) {
+    return withTenantContext(this.db, tenantId, async (tx) => {
+      return tx
+        .update(notification)
+        .set({ isRead: true })
+        .where(and(eq(notification.userId, userId), eq(notification.isRead, false)))
+        .returning();
+    });
+  }
+
+  async remove(tenantId: string, userId: string, notificationId: string) {
+    return withTenantContext(this.db, tenantId, async (tx) => {
+      const [res] = await tx
+        .delete(notification)
+        .where(and(eq(notification.id, notificationId), eq(notification.userId, userId)))
+        .returning();
+      return res;
+    });
+  }
+
+  async clearAllRead(tenantId: string, userId: string) {
+    return withTenantContext(this.db, tenantId, async (tx) => {
+      return tx
+        .delete(notification)
+        .where(and(eq(notification.userId, userId), eq(notification.isRead, true)))
+        .returning();
+    });
+  }
 }

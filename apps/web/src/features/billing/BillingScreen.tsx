@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Button, Input, Badge } from '@orgdashio/ui';
 import {
@@ -25,6 +26,7 @@ import {
 import { Navbar } from '../../components/Navbar';
 
 export function BillingScreen() {
+  const { t } = useTranslation();
   const queryClient = useQueryClient();
 
   const [billingCycle, setBillingCycle] = useState<'monthly' | 'annual'>('annual');

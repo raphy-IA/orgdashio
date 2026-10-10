@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Button, Input, Badge } from '@orgdashio/ui';
 import {
@@ -26,19 +27,19 @@ import {
 import { useNavigate } from 'react-router-dom';
 import { Navbar } from '../../components/Navbar';
 
-export const EMPLOYMENT_TYPE_CONFIG: Record<string, { label: string; color: string }> = {
-  employee: { label: 'Salarié(e)', color: 'bg-indigo-100 text-indigo-800 border-indigo-200' },
-  volunteer: { label: 'Bénévole', color: 'bg-emerald-100 text-emerald-800 border-emerald-200' },
-  board_member: { label: 'Conseil d\'Administration / Direction', color: 'bg-purple-100 text-purple-800 border-purple-200' },
-  contractor: { label: 'Contractuel(le) / Consultant', color: 'bg-amber-100 text-amber-800 border-amber-200' },
-  intern: { label: 'Stagiaire', color: 'bg-sky-100 text-sky-800 border-sky-200' },
+export const EMPLOYMENT_TYPE_CONFIG: Record<string, { labelKey: string; color: string }> = {
+  employee: { labelKey: 'people.types.employee', color: 'bg-indigo-100 text-indigo-800 border-indigo-200' },
+  volunteer: { labelKey: 'people.types.volunteer', color: 'bg-emerald-100 text-emerald-800 border-emerald-200' },
+  board_member: { labelKey: 'people.types.board_member', color: 'bg-purple-100 text-purple-800 border-purple-200' },
+  contractor: { labelKey: 'people.types.contractor', color: 'bg-amber-100 text-amber-800 border-amber-200' },
+  intern: { labelKey: 'people.types.intern', color: 'bg-sky-100 text-sky-800 border-sky-200' },
 };
 
-export const STAFF_STATUS_CONFIG: Record<string, { label: string; color: string }> = {
-  active: { label: 'Actif', color: 'bg-emerald-100 text-emerald-800' },
-  on_leave: { label: 'En congé', color: 'bg-amber-100 text-amber-800' },
-  inactive: { label: 'Inactif', color: 'bg-slate-100 text-slate-600' },
-  archived: { label: 'Archivé', color: 'bg-red-100 text-red-800' },
+export const STAFF_STATUS_CONFIG: Record<string, { labelKey: string; color: string }> = {
+  active: { labelKey: 'people.statuses.active', color: 'bg-emerald-100 text-emerald-800' },
+  on_leave: { labelKey: 'people.statuses.on_leave', color: 'bg-amber-100 text-amber-800' },
+  inactive: { labelKey: 'people.statuses.inactive', color: 'bg-slate-100 text-slate-600' },
+  archived: { labelKey: 'people.statuses.archived', color: 'bg-red-100 text-red-800' },
 };
 
 export function PeopleListScreen() {
@@ -287,7 +288,7 @@ export function PeopleListScreen() {
     setStaffLastName('');
     setStaffEmail('');
     setStaffPhone('');
-    setStaffJobTitle(mode === 'volunteer' ? 'Bénévole / Volontaire' : '');
+    setStaffJobTitle(mode === 'volunteer' ? t('people.types.volunteer') : '');
     setStaffEmploymentType(mode === 'volunteer' ? 'volunteer' : 'employee');
     setStaffDepartmentId('');
     setStaffStatus('active');
@@ -429,7 +430,7 @@ export function PeopleListScreen() {
               {t('people.title')}
             </h1>
             <p className="text-sm text-slate-500 mt-1">
-              {t('people.staff')} • {t('people.beneficiaries')}
+              {t('people.staff')} • {t('people.volunteers')} • {t('people.beneficiaries')}
             </p>
           </div>
 
@@ -437,25 +438,25 @@ export function PeopleListScreen() {
             {activeTab === 'staff' && (
               <Button onClick={() => { resetStaffForm('staff'); setShowStaffModal(true); }}>
                 <Plus className="mr-2 h-4 w-4" />
-                {t('people.addPerson')}
+                {t('people.modals.newStaff')}
               </Button>
             )}
             {activeTab === 'volunteers' && (
               <Button onClick={() => { resetStaffForm('volunteer'); setShowStaffModal(true); }} className="bg-emerald-600 hover:bg-emerald-700">
                 <HeartHandshake className="mr-2 h-4 w-4" />
-                {t('people.addPerson')}
+                {t('people.modals.newVolunteer')}
               </Button>
             )}
             {activeTab === 'departments' && (
               <Button onClick={() => { setEditingDept(null); setNewDeptName(''); setNewDeptCode(''); setNewDeptParentId(''); setShowDeptModal(true); }}>
                 <Building2 className="mr-2 h-4 w-4" />
-                {t('common.create')}
+                {t('people.modals.newDept')}
               </Button>
             )}
             {activeTab === 'beneficiaries' && (
               <Button onClick={() => { setBenWarnings([]); setShowBeneficiaryModal(true); }}>
                 <UserPlus className="mr-2 h-4 w-4" />
-                {t('people.addPerson')}
+                {t('people.modals.newBeneficiary')}
               </Button>
             )}
           </div>
@@ -483,7 +484,7 @@ export function PeopleListScreen() {
             }`}
           >
             <HeartHandshake className="h-4 w-4 text-emerald-600" />
-            {t('people.staff')} ({volunteers.length})
+            {t('people.volunteers')} ({volunteers.length})
           </button>
           <button
             onClick={() => { setActiveTab('departments'); setSearchQuery(''); }}
@@ -494,7 +495,7 @@ export function PeopleListScreen() {
             }`}
           >
             <Building2 className="h-4 w-4" />
-            {t('people.department')} ({departments.length})
+            {t('people.departments')} ({departments.length})
           </button>
           <button
             onClick={() => { setActiveTab('beneficiaries'); setSearchQuery(''); }}
@@ -517,24 +518,24 @@ export function PeopleListScreen() {
             {/* KPI Cards */}
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-4">
               <div className="rounded-xl border bg-white p-4 shadow-sm">
-                <span className="text-xs font-semibold uppercase tracking-wider text-slate-500">Effectif Personnel</span>
+                <span className="text-xs font-semibold uppercase tracking-wider text-slate-500">{t('people.stats.totalStaff')}</span>
                 <p className="mt-1 text-2xl font-bold text-slate-900">{staffMembers.length}</p>
-                <p className="text-xs text-slate-400 mt-0.5">Total employés et direction</p>
+                <p className="text-xs text-slate-400 mt-0.5">{t('people.stats.totalStaffSub')}</p>
               </div>
               <div className="rounded-xl border bg-white p-4 shadow-sm">
-                <span className="text-xs font-semibold uppercase tracking-wider text-slate-500">Salarié(e)s réguliers</span>
+                <span className="text-xs font-semibold uppercase tracking-wider text-slate-500">{t('people.stats.regularEmployees')}</span>
                 <p className="mt-1 text-2xl font-bold text-indigo-600">{totalEmployees}</p>
-                <p className="text-xs text-slate-400 mt-0.5">Contrats salariés</p>
+                <p className="text-xs text-slate-400 mt-0.5">{t('people.stats.regularEmployeesSub')}</p>
               </div>
               <div className="rounded-xl border bg-white p-4 shadow-sm">
-                <span className="text-xs font-semibold uppercase tracking-wider text-slate-500">Direction & CA</span>
+                <span className="text-xs font-semibold uppercase tracking-wider text-slate-500">{t('people.stats.boardMembers')}</span>
                 <p className="mt-1 text-2xl font-bold text-purple-600">{totalBoard}</p>
-                <p className="text-xs text-slate-400 mt-0.5">Gouvernance / Conseil</p>
+                <p className="text-xs text-slate-400 mt-0.5">{t('people.stats.boardMembersSub')}</p>
               </div>
               <div className="rounded-xl border bg-white p-4 shadow-sm">
-                <span className="text-xs font-semibold uppercase tracking-wider text-slate-500">Contractuels & Stagiaires</span>
+                <span className="text-xs font-semibold uppercase tracking-wider text-slate-500">{t('people.stats.contractors')}</span>
                 <p className="mt-1 text-2xl font-bold text-amber-600">{totalContractors}</p>
-                <p className="text-xs text-slate-400 mt-0.5">Appuis temporaires</p>
+                <p className="text-xs text-slate-400 mt-0.5">{t('people.stats.contractorsSub')}</p>
               </div>
             </div>
 
@@ -543,28 +544,28 @@ export function PeopleListScreen() {
               <div className="flex flex-wrap items-center gap-3">
                 <div className="flex items-center gap-2">
                   <Filter className="h-4 w-4 text-slate-400" />
-                  <span className="text-xs font-bold text-slate-700">Type de contrat :</span>
+                  <span className="text-xs font-bold text-slate-700">{t('people.filters.contractType')}</span>
                   <select
                     value={typeFilter}
                     onChange={(e) => setTypeFilter(e.target.value)}
                     className="rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-xs font-medium text-slate-700"
                   >
-                    <option value="all">Tous les types</option>
-                    <option value="employee">Salarié(e)</option>
-                    <option value="board_member">Conseil d'Administration / Direction</option>
-                    <option value="contractor">Contractuel(le) / Consultant</option>
-                    <option value="intern">Stagiaire</option>
+                    <option value="all">{t('people.filters.allTypes')}</option>
+                    <option value="employee">{t('people.types.employee')}</option>
+                    <option value="board_member">{t('people.types.board_member')}</option>
+                    <option value="contractor">{t('people.types.contractor')}</option>
+                    <option value="intern">{t('people.types.intern')}</option>
                   </select>
                 </div>
 
                 <div className="flex items-center gap-2">
-                  <span className="text-xs font-bold text-slate-700">Département :</span>
+                  <span className="text-xs font-bold text-slate-700">{t('people.filters.department')}</span>
                   <select
                     value={deptFilter}
                     onChange={(e) => setDeptFilter(e.target.value)}
                     className="rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-xs font-medium text-slate-700"
                   >
-                    <option value="all">Tous les départements</option>
+                    <option value="all">{t('people.filters.allDepartments')}</option>
                     {departments.map((d: any) => (
                       <option key={d.id} value={d.id}>{d.name}</option>
                     ))}
@@ -572,17 +573,17 @@ export function PeopleListScreen() {
                 </div>
 
                 <div className="flex items-center gap-2">
-                  <span className="text-xs font-bold text-slate-700">Statut :</span>
+                  <span className="text-xs font-bold text-slate-700">{t('people.filters.status')}</span>
                   <select
                     value={statusFilter}
                     onChange={(e) => setStatusFilter(e.target.value)}
                     className="rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-xs font-medium text-slate-700"
                   >
-                    <option value="all">Tous les statuts</option>
-                    <option value="active">Actif</option>
-                    <option value="on_leave">En congé</option>
-                    <option value="inactive">Inactif</option>
-                    <option value="archived">Archivé</option>
+                    <option value="all">{t('people.filters.allStatuses')}</option>
+                    <option value="active">{t('people.statuses.active')}</option>
+                    <option value="on_leave">{t('people.statuses.on_leave')}</option>
+                    <option value="inactive">{t('people.statuses.inactive')}</option>
+                    <option value="archived">{t('people.statuses.archived')}</option>
                   </select>
                 </div>
               </div>
@@ -591,7 +592,7 @@ export function PeopleListScreen() {
                 <Input
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
-                  placeholder="Rechercher par nom, poste, courriel..."
+                  placeholder={t('people.filters.searchPlaceholder')}
                   className="h-9 text-xs"
                 />
               </div>
@@ -600,25 +601,25 @@ export function PeopleListScreen() {
             {/* Staff Table */}
             <div className="overflow-hidden rounded-xl border bg-white shadow-sm">
               {isLoading ? (
-                <div className="p-8 text-center text-slate-500">Chargement de l'effectif...</div>
+                <div className="p-8 text-center text-slate-500">{t('people.loading')}</div>
               ) : filteredStaff.length === 0 ? (
                 <div className="p-10 text-center text-slate-400 space-y-2">
                   <Briefcase className="mx-auto h-8 w-8 text-slate-300" />
-                  <p className="text-sm font-semibold">Aucun membre du personnel trouvé</p>
-                  <p className="text-xs">Ajoutez les employés, directeurs et contractuels de votre organisation.</p>
+                  <p className="text-sm font-semibold">{t('people.emptyStates.noStaff')}</p>
+                  <p className="text-xs">{t('people.emptyStates.noStaffDesc')}</p>
                 </div>
               ) : (
                 <table className="w-full text-left text-sm">
                   <thead className="border-b bg-slate-50 text-xs font-semibold uppercase text-slate-500">
                     <tr>
-                      <th className="px-6 py-3">Nom & Prénom</th>
-                      <th className="px-6 py-3">Poste / Fonction</th>
-                      <th className="px-6 py-3">Département / Pôle</th>
-                      <th className="px-6 py-3">Type d'engagement</th>
-                      <th className="px-6 py-3">Compte & Accès</th>
-                      <th className="px-6 py-3">Contact</th>
-                      <th className="px-6 py-3">Statut</th>
-                      <th className="px-6 py-3 text-right">Actions</th>
+                      <th className="px-6 py-3">{t('people.fullName')}</th>
+                      <th className="px-6 py-3">{t('people.role')}</th>
+                      <th className="px-6 py-3">{t('people.department')}</th>
+                      <th className="px-6 py-3">{t('people.contractType')}</th>
+                      <th className="px-6 py-3">{t('people.accountAccess')}</th>
+                      <th className="px-6 py-3">{t('common.email')} / {t('common.actions')}</th>
+                      <th className="px-6 py-3">{t('common.status')}</th>
+                      <th className="px-6 py-3 text-right">{t('common.actions')}</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-100">
@@ -626,18 +627,18 @@ export function PeopleListScreen() {
                       const typeCfg = EMPLOYMENT_TYPE_CONFIG[p.staff?.employmentType] || EMPLOYMENT_TYPE_CONFIG.employee;
                       const statusCfg = STAFF_STATUS_CONFIG[p.staff?.status] || STAFF_STATUS_CONFIG.active;
                       const hasAccount = !!p.staff?.userAccount;
-                      const assignedRole = p.staff?.roles?.[0]?.name || (hasAccount ? 'Utilisateur actif' : null);
+                      const assignedRole = p.staff?.roles?.[0]?.name || (hasAccount ? t('people.activeAccount') : null);
 
                       return (
                         <tr key={p.id} className="hover:bg-slate-50 transition">
                           <td className="px-6 py-4">
                             <div className="font-bold text-slate-900">{p.firstName} {p.lastName}</div>
                             {p.staff?.hireDate && (
-                              <div className="text-[11px] text-slate-400">Depuis le {p.staff.hireDate}</div>
+                              <div className="text-[11px] text-slate-400">{t('people.since')} {p.staff.hireDate}</div>
                             )}
                           </td>
                           <td className="px-6 py-4">
-                            <span className="font-semibold text-slate-800">{p.staff?.jobTitle || 'Non spécifié'}</span>
+                            <span className="font-semibold text-slate-800">{p.staff?.jobTitle || '—'}</span>
                           </td>
                           <td className="px-6 py-4">
                             <span className="text-xs text-slate-600">
@@ -646,7 +647,7 @@ export function PeopleListScreen() {
                           </td>
                           <td className="px-6 py-4">
                             <span className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-semibold border ${typeCfg.color}`}>
-                              {typeCfg.label}
+                              {t(typeCfg.labelKey)}
                             </span>
                           </td>
                           <td className="px-6 py-4">
@@ -654,7 +655,7 @@ export function PeopleListScreen() {
                               <div className="space-y-0.5">
                                 <span className="inline-flex items-center gap-1 rounded-full bg-emerald-50 px-2 py-0.5 text-xs font-semibold text-emerald-700 border border-emerald-200">
                                   <ShieldCheck className="h-3.5 w-3.5" />
-                                  Compte Actif
+                                  {t('people.activeAccount')}
                                 </span>
                                 {assignedRole && (
                                   <div className="text-[11px] text-slate-500 font-medium">{assignedRole}</div>
@@ -663,7 +664,7 @@ export function PeopleListScreen() {
                             ) : (
                               <div className="flex items-center gap-2">
                                 <span className="inline-flex items-center rounded-full bg-slate-100 px-2 py-0.5 text-xs font-medium text-slate-600">
-                                  Sans compte
+                                  {t('people.noAccount')}
                                 </span>
                                 {p.email && (
                                   <button
@@ -675,7 +676,7 @@ export function PeopleListScreen() {
                                     }}
                                     className="text-[11px] font-bold text-indigo-600 hover:text-indigo-800 hover:underline"
                                   >
-                                    Créer accès
+                                    {t('people.createAccess')}
                                   </button>
                                 )}
                               </div>
@@ -688,7 +689,7 @@ export function PeopleListScreen() {
                           </td>
                           <td className="px-6 py-4">
                             <span className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-semibold ${statusCfg.color}`}>
-                              {statusCfg.label}
+                              {t(statusCfg.labelKey)}
                             </span>
                           </td>
                           <td className="px-6 py-4 text-right">
@@ -697,7 +698,7 @@ export function PeopleListScreen() {
                                 variant="ghost"
                                 size="sm"
                                 className="h-8 w-8 p-0 text-slate-500 hover:text-indigo-600 hover:bg-indigo-50"
-                                title="Modifier la fiche et les accès"
+                                title={t('common.edit')}
                                 onClick={() => openEditStaffModal(p)}
                               >
                                 <Pencil className="h-4 w-4" />
@@ -706,18 +707,18 @@ export function PeopleListScreen() {
                                 variant="ghost"
                                 size="sm"
                                 onClick={() => navigate(`/people/${p.id}`)}
-                                title="Voir la fiche détaillée"
+                                title={t('common.viewProfile')}
                               >
-                                Fiche
+                                {t('common.viewProfile')}
                                 <ArrowRight className="ml-1 h-3 w-3" />
                               </Button>
                               <Button
                                 variant="ghost"
                                 size="sm"
                                 className="text-red-600 hover:bg-red-50 h-8 w-8 p-0"
-                                title="Supprimer le membre"
+                                title={t('common.delete')}
                                 onClick={() => {
-                                  if (confirm(`Confirmer la suppression de ${p.firstName} ${p.lastName} ?`)) {
+                                  if (confirm(`${t('common.confirm')} ${p.firstName} ${p.lastName} ?`)) {
                                     deleteStaffMutation.mutate(p.id);
                                   }
                                 }}
@@ -743,21 +744,21 @@ export function PeopleListScreen() {
           <div className="space-y-6">
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
               <div className="rounded-xl border bg-white p-4 shadow-sm border-l-4 border-l-emerald-500">
-                <span className="text-xs font-semibold uppercase tracking-wider text-slate-500">Total Bénévoles</span>
+                <span className="text-xs font-semibold uppercase tracking-wider text-slate-500">{t('people.stats.totalVolunteers')}</span>
                 <p className="mt-1 text-2xl font-bold text-emerald-600">{volunteers.length}</p>
-                <p className="text-xs text-slate-400 mt-0.5">Volontaires inscrits dans l'organisme</p>
+                <p className="text-xs text-slate-400 mt-0.5">{t('people.stats.totalVolunteersSub')}</p>
               </div>
               <div className="rounded-xl border bg-white p-4 shadow-sm">
-                <span className="text-xs font-semibold uppercase tracking-wider text-slate-500">Bénévoles Actifs</span>
+                <span className="text-xs font-semibold uppercase tracking-wider text-slate-500">{t('people.stats.activeVolunteers')}</span>
                 <p className="mt-1 text-2xl font-bold text-indigo-600">{activeVolunteersCount}</p>
-                <p className="text-xs text-slate-400 mt-0.5">Prêts pour des missions et activités</p>
+                <p className="text-xs text-slate-400 mt-0.5">{t('people.stats.activeVolunteersSub')}</p>
               </div>
               <div className="rounded-xl border bg-white p-4 shadow-sm">
-                <span className="text-xs font-semibold uppercase tracking-wider text-slate-500">Pôles d'intervention</span>
+                <span className="text-xs font-semibold uppercase tracking-wider text-slate-500">{t('people.stats.volunteerDepts')}</span>
                 <p className="mt-1 text-2xl font-bold text-purple-600">
                   {new Set(volunteers.map((v: any) => v.staff?.departmentId).filter(Boolean)).size}
                 </p>
-                <p className="text-xs text-slate-400 mt-0.5">Départements accueillant des bénévoles</p>
+                <p className="text-xs text-slate-400 mt-0.5">{t('people.stats.volunteerDeptsSub')}</p>
               </div>
             </div>
 
@@ -765,13 +766,13 @@ export function PeopleListScreen() {
               <div className="flex flex-wrap items-center gap-3">
                 <div className="flex items-center gap-2">
                   <Filter className="h-4 w-4 text-slate-400" />
-                  <span className="text-xs font-bold text-slate-700">Pôle / Département :</span>
+                  <span className="text-xs font-bold text-slate-700">{t('people.filters.department')}</span>
                   <select
                     value={deptFilter}
                     onChange={(e) => setDeptFilter(e.target.value)}
                     className="rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-xs font-medium text-slate-700"
                   >
-                    <option value="all">Tous les pôles</option>
+                    <option value="all">{t('people.filters.allDepartments')}</option>
                     {departments.map((d: any) => (
                       <option key={d.id} value={d.id}>{d.name}</option>
                     ))}
@@ -779,17 +780,17 @@ export function PeopleListScreen() {
                 </div>
 
                 <div className="flex items-center gap-2">
-                  <span className="text-xs font-bold text-slate-700">Disponibilité / Statut :</span>
+                  <span className="text-xs font-bold text-slate-700">{t('people.filters.status')}</span>
                   <select
                     value={statusFilter}
                     onChange={(e) => setStatusFilter(e.target.value)}
                     className="rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-xs font-medium text-slate-700"
                   >
-                    <option value="all">Tous les statuts</option>
-                    <option value="active">Actif / Disponible</option>
-                    <option value="on_leave">En pause / Indisponible</option>
-                    <option value="inactive">Inactif</option>
-                    <option value="archived">Archivé</option>
+                    <option value="all">{t('people.filters.allStatuses')}</option>
+                    <option value="active">{t('people.statuses.active')}</option>
+                    <option value="on_leave">{t('people.statuses.on_leave')}</option>
+                    <option value="inactive">{t('people.statuses.inactive')}</option>
+                    <option value="archived">{t('people.statuses.archived')}</option>
                   </select>
                 </div>
               </div>
@@ -798,7 +799,7 @@ export function PeopleListScreen() {
                 <Input
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
-                  placeholder="Rechercher un bénévole, compétence..."
+                  placeholder={t('people.filters.searchVolunteerPlaceholder')}
                   className="h-9 text-xs"
                 />
               </div>
@@ -806,32 +807,32 @@ export function PeopleListScreen() {
 
             <div className="overflow-hidden rounded-xl border bg-white shadow-sm">
               {isLoading ? (
-                <div className="p-8 text-center text-slate-500">Chargement des bénévoles...</div>
+                <div className="p-8 text-center text-slate-500">{t('people.loading')}</div>
               ) : filteredVolunteers.length === 0 ? (
                 <div className="p-10 text-center text-slate-400 space-y-2">
                   <HeartHandshake className="mx-auto h-8 w-8 text-emerald-300" />
-                  <p className="text-sm font-semibold">Aucun bénévole enregistré</p>
-                  <p className="text-xs">Ajoutez vos bénévoles pour leur assigner des rôles RACI dans vos projets et activités.</p>
+                  <p className="text-sm font-semibold">{t('people.emptyStates.noVolunteers')}</p>
+                  <p className="text-xs">{t('people.emptyStates.noVolunteersDesc')}</p>
                   <Button
                     size="sm"
                     className="mt-2 bg-emerald-600 hover:bg-emerald-700"
                     onClick={() => { resetStaffForm('volunteer'); setShowStaffModal(true); }}
                   >
                     <HeartHandshake className="mr-2 h-4 w-4" />
-                    Ajouter le premier bénévole
+                    {t('people.emptyStates.addFirstVolunteer')}
                   </Button>
                 </div>
               ) : (
                 <table className="w-full text-left text-sm">
                   <thead className="border-b bg-emerald-50/50 text-xs font-semibold uppercase text-slate-600">
                     <tr>
-                      <th className="px-6 py-3">Bénévole</th>
-                      <th className="px-6 py-3">Mission / Rôle</th>
-                      <th className="px-6 py-3">Pôle d'affectation</th>
-                      <th className="px-6 py-3">Coordonnées</th>
-                      <th className="px-6 py-3">Compétences & Notes</th>
-                      <th className="px-6 py-3">Statut</th>
-                      <th className="px-6 py-3 text-right">Actions</th>
+                      <th className="px-6 py-3">{t('people.fullName')}</th>
+                      <th className="px-6 py-3">{t('people.role')}</th>
+                      <th className="px-6 py-3">{t('people.department')}</th>
+                      <th className="px-6 py-3">{t('people.email')}</th>
+                      <th className="px-6 py-3">{t('people.notes')}</th>
+                      <th className="px-6 py-3">{t('common.status')}</th>
+                      <th className="px-6 py-3 text-right">{t('common.actions')}</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-100">
@@ -848,13 +849,13 @@ export function PeopleListScreen() {
                               <div>
                                 <div className="font-bold text-slate-900">{p.firstName} {p.lastName}</div>
                                 {p.staff?.hireDate && (
-                                  <div className="text-[11px] text-slate-400">Inscrit le {p.staff.hireDate}</div>
+                                  <div className="text-[11px] text-slate-400">{t('people.enrolledOn')} {p.staff.hireDate}</div>
                                 )}
                               </div>
                             </div>
                           </td>
                           <td className="px-6 py-4">
-                            <span className="font-semibold text-slate-800">{p.staff?.jobTitle || 'Bénévole'}</span>
+                            <span className="font-semibold text-slate-800">{p.staff?.jobTitle || t('people.types.volunteer')}</span>
                           </td>
                           <td className="px-6 py-4 text-xs text-slate-600">
                             {p.staff?.department?.name || '—'}
@@ -869,7 +870,7 @@ export function PeopleListScreen() {
                           </td>
                           <td className="px-6 py-4">
                             <span className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-semibold ${statusCfg.color}`}>
-                              {statusCfg.label}
+                              {t(statusCfg.labelKey)}
                             </span>
                           </td>
                           <td className="px-6 py-4 text-right">
@@ -883,7 +884,7 @@ export function PeopleListScreen() {
                                 <Pencil className="h-4 w-4" />
                               </Button>
                               <Button variant="ghost" size="sm" onClick={() => navigate(`/people/${p.id}`)}>
-                                Fiche
+                                {t('common.viewProfile')}
                                 <ArrowRight className="ml-1 h-3 w-3" />
                               </Button>
                               <Button
@@ -891,7 +892,7 @@ export function PeopleListScreen() {
                                 size="sm"
                                 className="text-red-600 hover:bg-red-50 h-8 w-8 p-0"
                                 onClick={() => {
-                                  if (confirm(`Supprimer le bénévole ${p.firstName} ${p.lastName} ?`)) {
+                                  if (confirm(`${t('common.confirm')} ${p.firstName} ${p.lastName} ?`)) {
                                     deleteStaffMutation.mutate(p.id);
                                   }
                                 }}
@@ -917,24 +918,24 @@ export function PeopleListScreen() {
           <div className="space-y-6">
             <div className="flex items-center justify-between">
               <div>
-                <h2 className="text-base font-bold text-slate-800">Structure Organisationnelle & Pôles</h2>
-                <p className="text-sm text-slate-500">Créez et organisez les départements, directions et pôles opérationnels de votre organisme</p>
+                <h2 className="text-base font-bold text-slate-800">{t('people.departments')}</h2>
+                <p className="text-sm text-slate-500">{t('people.emptyStates.noDeptsDesc')}</p>
               </div>
               <Button onClick={() => { setEditingDept(null); setNewDeptName(''); setNewDeptCode(''); setNewDeptParentId(''); setShowDeptModal(true); }}>
                 <Plus className="mr-2 h-4 w-4" />
-                Nouveau département
+                {t('people.modals.newDept')}
               </Button>
             </div>
 
             {departments.length === 0 ? (
               <div className="rounded-xl border border-dashed border-slate-200 bg-white p-12 text-center space-y-3">
                 <Building2 className="mx-auto h-12 w-12 text-slate-300" />
-                <h3 className="text-base font-bold text-slate-800">Aucun département défini</h3>
+                <h3 className="text-base font-bold text-slate-800">{t('people.emptyStates.noDepts')}</h3>
                 <p className="text-sm text-slate-500 max-w-md mx-auto">
-                  Définissez des départements (ex: Direction, Programmes, Bénévolat, Finances, RH) pour catégoriser vos équipes.
+                  {t('people.emptyStates.noDeptsDesc')}
                 </p>
                 <Button onClick={() => { setEditingDept(null); setNewDeptName(''); setNewDeptCode(''); setNewDeptParentId(''); setShowDeptModal(true); }}>
-                  Créer le premier département
+                  {t('people.emptyStates.addFirstDept')}
                 </Button>
               </div>
             ) : (
@@ -977,7 +978,7 @@ export function PeopleListScreen() {
                             size="sm"
                             className="h-8 w-8 p-0 text-red-400 hover:text-red-700"
                             onClick={() => {
-                              if (confirm(`Confirmer la suppression du département "${dept.name}" ?`)) {
+                              if (confirm(`${t('common.confirm')} "${dept.name}" ?`)) {
                                 deleteDeptMutation.mutate(dept.id);
                               }
                             }}
@@ -989,18 +990,18 @@ export function PeopleListScreen() {
 
                       <div className="grid grid-cols-2 gap-2 pt-2 border-t text-xs">
                         <div className="rounded-lg bg-slate-50 p-2 text-center">
-                          <span className="text-slate-400 block">Salariés / Staff</span>
+                          <span className="text-slate-400 block">{t('people.staff')}</span>
                           <span className="font-bold text-slate-800 text-sm">{deptStaff.length}</span>
                         </div>
                         <div className="rounded-lg bg-emerald-50 p-2 text-center">
-                          <span className="text-emerald-600 block">Bénévoles</span>
+                          <span className="text-emerald-600 block">{t('people.volunteers')}</span>
                           <span className="font-bold text-emerald-800 text-sm">{deptVolunteers.length}</span>
                         </div>
                       </div>
 
                       {totalMembers > 0 ? (
                         <div className="space-y-1">
-                          <span className="text-[11px] font-bold uppercase tracking-wider text-slate-400 block">Membres rattachés</span>
+                          <span className="text-[11px] font-bold uppercase tracking-wider text-slate-400 block">{t('people.title')}</span>
                           <div className="flex flex-wrap gap-1">
                             {[...deptStaff, ...deptVolunteers].slice(0, 5).map((m: any) => (
                               <span
@@ -1016,13 +1017,13 @@ export function PeopleListScreen() {
                             ))}
                             {totalMembers > 5 && (
                               <span className="inline-flex items-center rounded px-2 py-0.5 text-[11px] text-slate-400 bg-slate-100 font-medium">
-                                +{totalMembers - 5} autres
+                                +{totalMembers - 5}
                               </span>
                             )}
                           </div>
                         </div>
                       ) : (
-                        <p className="text-xs text-slate-400 italic">Aucun membre rattaché pour l'instant</p>
+                        <p className="text-xs text-slate-400 italic">—</p>
                       )}
                     </div>
                   );
@@ -1040,32 +1041,32 @@ export function PeopleListScreen() {
             <div className="overflow-hidden rounded-xl border bg-white shadow-sm">
               <div className="flex items-center justify-between border-b bg-slate-50 px-6 py-4">
                 <div>
-                  <h3 className="font-bold text-slate-800">Personnes accompagnées & Usagers</h3>
-                  <p className="text-xs text-slate-500">Bénéficiaires de vos programmes sociaux et dossiers avec protection Loi 25</p>
+                  <h3 className="font-bold text-slate-800">{t('people.beneficiaries')}</h3>
+                  <p className="text-xs text-slate-500">{t('people.emptyStates.noBeneficiariesDesc')}</p>
                 </div>
                 <div className="w-64">
                   <Input
                     value={searchQuery}
                     onChange={(e) => setSearchQuery(e.target.value)}
-                    placeholder="Rechercher un bénéficiaire..."
+                    placeholder={t('people.filters.searchBeneficiaryPlaceholder')}
                     className="h-8 text-xs bg-white"
                   />
                 </div>
               </div>
 
               {isLoading ? (
-                <div className="p-6 text-center text-slate-500">Chargement...</div>
+                <div className="p-6 text-center text-slate-500">{t('people.loading')}</div>
               ) : filteredBeneficiaries.length === 0 ? (
-                <div className="p-8 text-center text-slate-500">Aucun bénéficiaire enregistré.</div>
+                <div className="p-8 text-center text-slate-500">{t('people.emptyStates.noBeneficiaries')}</div>
               ) : (
                 <table className="w-full text-left text-sm text-slate-600">
                   <thead className="bg-slate-50 text-xs uppercase text-slate-500">
                     <tr>
-                      <th className="px-6 py-3">Nom complet</th>
-                      <th className="px-6 py-3">Courriel</th>
-                      <th className="px-6 py-3">Téléphone</th>
-                      <th className="px-6 py-3">Statut</th>
-                      <th className="px-6 py-3 text-right">Actions</th>
+                      <th className="px-6 py-3">{t('people.fullName')}</th>
+                      <th className="px-6 py-3">{t('people.email')}</th>
+                      <th className="px-6 py-3">{t('people.phone')}</th>
+                      <th className="px-6 py-3">{t('common.status')}</th>
+                      <th className="px-6 py-3 text-right">{t('common.actions')}</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y">
@@ -1078,12 +1079,12 @@ export function PeopleListScreen() {
                         <td className="px-6 py-4">{p.phone || '—'}</td>
                         <td className="px-6 py-4">
                           <span className="inline-flex items-center rounded-full bg-emerald-100 px-2.5 py-0.5 text-xs font-semibold text-emerald-800">
-                            Actif
+                            {t('people.statuses.active')}
                           </span>
                         </td>
                         <td className="px-6 py-4 text-right">
                           <Button variant="ghost" size="sm" onClick={() => navigate(`/people/${p.id}`)}>
-                            Fiche complète
+                            {t('common.viewProfile')}
                             <ArrowRight className="ml-1 h-3 w-3" />
                           </Button>
                         </td>
@@ -1107,12 +1108,12 @@ export function PeopleListScreen() {
                   {staffModalMode === 'volunteer' ? (
                     <>
                       <HeartHandshake className="h-5 w-5 text-emerald-600" />
-                      {editingStaff ? 'Modifier le Bénévole' : 'Nouveau Bénévole / Volontaire'}
+                      {editingStaff ? t('people.modals.editVolunteer') : t('people.modals.newVolunteer')}
                     </>
                   ) : (
                     <>
                       <Briefcase className="h-5 w-5 text-indigo-600" />
-                      {editingStaff ? 'Modifier le Membre du Personnel' : 'Nouveau Membre du Personnel / Salarié'}
+                      {editingStaff ? t('people.modals.editStaff') : t('people.modals.newStaff')}
                     </>
                   )}
                 </h2>
@@ -1125,9 +1126,9 @@ export function PeopleListScreen() {
 
               {staffWarnings.length > 0 && (
                 <div className="rounded bg-amber-50 p-4 text-xs text-amber-800 space-y-2 border border-amber-200">
-                  <div className="font-bold text-amber-900">⚠️ Doublons potentiels détectés dans l'annuaire :</div>
+                  <div className="font-bold text-amber-900">{t('people.modals.duplicateWarning')}</div>
                   {staffWarnings.map((w: any) => (
-                    <div key={w.id} className="font-medium">• {w.firstName} {w.lastName} ({w.email || 'Pas de courriel'})</div>
+                    <div key={w.id} className="font-medium">• {w.firstName} {w.lastName} ({w.email || '—'})</div>
                   ))}
                 </div>
               )}
@@ -1135,47 +1136,47 @@ export function PeopleListScreen() {
               <form onSubmit={handleStaffSubmit} className="space-y-4">
                 {/* Identity */}
                 <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-                  <Input label="Prénom *" value={staffFirstName} onChange={(e) => setStaffFirstName(e.target.value)} required />
-                  <Input label="Nom *" value={staffLastName} onChange={(e) => setStaffLastName(e.target.value)} required />
+                  <Input label={`${t('people.firstName')} *`} value={staffFirstName} onChange={(e) => setStaffFirstName(e.target.value)} required />
+                  <Input label={`${t('people.lastName')} *`} value={staffLastName} onChange={(e) => setStaffLastName(e.target.value)} required />
                   <Input
-                    label="Courriel (Login d'accès applicatif)"
+                    label={t('people.email')}
                     type="email"
                     value={staffEmail}
                     onChange={(e) => setStaffEmail(e.target.value)}
                     placeholder="personne@association.org"
                   />
-                  <Input label="Téléphone" value={staffPhone} onChange={(e) => setStaffPhone(e.target.value)} placeholder="514-555-0199" />
+                  <Input label={t('people.phone')} value={staffPhone} onChange={(e) => setStaffPhone(e.target.value)} placeholder="514-555-0199" />
                 </div>
 
                 {/* Professional Role */}
                 <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 border-t pt-4">
                   <div>
                     <label className="mb-1 block text-xs font-bold text-slate-700">
-                      {staffModalMode === 'volunteer' ? 'Rôle / Mission bénévole *' : 'Titre du Poste / Fonction *'}
+                      {t('people.role')} *
                     </label>
                     <Input
                       value={staffJobTitle}
                       onChange={(e) => setStaffJobTitle(e.target.value)}
-                      placeholder={staffModalMode === 'volunteer' ? 'Ex: Animation ateliers, Chauffeur...' : 'Ex: Directeur Général, Comptable...'}
+                      placeholder={staffModalMode === 'volunteer' ? 'Ex: Animation, Logistique...' : 'Ex: Directeur Général, Comptable...'}
                       required
                     />
                   </div>
 
                   <div>
-                    <label className="mb-1 block text-xs font-bold text-slate-700">Type d'engagement *</label>
+                    <label className="mb-1 block text-xs font-bold text-slate-700">{t('people.contractType')} *</label>
                     <select
                       value={staffEmploymentType}
                       onChange={(e) => setStaffEmploymentType(e.target.value)}
                       className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500"
                     >
                       {staffModalMode === 'volunteer' ? (
-                        <option value="volunteer">Bénévole</option>
+                        <option value="volunteer">{t('people.types.volunteer')}</option>
                       ) : (
                         <>
-                          <option value="employee">Salarié(e)</option>
-                          <option value="board_member">Conseil d'Administration / Direction</option>
-                          <option value="contractor">Contractuel(le) / Consultant</option>
-                          <option value="intern">Stagiaire</option>
+                          <option value="employee">{t('people.types.employee')}</option>
+                          <option value="board_member">{t('people.types.board_member')}</option>
+                          <option value="contractor">{t('people.types.contractor')}</option>
+                          <option value="intern">{t('people.types.intern')}</option>
                         </>
                       )}
                     </select>
@@ -1183,13 +1184,13 @@ export function PeopleListScreen() {
 
                   <div>
                     <div className="flex items-center justify-between mb-1">
-                      <label className="text-xs font-bold text-slate-700">Département / Pôle</label>
+                      <label className="text-xs font-bold text-slate-700">{t('people.department')}</label>
                       <button
                         type="button"
                         onClick={() => { setEditingDept(null); setNewDeptName(''); setNewDeptCode(''); setNewDeptParentId(''); setShowDeptModal(true); }}
                         className="text-[11px] text-indigo-600 hover:underline font-medium"
                       >
-                        + Créer département
+                        + {t('people.modals.newDept')}
                       </button>
                     </div>
                     <select
@@ -1197,7 +1198,7 @@ export function PeopleListScreen() {
                       onChange={(e) => setStaffDepartmentId(e.target.value)}
                       className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500"
                     >
-                      <option value="">— Aucun département —</option>
+                      <option value="">— {t('common.all')} —</option>
                       {departments.map((d: any) => (
                         <option key={d.id} value={d.id}>{d.name}</option>
                       ))}
@@ -1205,36 +1206,36 @@ export function PeopleListScreen() {
                   </div>
 
                   <div>
-                    <label className="mb-1 block text-xs font-bold text-slate-700">Date d'adhésion / embauche</label>
+                    <label className="mb-1 block text-xs font-bold text-slate-700">{t('people.since')}</label>
                     <Input type="date" value={staffHireDate} onChange={(e) => setStaffHireDate(e.target.value)} />
                   </div>
                 </div>
 
                 {/* Additional details */}
                 <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 border-t pt-4">
-                  <Input label="Contact d'urgence" value={staffEmergencyContact} onChange={(e) => setStaffEmergencyContact(e.target.value)} placeholder="Nom & Téléphone du contact" />
+                  <Input label={t('people.emergencyContact')} value={staffEmergencyContact} onChange={(e) => setStaffEmergencyContact(e.target.value)} placeholder="Nom & Téléphone" />
                   <div>
-                    <label className="mb-1 block text-xs font-bold text-slate-700">Statut</label>
+                    <label className="mb-1 block text-xs font-bold text-slate-700">{t('common.status')}</label>
                     <select
                       value={staffStatus}
                       onChange={(e) => setStaffStatus(e.target.value)}
                       className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm"
                     >
-                      <option value="active">Actif</option>
-                      <option value="on_leave">En congé</option>
-                      <option value="inactive">Inactif</option>
-                      <option value="archived">Archivé</option>
+                      <option value="active">{t('people.statuses.active')}</option>
+                      <option value="on_leave">{t('people.statuses.on_leave')}</option>
+                      <option value="inactive">{t('people.statuses.inactive')}</option>
+                      <option value="archived">{t('people.statuses.archived')}</option>
                     </select>
                   </div>
 
                   <div className="sm:col-span-2">
-                    <label className="mb-1 block text-xs font-bold text-slate-700">Notes RH / Observations</label>
+                    <label className="mb-1 block text-xs font-bold text-slate-700">{t('common.details')}</label>
                     <textarea
                       value={staffNotes}
                       onChange={(e) => setStaffNotes(e.target.value)}
                       rows={2}
                       className="w-full rounded-lg border border-slate-300 px-3 py-1.5 text-xs"
-                      placeholder="Remarques, compétences clés..."
+                      placeholder="..."
                     />
                   </div>
                 </div>
@@ -1246,7 +1247,7 @@ export function PeopleListScreen() {
                       <div className="flex items-center gap-2">
                         <KeyRound className="h-4 w-4 text-indigo-600" />
                         <span className="text-xs font-bold text-indigo-950">
-                          {editingStaff?.staff?.userAccount ? 'Compte utilisateur actif lié' : 'Création automatique du compte d\'accès (Login)'}
+                          {editingStaff?.staff?.userAccount ? t('people.modals.userAccountLinked') : t('people.modals.autoAccountCreate')}
                         </span>
                       </div>
                       {!editingStaff?.staff?.userAccount && (
@@ -1257,7 +1258,7 @@ export function PeopleListScreen() {
                             onChange={(e) => setStaffCreateAccount(e.target.checked)}
                             className="h-4 w-4 rounded border-slate-300 text-indigo-600 focus:ring-indigo-500"
                           />
-                          Activer le compte d'accès
+                          {t('people.modals.enableAccount')}
                         </label>
                       )}
                     </div>
@@ -1265,13 +1266,13 @@ export function PeopleListScreen() {
                     {(staffCreateAccount || editingStaff?.staff?.userAccount) && (
                       <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-2">
                         <div>
-                          <label className="mb-1 block text-xs font-semibold text-slate-700">Rôle d'accès système</label>
+                          <label className="mb-1 block text-xs font-semibold text-slate-700">{t('people.modals.roleAssigned')}</label>
                           <select
                             value={staffRoleId}
                             onChange={(e) => setStaffRoleId(e.target.value)}
                             className="w-full rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-xs focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500"
                           >
-                            <option value="">— Rôle par défaut —</option>
+                            <option value="">{t('people.modals.defaultRole')}</option>
                             {roles.map((r: any) => (
                               <option key={r.id} value={r.id}>{r.name} ({r.code})</option>
                             ))}
@@ -1280,20 +1281,20 @@ export function PeopleListScreen() {
 
                         <div>
                           <label className="mb-1 block text-xs font-semibold text-slate-700">
-                            {editingStaff?.staff?.userAccount ? 'Réinitialiser le mot de passe (laisser vide pour inchangé)' : 'Mot de passe initial'}
+                            {t('people.modals.temporaryPassword')}
                           </label>
                           <Input
                             type="text"
                             value={staffPassword}
                             onChange={(e) => setStaffPassword(e.target.value)}
-                            placeholder={editingStaff?.staff?.userAccount ? 'Nouveau mot de passe...' : 'Ex: OrgDash2026!'}
+                            placeholder="OrgDash2026!"
                             className="h-8 text-xs"
                           />
                         </div>
 
                         <div className="sm:col-span-2 text-[11px] text-slate-500 flex items-center gap-1.5">
                           <CheckCircle2 className="h-3.5 w-3.5 text-emerald-600 shrink-0" />
-                          <span>L'identifiant de connexion (Login) sera synchronisé avec <strong>{staffEmail}</strong>.</span>
+                          <span>{t('people.modals.loginSyncInfo')}</span>
                         </div>
                       </div>
                     )}
@@ -1302,7 +1303,7 @@ export function PeopleListScreen() {
 
                 <div className="flex justify-end space-x-3 pt-4 border-t">
                   <Button type="button" variant="outline" onClick={() => setShowStaffModal(false)}>
-                    Annuler
+                    {t('common.cancel')}
                   </Button>
                   <Button
                     type="submit"
@@ -1310,12 +1311,8 @@ export function PeopleListScreen() {
                     disabled={createStaffMutation.isPending || updateStaffMutation.isPending || !staffFirstName.trim() || !staffLastName.trim() || !staffJobTitle.trim()}
                   >
                     {createStaffMutation.isPending || updateStaffMutation.isPending
-                      ? 'Enregistrement...'
-                      : editingStaff
-                        ? 'Enregistrer les modifications'
-                        : staffModalMode === 'volunteer'
-                          ? 'Enregistrer le bénévole'
-                          : 'Enregistrer le salarié'}
+                      ? t('common.saving')
+                      : t('common.save')}
                   </Button>
                 </div>
               </form>
@@ -1332,7 +1329,7 @@ export function PeopleListScreen() {
               <div className="flex items-center justify-between border-b pb-3">
                 <h3 className="text-base font-bold text-slate-900 flex items-center gap-2">
                   <KeyRound className="h-5 w-5 text-indigo-600" />
-                  Activer le compte d'accès applicatif
+                  {t('people.modals.activateAccount')}
                 </h3>
                 <Button variant="ghost" size="sm" onClick={() => setShowAccountModal(false)}>
                   <X className="h-5 w-5" />
@@ -1340,22 +1337,22 @@ export function PeopleListScreen() {
               </div>
 
               <div className="rounded-lg bg-slate-50 p-3 border text-xs space-y-1">
-                <div><strong>Employé :</strong> {targetStaffForAccount.firstName} {targetStaffForAccount.lastName}</div>
-                <div><strong>Identifiant / Login :</strong> {targetStaffForAccount.email}</div>
-                <div><strong>Poste :</strong> {targetStaffForAccount.staff?.jobTitle}</div>
+                <div><strong>{t('people.fullName')} :</strong> {targetStaffForAccount.firstName} {targetStaffForAccount.lastName}</div>
+                <div><strong>{t('people.email')} :</strong> {targetStaffForAccount.email}</div>
+                <div><strong>{t('people.role')} :</strong> {targetStaffForAccount.staff?.jobTitle}</div>
               </div>
 
               {error && <div className="rounded bg-red-50 p-3 text-sm text-red-700">{error}</div>}
 
               <div className="space-y-3">
                 <div>
-                  <label className="mb-1 block text-xs font-bold text-slate-700">Rôle attribué</label>
+                  <label className="mb-1 block text-xs font-bold text-slate-700">{t('people.modals.roleAssigned')}</label>
                   <select
                     value={accountRoleId}
                     onChange={(e) => setAccountRoleId(e.target.value)}
                     className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500"
                   >
-                    <option value="">— Rôle standard —</option>
+                    <option value="">{t('people.modals.defaultRole')}</option>
                     {roles.map((r: any) => (
                       <option key={r.id} value={r.id}>{r.name} ({r.code})</option>
                     ))}
@@ -1363,12 +1360,12 @@ export function PeopleListScreen() {
                 </div>
 
                 <div>
-                  <label className="mb-1 block text-xs font-bold text-slate-700">Mot de passe temporaire initial</label>
+                  <label className="mb-1 block text-xs font-bold text-slate-700">{t('people.modals.temporaryPassword')}</label>
                   <Input
                     type="text"
                     value={accountPassword}
                     onChange={(e) => setAccountPassword(e.target.value)}
-                    placeholder="Ex: OrgDash2026!"
+                    placeholder="OrgDash2026!"
                     required
                   />
                 </div>
@@ -1376,7 +1373,7 @@ export function PeopleListScreen() {
 
               <div className="flex justify-end gap-2 pt-3 border-t">
                 <Button variant="ghost" size="sm" onClick={() => setShowAccountModal(false)}>
-                  Annuler
+                  {t('common.cancel')}
                 </Button>
                 <Button
                   size="sm"
@@ -1387,7 +1384,7 @@ export function PeopleListScreen() {
                   })}
                   disabled={createAccountMutation.isPending}
                 >
-                  {createAccountMutation.isPending ? 'Création...' : 'Créer et activer le compte'}
+                  {createAccountMutation.isPending ? t('common.loading') : t('people.modals.createAndActivate')}
                 </Button>
               </div>
             </div>
@@ -1402,25 +1399,25 @@ export function PeopleListScreen() {
             <div className="w-full max-w-sm rounded-xl bg-white p-6 shadow-2xl space-y-4">
               <h3 className="text-base font-bold text-slate-900 flex items-center gap-2">
                 <Building2 className="h-5 w-5 text-indigo-600" />
-                {editingDept ? 'Modifier le Département / Pôle' : 'Nouveau Département / Pôle'}
+                {editingDept ? t('people.modals.editDept') : t('people.modals.newDept')}
               </h3>
               <div className="space-y-3">
                 <Input
-                  label="Nom du département *"
+                  label={t('people.modals.deptName')}
                   value={newDeptName}
                   onChange={(e) => setNewDeptName(e.target.value)}
                   placeholder="Ex: Direction des Programmes"
                   required
                 />
                 <Input
-                  label="Code abrégé (ex: PROG, RH, FIN, BENV)"
+                  label={t('people.modals.deptCode')}
                   value={newDeptCode}
                   onChange={(e) => setNewDeptCode(e.target.value)}
                   placeholder="Ex: PROG"
                 />
               </div>
               <div className="flex justify-end gap-2 pt-3 border-t">
-                <Button variant="ghost" size="sm" onClick={() => setShowDeptModal(false)}>Annuler</Button>
+                <Button variant="ghost" size="sm" onClick={() => setShowDeptModal(false)}>{t('common.cancel')}</Button>
                 <Button
                   size="sm"
                   onClick={() => saveDeptMutation.mutate({
@@ -1431,7 +1428,7 @@ export function PeopleListScreen() {
                   })}
                   disabled={!newDeptName.trim() || saveDeptMutation.isPending}
                 >
-                  {saveDeptMutation.isPending ? 'Enregistrement...' : editingDept ? 'Mettre à jour' : 'Créer'}
+                  {saveDeptMutation.isPending ? t('common.saving') : editingDept ? t('common.save') : t('common.create')}
                 </Button>
               </div>
             </div>
@@ -1444,31 +1441,31 @@ export function PeopleListScreen() {
         {showBeneficiaryModal && (
           <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
             <div className="w-full max-w-md rounded-lg bg-white p-6 shadow-lg space-y-4">
-              <h2 className="text-lg font-bold text-slate-800">Ajouter un bénéficiaire</h2>
+              <h2 className="text-lg font-bold text-slate-800">{t('people.modals.newBeneficiary')}</h2>
 
               {error && <div className="rounded bg-red-50 p-3 text-sm text-red-700">{error}</div>}
 
               {benWarnings.length > 0 && (
                 <div className="rounded bg-amber-50 p-4 text-xs text-amber-800 space-y-2 border border-amber-200">
-                  <div className="font-bold text-amber-900">⚠️ Doublons potentiels détectés :</div>
+                  <div className="font-bold text-amber-900">{t('people.modals.duplicateWarning')}</div>
                   {benWarnings.map((w: any) => (
-                    <div key={w.id} className="font-medium">• {w.firstName} {w.lastName} ({w.email || 'Pas de courriel'})</div>
+                    <div key={w.id} className="font-medium">• {w.firstName} {w.lastName} ({w.email || '—'})</div>
                   ))}
                 </div>
               )}
 
               <form onSubmit={handleBeneficiarySubmit} className="space-y-4">
-                <Input label="Prénom *" value={benFirstName} onChange={(e) => setBenFirstName(e.target.value)} required />
-                <Input label="Nom *" value={benLastName} onChange={(e) => setBenLastName(e.target.value)} required />
-                <Input label="Courriel (Optionnel)" type="email" value={benEmail} onChange={(e) => setBenEmail(e.target.value)} />
-                <Input label="Téléphone (Optionnel)" value={benPhone} onChange={(e) => setBenPhone(e.target.value)} />
+                <Input label={`${t('people.firstName')} *`} value={benFirstName} onChange={(e) => setBenFirstName(e.target.value)} required />
+                <Input label={`${t('people.lastName')} *`} value={benLastName} onChange={(e) => setBenLastName(e.target.value)} required />
+                <Input label={t('people.email')} type="email" value={benEmail} onChange={(e) => setBenEmail(e.target.value)} />
+                <Input label={t('people.phone')} value={benPhone} onChange={(e) => setBenPhone(e.target.value)} />
 
                 <div className="flex justify-end space-x-3 pt-4">
                   <Button type="button" variant="outline" onClick={() => setShowBeneficiaryModal(false)}>
-                    Fermer
+                    {t('common.cancel')}
                   </Button>
                   <Button type="submit" disabled={createBeneficiaryMutation.isPending || !benFirstName.trim() || !benLastName.trim()}>
-                    {benWarnings.length > 0 ? 'Confirmer malgré le doublon' : 'Créer'}
+                    {benWarnings.length > 0 ? t('common.confirm') : t('common.create')}
                   </Button>
                 </div>
               </form>

@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Button, Input, Badge } from '@orgdashio/ui';
 import {
@@ -33,6 +34,7 @@ import { Navbar } from '../../components/Navbar';
 type TabKey = 'catalog' | 'logframe' | 'disaggregation' | 'donor_reports';
 
 export function IndicatorListScreen() {
+  const { t } = useTranslation();
   const queryClient = useQueryClient();
 
   const [activeTab, setActiveTab] = useState<TabKey>('catalog');

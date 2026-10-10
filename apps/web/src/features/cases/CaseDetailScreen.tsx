@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
+import { useTranslation } from 'react-i18next';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Button, Input, Badge } from '@orgdashio/ui';
 import {
@@ -36,6 +37,7 @@ import { Navbar } from '../../components/Navbar';
 type TabKey = 'overview' | 'plans' | 'notes' | 'referrals' | 'audit';
 
 export function CaseDetailScreen() {
+  const { t } = useTranslation();
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const queryClient = useQueryClient();
@@ -407,7 +409,7 @@ export function CaseDetailScreen() {
                 className="flex items-center gap-1 rounded-md px-2 py-1 text-xs text-slate-500 transition hover:bg-slate-100 hover:text-slate-800"
               >
                 <ArrowLeft className="h-4 w-4" />
-                Dossiers
+                {t('cases.backToList')}
               </button>
               <div className="h-4 w-px bg-slate-200" />
               <div className="flex items-center gap-2.5">
@@ -423,16 +425,16 @@ export function CaseDetailScreen() {
 
             {/* Quick Status Control */}
             <div className="flex items-center gap-2">
-              <span className="text-xs font-medium text-slate-500">Statut du dossier :</span>
+              <span className="text-xs font-medium text-slate-500">{t('common.status')} :</span>
               <select
                 value={c?.status}
                 onChange={(e) => updateCaseMutation.mutate({ status: e.target.value })}
                 className="rounded-lg border border-slate-300 bg-white px-2.5 py-1 text-xs font-semibold text-slate-800"
               >
-                <option value="open">Ouvert</option>
-                <option value="active">Actif / En cours</option>
-                <option value="under_review">En révision</option>
-                <option value="closed">Clôturé</option>
+                <option value="open">{t('cases.open')}</option>
+                <option value="active">{t('common.status')}</option>
+                <option value="under_review">{t('cases.inReview')}</option>
+                <option value="closed">{t('cases.closed')}</option>
               </select>
             </div>
           </div>

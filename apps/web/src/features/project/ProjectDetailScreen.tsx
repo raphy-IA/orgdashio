@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
+import { useTranslation } from 'react-i18next';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Button, Input } from '@orgdashio/ui';
 import {
@@ -390,6 +391,7 @@ function InlineProgress({
 
 // ─── Main Component ───────────────────────────────────────────────────────────
 export function ProjectDetailScreen() {
+  const { t } = useTranslation();
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const queryClient = useQueryClient();
@@ -1561,7 +1563,7 @@ export function ProjectDetailScreen() {
                 className="flex items-center gap-1 rounded-md px-2 py-1 text-sm text-slate-500 transition hover:bg-slate-100 hover:text-slate-800"
               >
                 <ArrowLeft className="h-4 w-4" />
-                Projets
+                {t('project.title')}
               </button>
               <ChevronRight className="h-4 w-4 text-slate-300" />
               <div className="flex items-center gap-3">
@@ -1580,7 +1582,7 @@ export function ProjectDetailScreen() {
             </div>
             <Button variant="outline" size="sm" onClick={() => window.open(`/api/v1/projects/${id}/expenses/export`, '_blank')}>
               <FileSpreadsheet className="mr-2 h-4 w-4 text-emerald-600" />
-              Exporter CSV
+              {t('common.export')} CSV
             </Button>
           </div>
 

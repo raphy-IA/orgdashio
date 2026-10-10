@@ -1,4 +1,4 @@
-import { Controller, Get, Patch, Param, UseGuards, Req, Inject } from '@nestjs/common';
+import { Controller, Get, Patch, Delete, Param, UseGuards, Req, Inject } from '@nestjs/common';
 import { NotificationService } from './notification.service';
 import { AuthGuard } from '../../common/guards/auth.guard';
 
@@ -12,8 +12,23 @@ export class NotificationController {
     return this.notificationService.findForUser(req.tenantId, req.user.id);
   }
 
+  @Patch('read-all')
+  async markAllAsRead(@Req() req: any) {
+    return this.notificationService.markAllAsRead(req.tenantId, req.user.id);
+  }
+
   @Patch(':id/read')
   async markAsRead(@Req() req: any, @Param('id') id: string) {
     return this.notificationService.markAsRead(req.tenantId, req.user.id, id);
+  }
+
+  @Delete('read')
+  async clearAllRead(@Req() req: any) {
+    return this.notificationService.clearAllRead(req.tenantId, req.user.id);
+  }
+
+  @Delete(':id')
+  async deleteNotification(@Req() req: any, @Param('id') id: string) {
+    return this.notificationService.remove(req.tenantId, req.user.id, id);
   }
 }

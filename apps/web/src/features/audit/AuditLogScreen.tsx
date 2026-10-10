@@ -1,10 +1,12 @@
 import React from 'react';
+import { useTranslation } from 'react-i18next';
 import { useQuery } from '@tanstack/react-query';
 import { Badge } from '@orgdashio/ui';
 import { History, ShieldAlert } from 'lucide-react';
 import { Navbar } from '../../components/Navbar';
 
 export function AuditLogScreen() {
+  const { t } = useTranslation();
   const { data: logs = [], isLoading } = useQuery({
     queryKey: ['audit-logs'],
     queryFn: async () => {

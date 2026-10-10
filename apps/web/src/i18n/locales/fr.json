@@ -29,7 +29,11 @@
     "refresh": "Actualiser",
     "empty": "Aucun élément trouvé.",
     "error": "Une erreur est survenue",
-    "success": "Opération réussie"
+    "success": "Opération réussie",
+    "viewProfile": "Voir la fiche",
+    "saveChanges": "Enregistrer les modifications",
+    "saving": "Enregistrement en cours...",
+    "creating": "Création en cours..."
   },
   "nav": {
     "dashboard": "Tableau de bord",
@@ -54,6 +58,8 @@
     "registerTitle": "Créer une nouvelle association",
     "tenantName": "Nom de l'organisme / association",
     "adminEmail": "Courriel de l'administrateur",
+    "adminFirstName": "Prénom de l'administrateur",
+    "adminLastName": "Nom de l'administrateur",
     "noAccount": "Pas encore de compte ?",
     "registerHere": "Inscrire mon organisme",
     "alreadyHaveAccount": "Déjà un compte ?",
@@ -83,15 +89,20 @@
     "onHold": "En pause",
     "completed": "Terminé",
     "archived": "Archivé",
+    "backToList": "Retour à la liste des projets",
     "tabs": {
       "overview": "Vue d'ensemble",
+      "charter": "Charte de Projet",
       "logframe": "Cadre Logique",
       "wbs": "Planification & Tâches",
+      "gantt": "Diagramme de Gantt",
+      "pert": "Réseau PERT",
       "budget": "Budget & Dépenses",
       "funding": "Financement",
+      "raci": "Gouvernance & RACI",
       "raid": "Registre RAID",
       "evm": "Gestion Valeur Acquise (EVM)",
-      "pert": "Réseau PERT"
+      "copil": "Rapport Flash Copil"
     },
     "budget": {
       "approved": "Budget Approuvé",
@@ -102,33 +113,121 @@
       "category": "Poste Budgétaire",
       "vendor": "Fournisseur",
       "amount": "Montant",
-      "approve": "Approuver"
+      "approve": "Approuver",
+      "date": "Date de dépense"
     },
     "raid": {
       "addRisk": "Ajouter un risque",
       "type": "Type",
       "title": "Titre",
       "severity": "Sévérité (P × I)",
-      "owner": "Propriétaire"
+      "owner": "Propriétaire",
+      "description": "Description du risque",
+      "mitigation": "Stratégie d'atténuation"
     }
   },
   "people": {
     "title": "Personnes & Équipe",
     "addPerson": "Ajouter une personne",
-    "beneficiaries": "Bénéficiaires",
-    "staff": "Personnel & Bénévoles",
+    "beneficiaries": "Bénéficiaires & Usagers",
+    "staff": "Personnel & Salariés",
+    "volunteers": "Bénévoles & Volontaires",
+    "departments": "Départements & Pôles",
     "households": "Ménages / Familles",
     "firstName": "Prénom",
     "lastName": "Nom",
+    "fullName": "Nom & Prénom",
     "email": "Courriel",
     "phone": "Téléphone",
     "status": "Statut",
     "intakeDate": "Date d'admission",
     "role": "Rôle / Poste",
-    "department": "Département",
+    "department": "Département / Pôle",
     "emergencyContact": "Contact d'urgence",
     "consentStatus": "Consentement Loi 25",
-    "empty": "Aucune personne enregistrée."
+    "empty": "Aucune personne enregistrée.",
+    "contractType": "Type d'engagement",
+    "accountAccess": "Compte & Accès",
+    "activeAccount": "Compte Actif",
+    "noAccount": "Sans compte",
+    "createAccess": "Créer accès",
+    "since": "Depuis le",
+    "enrolledOn": "Inscrit le",
+    "noCoordinates": "Aucune coordonnée enregistrée",
+    "loading": "Chargement de l'annuaire...",
+    "types": {
+      "employee": "Salarié(e)",
+      "volunteer": "Bénévole",
+      "board_member": "Direction / Conseil d'Administration",
+      "contractor": "Contractuel(le) / Consultant",
+      "intern": "Stagiaire"
+    },
+    "statuses": {
+      "active": "Actif",
+      "on_leave": "En congé / En pause",
+      "inactive": "Inactif",
+      "archived": "Archivé"
+    },
+    "stats": {
+      "totalStaff": "Effectif Personnel",
+      "totalStaffSub": "Total employés et direction",
+      "regularEmployees": "Salarié(e)s réguliers",
+      "regularEmployeesSub": "Contrats salariés",
+      "boardMembers": "Direction & CA",
+      "boardMembersSub": "Gouvernance / Conseil",
+      "contractors": "Contractuels & Stagiaires",
+      "contractorsSub": "Appuis temporaires",
+      "totalVolunteers": "Total Bénévoles",
+      "totalVolunteersSub": "Volontaires inscrits dans l'organisme",
+      "activeVolunteers": "Bénévoles Actifs",
+      "activeVolunteersSub": "Prêts pour des missions et activités",
+      "volunteerDepts": "Pôles d'intervention",
+      "volunteerDeptsSub": "Départements accueillant des bénévoles"
+    },
+    "filters": {
+      "contractType": "Type de contrat :",
+      "allTypes": "Tous les types",
+      "department": "Département :",
+      "allDepartments": "Tous les départements",
+      "status": "Statut :",
+      "allStatuses": "Tous les statuts",
+      "searchPlaceholder": "Rechercher par nom, poste, courriel...",
+      "searchVolunteerPlaceholder": "Rechercher un bénévole, compétence...",
+      "searchBeneficiaryPlaceholder": "Rechercher un bénéficiaire..."
+    },
+    "modals": {
+      "newStaff": "Nouveau Membre du Personnel / Salarié",
+      "editStaff": "Modifier le Membre du Personnel",
+      "newVolunteer": "Nouveau Bénévole / Volontaire",
+      "editVolunteer": "Modifier le Bénévole",
+      "newDept": "Nouveau Département / Pôle",
+      "editDept": "Modifier le Département / Pôle",
+      "newBeneficiary": "Ajouter un bénéficiaire",
+      "activateAccount": "Activer le compte d'accès applicatif",
+      "temporaryPassword": "Mot de passe temporaire initial",
+      "roleAssigned": "Rôle attribué",
+      "defaultRole": "— Rôle standard —",
+      "createAndActivate": "Créer et activer le compte",
+      "userAccountLinked": "Compte utilisateur actif lié",
+      "autoAccountCreate": "Création automatique du compte d'accès (Login)",
+      "enableAccount": "Activer le compte d'accès",
+      "loginSyncInfo": "L'identifiant de connexion sera synchronisé avec le courriel saisi.",
+      "deptName": "Nom du département *",
+      "deptCode": "Code abrégé (ex: PROG, RH, FIN, BENV)",
+      "duplicateWarning": "⚠️ Doublons potentiels détectés dans l'annuaire :"
+    },
+    "emptyStates": {
+      "noStaff": "Aucun membre du personnel trouvé",
+      "noStaffDesc": "Ajoutez les employés, directeurs et contractuels de votre organisation.",
+      "noVolunteers": "Aucun bénévole enregistré",
+      "noVolunteersDesc": "Ajoutez vos bénévoles pour leur assigner des rôles RACI dans vos projets et activités.",
+      "addFirstVolunteer": "Ajouter le premier bénévole",
+      "noDepts": "Aucun département défini",
+      "noDeptsDesc": "Définissez des départements (ex: Direction, Programmes, Bénévolat, Finances, RH) pour catégoriser vos équipes.",
+      "addFirstDept": "Créer le premier département",
+      "noBeneficiaries": "Aucun bénéficiaire enregistré.",
+      "noBeneficiariesDesc": "Enregistrez les personnes accompagnées dans le respect de la Loi 25."
+    }
   },
   "cases": {
     "title": "Suivi de cas & Dossiers Sociaux",
@@ -146,7 +245,9 @@
     "interventionPlan": "Plan d'intervention",
     "goals": "Objectifs & Cibles",
     "referrals": "Références externes",
-    "empty": "Aucun dossier trouvé."
+    "empty": "Aucun dossier trouvé.",
+    "backToList": "Retour aux dossiers",
+    "law25Notice": "Dossier protégé selon les dispositions de la Loi 25 sur la protection des renseignements personnels."
   },
   "training": {
     "title": "Formations & Ateliers",
@@ -199,7 +300,8 @@
     "amount": "Montant alloué",
     "period": "Période",
     "deliverables": "Livrables requis",
-    "empty": "Aucune subvention enregistrée."
+    "empty": "Aucune subvention enregistrée.",
+    "backToList": "Retour aux subventions"
   },
   "donations": {
     "title": "Dons & Reçus Fiscaux ARC",
@@ -222,7 +324,14 @@
     "neq": "Numéro d'entreprise du Québec (NEQ)",
     "charityNumber": "Numéro d'enregistrement d'organisme de bienfaisance",
     "privacyOfficer": "Responsable de la protection des renseignements personnels",
-    "saveChanges": "Enregistrer les modifications"
+    "saveChanges": "Enregistrer les modifications",
+    "currentPassword": "Mot de passe actuel",
+    "newPassword": "Nouveau mot de passe",
+    "confirmNewPassword": "Confirmer le nouveau mot de passe",
+    "updatePassword": "Mettre à jour le mot de passe",
+    "twoFactorAuth": "Authentification à deux facteurs (2FA)",
+    "personalDataExport": "Exporter mes données (Loi 25)",
+    "requestDeletion": "Demander la suppression de mon compte"
   },
   "platform": {
     "title": "Console Super-Admin SaaS",
