@@ -66,15 +66,15 @@ export function Navbar() {
   }, []);
 
   const navLinks = [
-    { path: '/dashboard', label: 'Tableau de bord', icon: LayoutDashboard },
-    { path: '/projects', label: 'Projets', icon: FolderKanban },
-    { path: '/grants', label: 'Subventions', icon: Landmark },
-    { path: '/donations', label: 'Dons & Reçus ARC', icon: HeartHandshake },
-    { path: '/timesheets', label: 'Temps RH', icon: Clock },
-    { path: '/people', label: 'Personnes & Équipe', icon: Users },
-    { path: '/training', label: 'Formations', icon: GraduationCap },
-    { path: '/cases', label: 'Suivi de cas', icon: ShieldAlert },
-    { path: '/dashboard/impact', label: 'Impact & Indicateurs', icon: BarChart3 },
+    { path: '/dashboard', label: t('nav.dashboard'), icon: LayoutDashboard },
+    { path: '/projects', label: t('nav.projects'), icon: FolderKanban },
+    { path: '/grants', label: t('nav.grants'), icon: Landmark },
+    { path: '/donations', label: t('nav.donations'), icon: HeartHandshake },
+    { path: '/timesheets', label: t('nav.timesheets'), icon: Clock },
+    { path: '/people', label: t('nav.people'), icon: Users },
+    { path: '/training', label: t('nav.training'), icon: GraduationCap },
+    { path: '/cases', label: t('nav.cases'), icon: ShieldAlert },
+    { path: '/dashboard/impact', label: t('nav.indicators'), icon: BarChart3 },
   ];
 
   const getInitials = (text: string) => {
@@ -224,7 +224,7 @@ export function Navbar() {
                       className="flex items-center px-4 py-2 text-amber-700 bg-amber-50 hover:bg-amber-100 font-bold transition-colors border-b border-amber-200"
                     >
                       <Shield className="mr-2.5 h-4 w-4 text-amber-600" />
-                      <span>Console Super-Admin</span>
+                      <span>{t('nav.platformAdmin')}</span>
                     </Link>
                   )}
                   <Link
@@ -233,7 +233,7 @@ export function Navbar() {
                     className="flex items-center px-4 py-2 text-slate-700 hover:bg-slate-50 hover:text-indigo-600 transition-colors"
                   >
                     <User className="mr-2.5 h-4 w-4 text-slate-400" />
-                    <span>Mon Profil & Sécurité</span>
+                    <span>{t('nav.profile')}</span>
                   </Link>
                   <Link
                     to="/settings/organization"
@@ -241,7 +241,7 @@ export function Navbar() {
                     className="flex items-center px-4 py-2 text-slate-700 hover:bg-slate-50 hover:text-indigo-600 transition-colors"
                   >
                     <Building2 className="mr-2.5 h-4 w-4 text-slate-400" />
-                    <span>Paramètres de l'Organisme & Logo</span>
+                    <span>{t('nav.organization')}</span>
                   </Link>
                   <Link
                     to="/settings/billing"
@@ -249,7 +249,7 @@ export function Navbar() {
                     className="flex items-center px-4 py-2 text-slate-700 hover:bg-slate-50 hover:text-indigo-600 transition-colors"
                   >
                     <CreditCard className="mr-2.5 h-4 w-4 text-slate-400" />
-                    <span>Abonnement & Facturation SaaS</span>
+                    <span>{t('nav.billing')}</span>
                   </Link>
                   <Link
                     to="/settings/privacy"
@@ -257,7 +257,7 @@ export function Navbar() {
                     className="flex items-center px-4 py-2 text-slate-700 hover:bg-slate-50 hover:text-indigo-600 transition-colors"
                   >
                     <Shield className="mr-2.5 h-4 w-4 text-slate-400" />
-                    <span>Conformité Loi 25 & Confidentialité</span>
+                    <span>{t('nav.privacy')}</span>
                   </Link>
                   <Link
                     to="/settings/team"
@@ -265,7 +265,7 @@ export function Navbar() {
                     className="flex items-center px-4 py-2 text-slate-700 hover:bg-slate-50 hover:text-indigo-600 transition-colors"
                   >
                     <UserPlus className="mr-2.5 h-4 w-4 text-slate-400" />
-                    <span>Accès & Invitations de l'Équipe</span>
+                    <span>{t('nav.team')}</span>
                   </Link>
                   <Link
                     to="/settings/audit"
@@ -273,7 +273,7 @@ export function Navbar() {
                     className="flex items-center px-4 py-2 text-slate-700 hover:bg-slate-50 hover:text-indigo-600 transition-colors"
                   >
                     <History className="mr-2.5 h-4 w-4 text-slate-400" />
-                    <span>Journal d'audit de sécurité</span>
+                    <span>{t('nav.audit')}</span>
                   </Link>
                 </div>
 
