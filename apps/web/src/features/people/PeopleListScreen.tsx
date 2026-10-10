@@ -42,6 +42,7 @@ export const STAFF_STATUS_CONFIG: Record<string, { label: string; color: string 
 };
 
 export function PeopleListScreen() {
+  const { t } = useTranslation();
   const navigate = useNavigate();
   const queryClient = useQueryClient();
 
@@ -425,10 +426,10 @@ export function PeopleListScreen() {
           <div>
             <h1 className="text-2xl font-bold text-slate-900 flex items-center gap-2">
               <Users className="h-7 w-7 text-indigo-600" />
-              Répertoire de l'Organisation & Équipes
+              {t('people.title')}
             </h1>
             <p className="text-sm text-slate-500 mt-1">
-              Gestion centralisée du personnel salarié, des comptes d'accès, des bénévoles et des pôles
+              {t('people.staff')} • {t('people.beneficiaries')}
             </p>
           </div>
 
@@ -436,25 +437,25 @@ export function PeopleListScreen() {
             {activeTab === 'staff' && (
               <Button onClick={() => { resetStaffForm('staff'); setShowStaffModal(true); }}>
                 <Plus className="mr-2 h-4 w-4" />
-                Nouveau membre du personnel
+                {t('people.addPerson')}
               </Button>
             )}
             {activeTab === 'volunteers' && (
               <Button onClick={() => { resetStaffForm('volunteer'); setShowStaffModal(true); }} className="bg-emerald-600 hover:bg-emerald-700">
                 <HeartHandshake className="mr-2 h-4 w-4" />
-                Nouveau bénévole
+                {t('people.addPerson')}
               </Button>
             )}
             {activeTab === 'departments' && (
               <Button onClick={() => { setEditingDept(null); setNewDeptName(''); setNewDeptCode(''); setNewDeptParentId(''); setShowDeptModal(true); }}>
                 <Building2 className="mr-2 h-4 w-4" />
-                Nouveau département / pôle
+                {t('common.create')}
               </Button>
             )}
             {activeTab === 'beneficiaries' && (
               <Button onClick={() => { setBenWarnings([]); setShowBeneficiaryModal(true); }}>
                 <UserPlus className="mr-2 h-4 w-4" />
-                Nouveau bénéficiaire
+                {t('people.addPerson')}
               </Button>
             )}
           </div>
@@ -471,7 +472,7 @@ export function PeopleListScreen() {
             }`}
           >
             <Briefcase className="h-4 w-4" />
-            Personnel Salarié & Direction ({staffMembers.length})
+            {t('people.staff')} ({staffMembers.length})
           </button>
           <button
             onClick={() => { setActiveTab('volunteers'); setSearchQuery(''); setDeptFilter('all'); setStatusFilter('all'); }}
@@ -482,7 +483,7 @@ export function PeopleListScreen() {
             }`}
           >
             <HeartHandshake className="h-4 w-4 text-emerald-600" />
-            Bénévoles & Volontaires ({volunteers.length})
+            {t('people.staff')} ({volunteers.length})
           </button>
           <button
             onClick={() => { setActiveTab('departments'); setSearchQuery(''); }}
@@ -493,7 +494,7 @@ export function PeopleListScreen() {
             }`}
           >
             <Building2 className="h-4 w-4" />
-            Départements & Pôles ({departments.length})
+            {t('people.department')} ({departments.length})
           </button>
           <button
             onClick={() => { setActiveTab('beneficiaries'); setSearchQuery(''); }}
@@ -504,7 +505,7 @@ export function PeopleListScreen() {
             }`}
           >
             <ShieldCheck className="h-4 w-4 text-sky-600" />
-            Bénéficiaires & Usagers ({beneficiaries.length})
+            {t('people.beneficiaries')} ({beneficiaries.length})
           </button>
         </div>
 

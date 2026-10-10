@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Button, Input, Badge } from '@orgdashio/ui';
 import {
@@ -19,6 +20,7 @@ import { useNavigate } from 'react-router-dom';
 import { Navbar } from '../../components/Navbar';
 
 export function TrainingCatalogScreen() {
+  const { t } = useTranslation();
   const navigate = useNavigate();
   const queryClient = useQueryClient();
 
@@ -206,24 +208,24 @@ export function TrainingCatalogScreen() {
         {/* Header */}
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
           <div>
-            <h1 className="text-2xl font-bold text-slate-900">Catalogue & Sessions de Formation</h1>
+            <h1 className="text-2xl font-bold text-slate-900">{t('training.title')}</h1>
             <p className="text-xs text-slate-500 mt-1">
-              Gérez les programmes, votre catalogue de cours autonomes et planifiez les sessions sur des périodes définies.
+              {t('training.programs')} • {t('training.courses')} • {t('training.sessions')}
             </p>
           </div>
 
           <div className="flex flex-wrap items-center gap-2">
             <Button variant="outline" onClick={() => setShowProgramModal(true)}>
               <GraduationCap className="mr-1.5 h-4 w-4 text-indigo-600" />
-              Nouveau Programme
+              {t('training.createProgram')}
             </Button>
             <Button variant="secondary" onClick={() => setShowCourseModal(true)}>
               <BookOpen className="mr-1.5 h-4 w-4 text-indigo-600" />
-              Nouveau Cours au Catalogue
+              {t('training.courses')}
             </Button>
             <Button onClick={() => setShowSessionModal(true)}>
               <Calendar className="mr-1.5 h-4 w-4" />
-              Planifier une Session
+              {t('training.createSession')}
             </Button>
           </div>
         </div>
@@ -238,7 +240,7 @@ export function TrainingCatalogScreen() {
                 : 'text-slate-500 hover:text-slate-800'
             }`}
           >
-            Programmes de Formation ({trainingPrograms.length})
+            {t('training.programs')} ({trainingPrograms.length})
           </button>
           <button
             onClick={() => setActiveTab('courses')}
@@ -248,7 +250,7 @@ export function TrainingCatalogScreen() {
                 : 'text-slate-500 hover:text-slate-800'
             }`}
           >
-            Catalogue des Cours Autonomes ({courses.length})
+            {t('training.courses')} ({courses.length})
           </button>
           <button
             onClick={() => setActiveTab('sessions')}
@@ -258,7 +260,7 @@ export function TrainingCatalogScreen() {
                 : 'text-slate-500 hover:text-slate-800'
             }`}
           >
-            Sessions & Périodes Planifiées ({sessions.length})
+            {t('training.sessions')} ({sessions.length})
           </button>
         </div>
 

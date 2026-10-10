@@ -1,4 +1,5 @@
 import React from 'react';
+import { useTranslation } from 'react-i18next';
 import { useQuery } from '@tanstack/react-query';
 import { Button, Badge } from '@orgdashio/ui';
 import {
@@ -19,6 +20,7 @@ import { useNavigate } from 'react-router-dom';
 import { Navbar } from '../../components/Navbar';
 
 export function ImpactDashboardScreen() {
+  const { t } = useTranslation();
   const navigate = useNavigate();
 
   const { data: dashboard, isLoading } = useQuery({
@@ -100,21 +102,21 @@ export function ImpactDashboardScreen() {
           <div>
             <div className="flex items-center gap-2">
               <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold bg-indigo-100 text-indigo-800">
-                Module IND • Impact 360°
+                {t('indicators.title')}
               </span>
-              <span className="text-xs text-slate-400">Mesure des résultats R1B.2</span>
+              <span className="text-xs text-slate-400">{t('indicators.dashboard')}</span>
             </div>
-            <h1 className="text-2xl font-bold text-slate-900 mt-1">Tableau de Bord d’Impact & Résultats</h1>
+            <h1 className="text-2xl font-bold text-slate-900 mt-1">{t('indicators.dashboard')}</h1>
             <p className="text-sm text-slate-500">
-              Synthèse exécutive de la performance, de la portée des bénéficiaires et de la conformité bailleurs
+              {t('indicators.name')} • {t('indicators.target')} • {t('indicators.actual')}
             </p>
           </div>
           <div className="flex items-center gap-2">
             <Button variant="outline" onClick={handleExportCsv}>
-              <Download className="w-4 h-4 mr-2" /> Exporter Rapport LogFrame
+              <Download className="w-4 h-4 mr-2" /> {t('common.export')} CSV
             </Button>
             <Button onClick={() => navigate('/indicators')}>
-              <Target className="w-4 h-4 mr-2" /> Gérer les indicateurs
+              <Target className="w-4 h-4 mr-2" /> {t('indicators.createIndicator')}
             </Button>
           </div>
         </div>

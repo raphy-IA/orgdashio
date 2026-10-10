@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useNavigate } from 'react-router-dom';
 import { Button, Input, Badge } from '@orgdashio/ui';
@@ -35,6 +36,7 @@ import { Navbar } from '../../components/Navbar';
 type TabKey = 'all' | 'funders' | 'pipeline' | 'deliverables';
 
 export function GrantListScreen() {
+  const { t } = useTranslation();
   const navigate = useNavigate();
   const queryClient = useQueryClient();
 
@@ -375,15 +377,15 @@ export function GrantListScreen() {
           <div>
             <div className="flex items-center gap-2">
               <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold bg-emerald-100 text-emerald-800">
-                Module GRN • R2.1
+                {t('grants.title')}
               </span>
-              <span className="text-xs text-slate-400">Financements & Bailleurs</span>
+              <span className="text-xs text-slate-400">{t('grants.funder')}</span>
             </div>
             <h1 className="text-2xl font-bold text-slate-900 mt-1">
-              Gestion des Bailleurs & Dossiers de Subventions
+              {t('grants.title')}
             </h1>
             <p className="text-sm text-slate-500">
-              Répertoire des institutions partenaires, pipeline de subventions et suivi des redditions
+              {t('grants.funder')} • {t('grants.amount')} • {t('grants.deliverables')}
             </p>
           </div>
 
@@ -395,7 +397,7 @@ export function GrantListScreen() {
                 setShowFunderModal(true);
               }}
             >
-              <Landmark className="w-4 h-4 mr-2 text-indigo-600" /> + Nouveau Bailleur
+              <Landmark className="w-4 h-4 mr-2 text-indigo-600" /> {t('grants.funder')}
             </Button>
             <Button
               onClick={() => {
@@ -403,7 +405,7 @@ export function GrantListScreen() {
                 setShowGrantModal(true);
               }}
             >
-              <Plus className="w-4 h-4 mr-2" /> + Nouveau Dossier de Subvention
+              <Plus className="w-4 h-4 mr-2" /> {t('grants.createGrant')}
             </Button>
           </div>
         </div>

@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { useTranslation } from 'react-i18next';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Button, Input, Badge } from '@orgdashio/ui';
 import {
@@ -59,6 +60,7 @@ interface TimesheetRow {
 }
 
 export function TimesheetScreen() {
+  const { t } = useTranslation();
   const queryClient = useQueryClient();
   const [activeTab, setActiveTab] = useState<TimesheetTab>('my_timesheet');
   const [currentWeekMonday, setCurrentWeekMonday] = useState<string>(() => {
@@ -511,10 +513,10 @@ export function TimesheetScreen() {
               </div>
               <div>
                 <h1 className="text-2xl font-bold text-slate-900 tracking-tight">
-                  Feuilles de Temps & Valorisation RH
+                  {t('timesheets.title')}
                 </h1>
                 <p className="text-sm text-slate-500 mt-0.5">
-                  Suivi hebdomadaire des heures, imputation analytique par projet et valorisation du temps bénévole/salarié.
+                  {t('timesheets.myTimesheet')} • {t('timesheets.approvals')}
                 </p>
               </div>
             </div>
@@ -527,7 +529,7 @@ export function TimesheetScreen() {
               onClick={handleCurrentWeek}
               className="text-xs font-semibold"
             >
-              Semaine actuelle
+              {t('timesheets.weekOf')}
             </Button>
           </div>
         </div>
@@ -536,9 +538,9 @@ export function TimesheetScreen() {
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5 mb-8">
           <div className="bg-white rounded-xl p-5 border border-slate-200 shadow-sm flex items-center justify-between">
             <div>
-              <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Heures Déclarées</p>
+              <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider">{t('timesheets.totalHours')}</p>
               <h3 className="text-2xl font-bold text-slate-900 mt-1">{totalHoursLogged.toFixed(1)} h</h3>
-              <p className="text-xs text-slate-400 mt-1">Cumul total organisation</p>
+              <p className="text-xs text-slate-400 mt-1">{t('dashboard.hoursLogged')}</p>
             </div>
             <div className="p-3 bg-blue-50 text-blue-600 rounded-lg">
               <Clock className="w-6 h-6" />
@@ -547,11 +549,11 @@ export function TimesheetScreen() {
 
           <div className="bg-white rounded-xl p-5 border border-slate-200 shadow-sm flex items-center justify-between">
             <div>
-              <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Valorisation RH</p>
+              <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider">{t('timesheets.approved')}</p>
               <h3 className="text-2xl font-bold text-slate-900 mt-1">
                 {totalCostValuation.toLocaleString('fr-CA', { style: 'currency', currency: 'CAD' })}
               </h3>
-              <p className="text-xs text-emerald-600 font-medium mt-1">Coût analytique imputé</p>
+              <p className="text-xs text-emerald-600 font-medium mt-1">{t('timesheets.approved')}</p>
             </div>
             <div className="p-3 bg-emerald-50 text-emerald-600 rounded-lg">
               <DollarSign className="w-6 h-6" />
@@ -560,10 +562,10 @@ export function TimesheetScreen() {
 
           <div className="bg-white rounded-xl p-5 border border-slate-200 shadow-sm flex items-center justify-between">
             <div>
-              <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Heures Approuvées</p>
+              <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider">{t('timesheets.approved')}</p>
               <h3 className="text-2xl font-bold text-slate-900 mt-1">{approvedHoursCount.toFixed(1)} h</h3>
               <p className="text-xs text-slate-400 mt-1">
-                {totalHoursLogged > 0 ? `${((approvedHoursCount / totalHoursLogged) * 100).toFixed(0)}% validé` : '0% validé'}
+                {totalHoursLogged > 0 ? `${((approvedHoursCount / totalHoursLogged) * 100).toFixed(0)}%` : '0%'}
               </p>
             </div>
             <div className="p-3 bg-indigo-50 text-indigo-600 rounded-lg">
@@ -573,9 +575,9 @@ export function TimesheetScreen() {
 
           <div className="bg-white rounded-xl p-5 border border-slate-200 shadow-sm flex items-center justify-between">
             <div>
-              <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider">En Attente Validation</p>
+              <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider">{t('timesheets.pending')}</p>
               <h3 className="text-2xl font-bold text-amber-600 mt-1">{pendingApprovalsCount}</h3>
-              <p className="text-xs text-slate-400 mt-1">Feuilles soumises RH</p>
+              <p className="text-xs text-slate-400 mt-1">{t('timesheets.approvals')}</p>
             </div>
             <div className="p-3 bg-amber-50 text-amber-600 rounded-lg">
               <AlertCircle className="w-6 h-6" />
@@ -594,7 +596,7 @@ export function TimesheetScreen() {
             }`}
           >
             <Clock className="w-4 h-4" />
-            <span>Ma Feuille Hebdomadaire</span>
+            <span>{t('timesheets.myTimesheet')}</span>
           </button>
 
           <button
@@ -606,7 +608,7 @@ export function TimesheetScreen() {
             }`}
           >
             <UserCheck className="w-4 h-4" />
-            <span>Validation & Approbations</span>
+            <span>{t('timesheets.approvals')}</span>
             {pendingApprovalsCount > 0 && (
               <span className="ml-1.5 px-2 py-0.5 text-xs font-bold bg-amber-100 text-amber-800 rounded-full">
                 {pendingApprovalsCount}
@@ -623,7 +625,7 @@ export function TimesheetScreen() {
             }`}
           >
             <PieChart className="w-4 h-4" />
-            <span>Ventilation Analytique</span>
+            <span>{t('timesheets.project')}</span>
           </button>
 
           <button
@@ -635,7 +637,7 @@ export function TimesheetScreen() {
             }`}
           >
             <Settings className="w-4 h-4" />
-            <span>Profils RH & Taux</span>
+            <span>{t('settings.organization')}</span>
           </button>
         </div>
 

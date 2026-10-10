@@ -1,4 +1,5 @@
 import React, { useState, useMemo } from 'react';
+import { useTranslation } from 'react-i18next';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Button, Input, Badge } from '@orgdashio/ui';
 import {
@@ -23,6 +24,7 @@ import { useNavigate } from 'react-router-dom';
 import { Navbar } from '../../components/Navbar';
 
 export function CaseListScreen() {
+  const { t } = useTranslation();
   const navigate = useNavigate();
   const queryClient = useQueryClient();
 
@@ -158,17 +160,17 @@ export function CaseListScreen() {
           <div>
             <div className="flex items-center space-x-2 text-indigo-600 text-xs font-mono font-bold uppercase tracking-wider mb-1">
               <HeartHandshake className="h-4 w-4" />
-              <span>Module CAS • Travail Social & Accompagnement</span>
+              <span>{t('cases.title')}</span>
             </div>
-            <h1 className="text-2xl font-bold text-slate-900">Suivi de Cas & Dossiers d'Intervention</h1>
+            <h1 className="text-2xl font-bold text-slate-900">{t('cases.title')}</h1>
             <p className="text-xs text-slate-500 mt-1">
-              Accompagnement individualisé, plans d'intervention SMART, notes verrouillées et stricte conformité Loi 25.
+              {t('cases.interventionPlan')} • {t('cases.notes')} • {t('cases.confidentiality')}
             </p>
           </div>
 
           <Button onClick={() => setShowModal(true)} className="bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs">
             <Plus className="mr-2 h-4 w-4" />
-            Ouvrir un nouveau dossier
+            {t('cases.createCase')}
           </Button>
         </div>
 
@@ -176,35 +178,34 @@ export function CaseListScreen() {
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
           <div className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm space-y-2">
             <div className="flex items-center justify-between">
-              <span className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Dossiers Actifs</span>
+              <span className="text-xs font-semibold text-slate-500 uppercase tracking-wider">{t('dashboard.openCases')}</span>
               <div className="p-2 rounded-lg bg-emerald-50 text-emerald-600">
                 <FolderLock className="h-5 w-5" />
               </div>
             </div>
             <div className="flex items-baseline space-x-2">
               <span className="text-2xl font-bold text-slate-900">{activeCases}</span>
-              <span className="text-xs text-slate-400">/ {totalCases} au total</span>
+              <span className="text-xs text-slate-400">/ {totalCases} {t('common.all').toLowerCase()}</span>
             </div>
             <div className="text-xs text-emerald-600 font-medium flex items-center gap-1">
               <CheckCircle2 className="h-3.5 w-3.5" />
-              Accompagnements en cours
+              {t('cases.open')}
             </div>
           </div>
 
           <div className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm space-y-2">
             <div className="flex items-center justify-between">
-              <span className="text-xs font-semibold text-slate-500 uppercase tracking-wider">En Révision</span>
+              <span className="text-xs font-semibold text-slate-500 uppercase tracking-wider">{t('cases.inReview')}</span>
               <div className="p-2 rounded-lg bg-amber-50 text-amber-600">
                 <Clock className="h-5 w-5" />
               </div>
             </div>
             <div className="flex items-baseline space-x-2">
               <span className="text-2xl font-bold text-amber-600">{underReviewCases}</span>
-              <span className="text-xs text-slate-400">dossiers</span>
             </div>
             <div className="text-xs text-amber-600 font-medium flex items-center gap-1">
               <AlertTriangle className="h-3.5 w-3.5" />
-              Plans ou objectifs à réviser
+              {t('cases.inReview')}
             </div>
           </div>
 

@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Button, Input, Badge } from '@orgdashio/ui';
 import {
@@ -105,6 +106,7 @@ interface TaxReceiptItem {
 }
 
 export function DonationListScreen() {
+  const { t } = useTranslation();
   const queryClient = useQueryClient();
   const [activeTab, setActiveTab] = useState<DonationTab>('donations');
 
@@ -515,10 +517,10 @@ export function DonationListScreen() {
               </div>
               <div>
                 <h1 className="text-2xl sm:text-3xl font-bold text-slate-900 dark:text-white">
-                  Dons & Reçus Fiscaux ARC
+                  {t('donations.title')}
                 </h1>
                 <p className="text-sm text-slate-500">
-                  Collecte de fonds philanthropiques, gestion des donateurs et émission certifiée des reçus d'impôt ARC (CRA).
+                  {t('donations.donor')} • {t('donations.receiptNumber')} • {t('donations.issueReceipt')}
                 </p>
               </div>
             </div>
@@ -534,7 +536,7 @@ export function DonationListScreen() {
               className="flex items-center gap-1.5 text-xs sm:text-sm"
             >
               <Users className="h-4 w-4" />
-              Nouveau Donateur
+              {t('donations.donor')}
             </Button>
             <Button
               variant="outline"
@@ -545,7 +547,7 @@ export function DonationListScreen() {
               className="flex items-center gap-1.5 text-xs sm:text-sm"
             >
               <Megaphone className="h-4 w-4" />
-              Nouvelle Campagne
+              {t('common.create')}
             </Button>
             <Button
               onClick={() => {
@@ -559,7 +561,7 @@ export function DonationListScreen() {
               className="flex items-center gap-1.5 bg-rose-600 hover:bg-rose-700 text-white text-xs sm:text-sm shadow-sm"
             >
               <Plus className="h-4 w-4" />
-              Enregistrer un Don
+              {t('donations.addDonation')}
             </Button>
           </div>
         </div>

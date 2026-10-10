@@ -289,10 +289,10 @@ export function OrganizationSettingsScreen() {
               </div>
               <div>
                 <h1 className="text-2xl font-bold text-slate-900 tracking-tight">
-                  Paramètres de l’Organisme
+                  {t('settings.organization')}
                 </h1>
                 <p className="text-sm text-slate-500 mt-0.5">
-                  Gérez l’identité de marque, les informations fiscales et les préférences globales de votre espace.
+                  {t('settings.orgName')} • {t('settings.neq')}
                 </p>
               </div>
             </div>
@@ -307,7 +307,7 @@ export function OrganizationSettingsScreen() {
               className="bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs shadow-sm flex items-center space-x-1.5"
             >
               <Save className="w-4 h-4" />
-              <span>{updateMutation.isPending ? 'Enregistrement...' : 'Enregistrer les modifications'}</span>
+              <span>{updateMutation.isPending ? t('common.loading') : t('settings.saveChanges')}</span>
             </Button>
           </div>
         </div>

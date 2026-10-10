@@ -1,4 +1,5 @@
 import React from 'react';
+import { useTranslation } from 'react-i18next';
 import { useQuery } from '@tanstack/react-query';
 import { useNavigate, Link } from 'react-router-dom';
 import { Button, Badge } from '@orgdashio/ui';
@@ -21,6 +22,7 @@ import {
 import { Navbar } from '../../components/Navbar';
 
 export function TenantDashboardScreen() {
+  const { t } = useTranslation();
   const navigate = useNavigate();
 
   // Fetch Current User & Tenant Data
@@ -88,13 +90,13 @@ export function TenantDashboardScreen() {
             <div>
               <div className="flex items-center space-x-2 text-indigo-300 text-xs font-semibold uppercase tracking-wider mb-1">
                 <Building2 className="h-4 w-4 text-indigo-400" />
-                <span>Espace de Travail Organisme • Tenant Isolé</span>
+                <span>{tenantName}</span>
               </div>
               <h1 className="text-2xl sm:text-3xl font-extrabold tracking-tight">
-                Tableau de Bord — {tenantName}
+                {t('nav.dashboard')} — {tenantName}
               </h1>
               <p className="mt-1 text-sm text-indigo-100/80 max-w-2xl">
-                Bienvenue sur votre console de gestion centralisée. Suivez l'avancement de vos projets, vos bénéficiaires et vos indicateurs d'impact.
+                {t('dashboard.welcome')}
               </p>
             </div>
 
@@ -106,7 +108,7 @@ export function TenantDashboardScreen() {
                 className="bg-white/10 hover:bg-white/20 text-white border-white/20 text-xs font-semibold backdrop-blur"
               >
                 <FolderKanban className="mr-1.5 h-4 w-4" />
-                Voir les projets
+                {t('nav.projects')}
               </Button>
               <Button
                 size="sm"
@@ -114,7 +116,7 @@ export function TenantDashboardScreen() {
                 className="bg-indigo-500 hover:bg-indigo-400 text-white text-xs font-semibold shadow-sm"
               >
                 <Plus className="mr-1.5 h-4 w-4" />
-                Ajouter un bénéficiaire
+                {t('people.addPerson')}
               </Button>
             </div>
           </div>
@@ -125,61 +127,61 @@ export function TenantDashboardScreen() {
           {/* Card 1: Active Projects */}
           <div className="rounded-xl border bg-white p-5 shadow-sm hover:shadow-md transition-shadow">
             <div className="flex items-center justify-between">
-              <span className="text-xs font-medium text-slate-500 uppercase tracking-wider">Projets en cours</span>
+              <span className="text-xs font-medium text-slate-500 uppercase tracking-wider">{t('dashboard.activeProjects')}</span>
               <div className="rounded-lg bg-indigo-50 p-2 text-indigo-600">
                 <FolderKanban className="h-5 w-5" />
               </div>
             </div>
             <div className="mt-3 flex items-baseline justify-between">
               <div className="text-2xl font-bold text-slate-900">{projects.length}</div>
-              <Badge variant="default" className="text-[10px]">Multi-Bailleurs</Badge>
+              <Badge variant="default" className="text-[10px]">{t('project.active')}</Badge>
             </div>
             <p className="mt-2 text-xs text-slate-500 flex items-center">
               <CheckCircle2 className="mr-1 h-3.5 w-3.5 text-emerald-500" />
-              Suivi budgétaire & livrables
+              {t('project.title')}
             </p>
           </div>
 
           {/* Card 2: Total Reached / Beneficiaries */}
           <div className="rounded-xl border bg-white p-5 shadow-sm hover:shadow-md transition-shadow">
             <div className="flex items-center justify-between">
-              <span className="text-xs font-medium text-slate-500 uppercase tracking-wider">Bénéficiaires & Membres</span>
+              <span className="text-xs font-medium text-slate-500 uppercase tracking-wider">{t('dashboard.beneficiaries')}</span>
               <div className="rounded-lg bg-blue-50 p-2 text-blue-600">
                 <Users className="h-5 w-5" />
               </div>
             </div>
             <div className="mt-3 flex items-baseline justify-between">
               <div className="text-2xl font-bold text-slate-900">{people.length}</div>
-              <Badge variant="success" className="text-[10px]">Personnes uniques</Badge>
+              <Badge variant="success" className="text-[10px]">{t('people.beneficiaries')}</Badge>
             </div>
             <p className="mt-2 text-xs text-slate-500 flex items-center">
               <HeartHandshake className="mr-1 h-3.5 w-3.5 text-blue-500" />
-              Personnes & organismes accompagnés
+              {t('people.title')}
             </p>
           </div>
 
           {/* Card 3: Active Cases */}
           <div className="rounded-xl border bg-white p-5 shadow-sm hover:shadow-md transition-shadow">
             <div className="flex items-center justify-between">
-              <span className="text-xs font-medium text-slate-500 uppercase tracking-wider">Dossiers de Cas</span>
+              <span className="text-xs font-medium text-slate-500 uppercase tracking-wider">{t('dashboard.openCases')}</span>
               <div className="rounded-lg bg-amber-50 p-2 text-amber-600">
                 <ShieldAlert className="h-5 w-5" />
               </div>
             </div>
             <div className="mt-3 flex items-baseline justify-between">
               <div className="text-2xl font-bold text-slate-900">{cases.length}</div>
-              <Badge variant="secondary" className="text-[10px]">Confidentiel</Badge>
+              <Badge variant="secondary" className="text-[10px]">{t('cases.open')}</Badge>
             </div>
             <p className="mt-2 text-xs text-slate-500 flex items-center">
               <ShieldCheck className="mr-1 h-3.5 w-3.5 text-amber-600" />
-              Chiffrement RLS activé
+              {t('cases.title')}
             </p>
           </div>
 
           {/* Card 4: Global Impact Score */}
           <div className="rounded-xl border bg-white p-5 shadow-sm hover:shadow-md transition-shadow">
             <div className="flex items-center justify-between">
-              <span className="text-xs font-medium text-slate-500 uppercase tracking-wider">Avancement Impact</span>
+              <span className="text-xs font-medium text-slate-500 uppercase tracking-wider">{t('indicators.title')}</span>
               <div className="rounded-lg bg-emerald-50 p-2 text-emerald-600">
                 <TrendingUp className="h-5 w-5" />
               </div>
@@ -188,11 +190,11 @@ export function TenantDashboardScreen() {
               <div className="text-2xl font-bold text-slate-900">
                 {impactStats?.averageProgressPct ?? 0}%
               </div>
-              <Badge variant="success" className="text-[10px]">IND-05 Compliant</Badge>
+              <Badge variant="success" className="text-[10px]">{t('indicators.progress')}</Badge>
             </div>
             <p className="mt-2 text-xs text-slate-500 flex items-center">
               <Activity className="mr-1 h-3.5 w-3.5 text-emerald-600" />
-              Cible d'impact mesurée
+              {t('indicators.dashboard')}
             </p>
           </div>
         </div>
@@ -206,19 +208,19 @@ export function TenantDashboardScreen() {
               <div className="px-6 py-4 border-b flex items-center justify-between bg-slate-50/50">
                 <div className="flex items-center space-x-2">
                   <FolderKanban className="h-4 w-4 text-indigo-600" />
-                  <h2 className="font-semibold text-slate-900 text-sm">Projets Récents</h2>
+                  <h2 className="font-semibold text-slate-900 text-sm">{t('dashboard.recentActivity')}</h2>
                 </div>
                 <Link to="/projects" className="text-xs text-indigo-600 font-medium hover:underline flex items-center">
-                  Tout afficher <ArrowRight className="ml-1 h-3 w-3" />
+                  {t('common.all')} <ArrowRight className="ml-1 h-3 w-3" />
                 </Link>
               </div>
 
               {projects.length === 0 ? (
                 <div className="p-8 text-center text-slate-500">
                   <FolderKanban className="mx-auto h-8 w-8 text-slate-300 mb-2" />
-                  <p className="text-sm">Aucun projet actif pour le moment.</p>
+                  <p className="text-sm">{t('project.empty')}</p>
                   <Button size="sm" className="mt-3" onClick={() => navigate('/projects')}>
-                    Créer votre premier projet
+                    {t('project.createProject')}
                   </Button>
                 </div>
               ) : (
@@ -231,9 +233,9 @@ export function TenantDashboardScreen() {
                     >
                       <div>
                         <div className="font-medium text-slate-900 text-sm">{p.title || p.name}</div>
-                        <div className="text-xs text-slate-500 mt-0.5">{p.code || 'PRJ-01'} • {p.status || 'En cours'}</div>
+                        <div className="text-xs text-slate-500 mt-0.5">{p.code || 'PRJ'} • {p.status || t('project.active')}</div>
                       </div>
-                      <Badge variant="default">Voir détails</Badge>
+                      <Badge variant="default">{t('common.details')}</Badge>
                     </div>
                   ))}
                 </div>
@@ -278,7 +280,7 @@ export function TenantDashboardScreen() {
             <div className="rounded-xl border bg-white shadow-sm p-5 space-y-4">
               <h2 className="font-semibold text-slate-900 text-sm flex items-center">
                 <Sparkles className="mr-2 h-4 w-4 text-amber-500" />
-                Accès Rapides & Modules
+                {t('nav.dashboard')}
               </h2>
 
               <div className="space-y-2">
@@ -288,7 +290,7 @@ export function TenantDashboardScreen() {
                 >
                   <div className="flex items-center space-x-2.5">
                     <GraduationCap className="h-4 w-4 text-indigo-600" />
-                    <span>Catalogue de Formations</span>
+                    <span>{t('training.title')}</span>
                   </div>
                   <ArrowRight className="h-3.5 w-3.5 text-slate-400" />
                 </Link>
@@ -299,7 +301,7 @@ export function TenantDashboardScreen() {
                 >
                   <div className="flex items-center space-x-2.5">
                     <ShieldAlert className="h-4 w-4 text-indigo-600" />
-                    <span>Gestion des Cas & Notes</span>
+                    <span>{t('cases.title')}</span>
                   </div>
                   <ArrowRight className="h-3.5 w-3.5 text-slate-400" />
                 </Link>
@@ -310,7 +312,7 @@ export function TenantDashboardScreen() {
                 >
                   <div className="flex items-center space-x-2.5">
                     <BarChart3 className="h-4 w-4 text-indigo-600" />
-                    <span>Indicateurs de Projets</span>
+                    <span>{t('indicators.title')}</span>
                   </div>
                   <ArrowRight className="h-3.5 w-3.5 text-slate-400" />
                 </Link>
@@ -321,7 +323,7 @@ export function TenantDashboardScreen() {
                 >
                   <div className="flex items-center space-x-2.5">
                     <Building2 className="h-4 w-4 text-indigo-600" />
-                    <span>Paramètres & Conformité</span>
+                    <span>{t('settings.organization')}</span>
                   </div>
                   <ArrowRight className="h-3.5 w-3.5 text-slate-400" />
                 </Link>

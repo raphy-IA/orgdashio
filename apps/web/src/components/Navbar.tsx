@@ -27,6 +27,7 @@ import {
 } from 'lucide-react';
 
 import { useAuth } from '../features/auth/AuthContext';
+import { NotificationPopover } from '../features/notification/NotificationPopover';
 
 export function Navbar() {
   const { t, i18n } = useTranslation();
@@ -168,6 +169,9 @@ export function Navbar() {
           >
             {i18n.language.toUpperCase()}
           </Button>
+
+          {/* Notification Popover */}
+          <NotificationPopover />
 
           {/* User Profile Trigger & Dropdown Menu */}
           <div className="relative" ref={dropdownRef}>
