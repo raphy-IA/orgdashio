@@ -28,7 +28,7 @@ async function checkRls() {
       return;
     }
 
-    console.log(`📋 Tables métier détectées avec tenant_id (${tenantTables.length}) :`, tenantTables.join(', '));
+    console.log('📋 Tables métier détectées avec tenant_id :', tenantTables.length, 'tables ->', tenantTables.join(', '));
 
     let failedCount = 0;
 

@@ -1,0 +1,9 @@
+# Dependencies and build outputs
+node_modules/
+**/node_modules/**
+dist/
+.turbo/
+
+# Drizzle migrations generated files & seeds
+packages/shared/drizzle/**
+infra/seeds/**

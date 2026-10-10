@@ -1,0 +1,11 @@
+# Fichiers et dossiers ignorés par Semgrep
+
+# Dossier de scripts de tests locaux et brouillons
+scratch/
+
+# Dépendances et builds
+node_modules/
+.turbo/
+dist/
+.next/
+build/
