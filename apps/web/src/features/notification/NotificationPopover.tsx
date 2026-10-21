@@ -1,7 +1,7 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useNavigate } from 'react-router-dom';
-import { Bell, CheckCheck, Trash2, ExternalLink, Inbox, Check } from 'lucide-react';
+import { Bell, CheckCheck, Trash2, ExternalLink, Inbox, Check, AlertOctagon, CheckCircle2, Clock, PackageCheck } from 'lucide-react';
 import { Button, Badge } from '@orgdashio/ui';
 
 interface NotificationItem {
@@ -86,6 +86,25 @@ export function NotificationPopover() {
     if (item.linkUrl) {
       setOpen(false);
       navigate(item.linkUrl);
+    }
+  };
+
+  const getNotificationBadge = (eventType: string) => {
+    switch (eventType) {
+      case 'task_review':
+        return { label: 'Revue RACI (A)', bg: 'bg-amber-100 text-amber-800 border-amber-200', icon: Clock };
+      case 'task_blocked':
+        return { label: 'Blocage', bg: 'bg-rose-100 text-rose-800 border-rose-200', icon: AlertOctagon };
+      case 'task_completed':
+        return { label: 'Terminé', bg: 'bg-emerald-100 text-emerald-800 border-emerald-200', icon: CheckCircle2 };
+      case 'deliverable_submitted':
+        return { label: 'Livrable déposé', bg: 'bg-indigo-100 text-indigo-800 border-indigo-200', icon: PackageCheck };
+      case 'deliverable_approved':
+        return { label: 'Livrable visé', bg: 'bg-emerald-100 text-emerald-800 border-emerald-200', icon: CheckCircle2 };
+      case 'deliverable_rejected':
+        return { label: 'Livrable rejeté', bg: 'bg-rose-100 text-rose-800 border-rose-200', icon: AlertOctagon };
+      default:
+        return null;
     }
   };
 
@@ -190,10 +209,21 @@ export function NotificationPopover() {
                     onClick={() => handleNotificationClick(n)}
                     className="flex-1 cursor-pointer"
                   >
-                    <div className="flex items-center gap-1.5">
+                    <div className="flex items-center gap-1.5 flex-wrap">
                       {!n.isRead && (
                         <span className="h-2 w-2 rounded-full bg-indigo-600 flex-shrink-0" />
                       )}
+                      {(() => {
+                        const badge = getNotificationBadge(n.eventType);
+                        if (!badge) return null;
+                        const BadgeIcon = badge.icon;
+                        return (
+                          <span className={`inline-flex items-center gap-1 px-1.5 py-0.2 rounded text-[9px] font-bold border ${badge.bg}`}>
+                            <BadgeIcon className="w-2.5 h-2.5" />
+                            {badge.label}
+                          </span>
+                        );
+                      })()}
                       <span className={`font-semibold text-slate-900 ${!n.isRead ? 'text-indigo-950 font-bold' : ''}`}>
                         {n.title}
                       </span>

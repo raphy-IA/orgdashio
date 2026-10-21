@@ -26,7 +26,12 @@ import {
   planItemDeliverable,
   planItemRaci,
   notification,
+  userAccount,
+  party,
+  membership,
+  indicator,
   CreateProgramInput,
+  UpdateProgramInput,
   CreateProjectInput,
   UpdateProjectInput,
   FundingSourceInput,
@@ -66,12 +71,128 @@ export class ProjectService {
           tenantId,
           code: input.code,
           name: input.name,
-          description: input.description,
+          thematicPillar: input.thematicPillar || null,
+          leadManagerName: input.leadManagerName || null,
+          leadManagerEmail: input.leadManagerEmail || null,
+          description: input.description || null,
+          strategicObjectives: input.strategicObjectives || null,
+          startDate: input.startDate || null,
+          endDate: input.endDate || null,
+          targetBudget: input.targetBudget !== undefined && input.targetBudget !== null ? String(input.targetBudget) : '0',
+          targetBeneficiariesCount: input.targetBeneficiariesCount || 0,
+          primaryDonorName: input.primaryDonorName || null,
+          reviewCadence: input.reviewCadence || 'quarterly',
           status: input.status || 'active',
         })
         .returning();
 
       return newProg;
+    });
+  }
+
+  async updateProgram(tenantId: string, programId: string, input: UpdateProgramInput) {
+    return withTenantContext(this.db, tenantId, async (tx) => {
+      const [existing] = await tx.select().from(program).where(eq(program.id, programId));
+      if (!existing) throw new NotFoundException('Programme introuvable');
+
+      const updateData: any = { updatedAt: new Date() };
+      if (input.code !== undefined) updateData.code = input.code;
+      if (input.name !== undefined) updateData.name = input.name;
+      if (input.thematicPillar !== undefined) updateData.thematicPillar = input.thematicPillar;
+      if (input.leadManagerName !== undefined) updateData.leadManagerName = input.leadManagerName;
+      if (input.leadManagerEmail !== undefined) updateData.leadManagerEmail = input.leadManagerEmail;
+      if (input.description !== undefined) updateData.description = input.description;
+      if (input.strategicObjectives !== undefined) updateData.strategicObjectives = input.strategicObjectives;
+      if (input.startDate !== undefined) updateData.startDate = input.startDate;
+      if (input.endDate !== undefined) updateData.endDate = input.endDate;
+      if (input.targetBudget !== undefined) updateData.targetBudget = input.targetBudget !== null ? String(input.targetBudget) : '0';
+      if (input.targetBeneficiariesCount !== undefined) updateData.targetBeneficiariesCount = input.targetBeneficiariesCount;
+      if (input.primaryDonorName !== undefined) updateData.primaryDonorName = input.primaryDonorName;
+      if (input.reviewCadence !== undefined) updateData.reviewCadence = input.reviewCadence;
+      if (input.status !== undefined) updateData.status = input.status;
+
+      const [updated] = await tx
+        .update(program)
+        .set(updateData)
+        .where(eq(program.id, programId))
+        .returning();
+
+      return updated;
+    });
+  }
+
+  async deleteProgram(tenantId: string, programId: string) {
+    return withTenantContext(this.db, tenantId, async (tx) => {
+      const [existing] = await tx.select().from(program).where(eq(program.id, programId));
+      if (!existing) throw new NotFoundException('Programme introuvable');
+
+      await tx.delete(program).where(eq(program.id, programId));
+      return { success: true, message: 'Programme supprimé' };
+    });
+  }
+
+  async findOneProgram(tenantId: string, programId: string) {
+    return withTenantContext(this.db, tenantId, async (tx) => {
+      const [prog] = await tx.select().from(program).where(eq(program.id, programId));
+      if (!prog) throw new NotFoundException('Programme introuvable');
+
+      const allProjects = await this.findAll(tenantId);
+      const links = await tx.select().from(programProject).where(eq(programProject.programId, programId));
+      const linkedProjectIds = new Set(links.map((l: any) => l.projectId));
+      const progProjects = allProjects.filter((prj: any) => linkedProjectIds.has(prj.id));
+      const projectIdsList = Array.from(linkedProjectIds) as string[];
+      const programIndicators = await tx
+        .select()
+        .from(indicator)
+        .where(
+          projectIdsList.length > 0
+            ? or(eq(indicator.programId, programId), inArray(indicator.projectId, projectIdsList))
+            : eq(indicator.programId, programId)
+        );
+
+      const totalBudget = progProjects.reduce((acc: number, prj: any) => acc + (prj.metrics?.totalBudget || 0), 0);
+      const totalExpenses = progProjects.reduce((acc: number, prj: any) => acc + (prj.metrics?.totalExpenses || 0), 0);
+      const overallProgress = progProjects.length > 0
+        ? Math.round(progProjects.reduce((acc: number, prj: any) => acc + (prj.metrics?.overallProgress || 0), 0) / progProjects.length)
+        : 0;
+      const totalTasks = progProjects.reduce((acc: number, prj: any) => acc + (prj.metrics?.totalTasks || 0), 0);
+      const completedTasks = progProjects.reduce((acc: number, prj: any) => acc + (prj.metrics?.completedTasks || 0), 0);
+      const blockedTasks = progProjects.reduce((acc: number, prj: any) => acc + (prj.metrics?.blockedTasks || 0), 0);
+      const targetBudgetNum = Number(prog.targetBudget || 0);
+
+      // Program health score (0-100)
+      let healthScore = 100;
+      if (blockedTasks > 0) healthScore -= Math.min(30, blockedTasks * 10);
+      if (targetBudgetNum > 0 && totalExpenses > targetBudgetNum) healthScore -= 25;
+      else if (totalBudget > 0 && totalExpenses > totalBudget) healthScore -= 20;
+      if (overallProgress < 50 && progProjects.some((p: any) => p.status === 'active')) healthScore -= 10;
+      healthScore = Math.max(0, healthScore);
+
+      const healthStatus = healthScore >= 80 ? 'healthy' : healthScore >= 50 ? 'warning' : 'critical';
+
+      return {
+        ...prog,
+        projects: progProjects,
+        projectsCount: progProjects.length,
+        indicators: programIndicators,
+        indicatorsCount: programIndicators.length,
+        metrics: {
+          targetBudget: targetBudgetNum,
+          allocatedBudget: totalBudget,
+          totalExpenses,
+          budgetExecutionRate: targetBudgetNum > 0
+            ? Math.round((totalExpenses / targetBudgetNum) * 100)
+            : totalBudget > 0 ? Math.round((totalExpenses / totalBudget) * 100) : 0,
+          overallProgress,
+          totalTasks,
+          completedTasks,
+          blockedTasks,
+          activeProjectsCount: progProjects.filter((p: any) => p.status === 'active').length,
+          targetBeneficiariesCount: prog.targetBeneficiariesCount || 0,
+          healthScore,
+          healthStatus,
+        },
+      };
     });
   }
 
@@ -152,20 +273,36 @@ export class ProjectService {
         const totalTasks = progProjects.reduce((acc: number, prj: any) => acc + (prj.metrics?.totalTasks || 0), 0);
         const completedTasks = progProjects.reduce((acc: number, prj: any) => acc + (prj.metrics?.completedTasks || 0), 0);
         const blockedTasks = progProjects.reduce((acc: number, prj: any) => acc + (prj.metrics?.blockedTasks || 0), 0);
+        const targetBudgetNum = Number(prog.targetBudget || 0);
+
+        let healthScore = 100;
+        if (blockedTasks > 0) healthScore -= Math.min(30, blockedTasks * 10);
+        if (targetBudgetNum > 0 && totalExpenses > targetBudgetNum) healthScore -= 25;
+        else if (totalBudget > 0 && totalExpenses > totalBudget) healthScore -= 20;
+        if (overallProgress < 50 && progProjects.some((p: any) => p.status === 'active')) healthScore -= 10;
+        healthScore = Math.max(0, healthScore);
+        const healthStatus = healthScore >= 80 ? 'healthy' : healthScore >= 50 ? 'warning' : 'critical';
 
         return {
           ...prog,
           projects: progProjects,
           projectsCount: progProjects.length,
           metrics: {
-            totalBudget,
+            targetBudget: targetBudgetNum,
+            allocatedBudget: totalBudget,
+            totalBudget: targetBudgetNum > 0 ? targetBudgetNum : totalBudget,
             totalExpenses,
-            budgetExecutionRate: totalBudget > 0 ? Math.round((totalExpenses / totalBudget) * 100) : 0,
+            budgetExecutionRate: targetBudgetNum > 0
+              ? Math.round((totalExpenses / targetBudgetNum) * 100)
+              : totalBudget > 0 ? Math.round((totalExpenses / totalBudget) * 100) : 0,
             overallProgress,
             totalTasks,
             completedTasks,
             blockedTasks,
             activeProjectsCount: progProjects.filter((p: any) => p.status === 'active').length,
+            targetBeneficiariesCount: prog.targetBeneficiariesCount || 0,
+            healthScore,
+            healthStatus,
           },
         };
       });
@@ -1028,12 +1165,43 @@ export class ProjectService {
   // --- Project Members & RACI ---
   async addProjectMember(tenantId: string, projectId: string, input: CreateProjectMemberInput) {
     return withTenantContext(this.db, tenantId, async (tx) => {
+      let resolvedUserId = input.userId;
+
+      // Auto-résolution du userId si non fourni mais qu'un email ou partyId existe
+      if (!resolvedUserId) {
+        if (input.email) {
+          const [matchedUser] = await tx
+            .select()
+            .from(userAccount)
+            .innerJoin(membership, and(eq(membership.userId, userAccount.id), eq(membership.tenantId, tenantId)))
+            .where(eq(userAccount.email, input.email.trim().toLowerCase()));
+          if (matchedUser?.user_account?.id) {
+            resolvedUserId = matchedUser.user_account.id;
+          }
+        } else if (input.partyId) {
+          const [partyContact] = await tx
+            .select()
+            .from(party)
+            .where(and(eq(party.id, input.partyId), eq(party.tenantId, tenantId)));
+          if (partyContact?.email) {
+            const [matchedUser] = await tx
+              .select()
+              .from(userAccount)
+              .innerJoin(membership, and(eq(membership.userId, userAccount.id), eq(membership.tenantId, tenantId)))
+              .where(eq(userAccount.email, partyContact.email.trim().toLowerCase()));
+            if (matchedUser?.user_account?.id) {
+              resolvedUserId = matchedUser.user_account.id;
+            }
+          }
+        }
+      }
+
       const [res] = await tx
         .insert(projectMember)
         .values({
           tenantId,
           projectId,
-          userId: input.userId,
+          userId: resolvedUserId,
           partyId: input.partyId,
           name: input.name,
           email: input.email,
@@ -1281,6 +1449,41 @@ export class ProjectService {
         })
         .returning();
 
+      // Dispatch notification aux Approbateurs (A) et Chefs de projet qu'un livrable a été déposé
+      try {
+        const [proj] = await tx.select().from(project).where(eq(project.id, projectId));
+        const itemRacis = await tx
+          .select()
+          .from(planItemRaci)
+          .where(and(eq(planItemRaci.tenantId, tenantId), eq(planItemRaci.planItemId, itemId)));
+        const allMembers = await tx
+          .select()
+          .from(projectMember)
+          .where(and(eq(projectMember.tenantId, tenantId), eq(projectMember.projectId, projectId)));
+
+        const targetUserIds = new Set<string>();
+        for (const r of itemRacis.filter((x: any) => x.raciRole === 'A')) {
+          const m = allMembers.find((mem: any) => mem.id === r.projectMemberId);
+          if (m?.userId) targetUserIds.add(m.userId);
+        }
+        for (const m of allMembers.filter((mem: any) => mem.role === 'manager' && mem.userId)) {
+          targetUserIds.add(m.userId!);
+        }
+
+        for (const uid of targetUserIds) {
+          await tx.insert(notification).values({
+            tenantId,
+            userId: uid,
+            eventType: 'deliverable_submitted',
+            title: `📦 Nouveau livrable à valider : ${targetItem.wbs} - ${targetItem.title}`,
+            message: `Le livrable "${input.title}" a été déposé et attend votre visa sur le projet "${proj?.name || ''}".`,
+            linkUrl: `/projects/${projectId}?tab=execution`,
+          });
+        }
+      } catch (notifErr) {
+        console.warn('Notification deliverable submission failed:', notifErr);
+      }
+
       return deliverable;
     });
   }
@@ -1314,6 +1517,62 @@ export class ProjectService {
             status: 'completed',
           })
           .where(and(eq(planItem.id, itemId), eq(planItem.tenantId, tenantId), eq(planItem.projectId, projectId)));
+      }
+
+      // Dispatch notifications RACI suite au visa du livrable
+      try {
+        const [proj] = await tx.select().from(project).where(eq(project.id, projectId));
+        const [targetItem] = await tx
+          .select()
+          .from(planItem)
+          .where(and(eq(planItem.id, itemId), eq(planItem.tenantId, tenantId), eq(planItem.projectId, projectId)));
+
+        const itemRacis = await tx
+          .select()
+          .from(planItemRaci)
+          .where(and(eq(planItemRaci.tenantId, tenantId), eq(planItemRaci.planItemId, itemId)));
+        const allMembers = await tx
+          .select()
+          .from(projectMember)
+          .where(and(eq(projectMember.tenantId, tenantId), eq(projectMember.projectId, projectId)));
+
+        const targetUserIds = new Set<string>();
+
+        if (input.status === 'approved') {
+          // Informer les Réalisateurs (R) et Informés (I)
+          for (const r of itemRacis.filter((x: any) => x.raciRole === 'R' || x.raciRole === 'I')) {
+            const m = allMembers.find((mem: any) => mem.id === r.projectMemberId);
+            if (m?.userId) targetUserIds.add(m.userId);
+          }
+          for (const uid of targetUserIds) {
+            await tx.insert(notification).values({
+              tenantId,
+              userId: uid,
+              eventType: 'deliverable_approved',
+              title: `✅ Livrable validé : ${targetItem?.wbs || ''} - ${targetItem?.title || ''}`,
+              message: `Le livrable "${updated.title}" a été validé par ${input.verifiedBy}. La tâche est marquée terminée.`,
+              linkUrl: `/projects/${projectId}?tab=execution`,
+            });
+          }
+        } else if (input.status === 'rejected') {
+          // Alerter immédiatement le Réalisateur (R)
+          for (const r of itemRacis.filter((x: any) => x.raciRole === 'R')) {
+            const m = allMembers.find((mem: any) => mem.id === r.projectMemberId);
+            if (m?.userId) targetUserIds.add(m.userId);
+          }
+          for (const uid of targetUserIds) {
+            await tx.insert(notification).values({
+              tenantId,
+              userId: uid,
+              eventType: 'deliverable_rejected',
+              title: `⚠️ Livrable à réviser : ${targetItem?.wbs || ''} - ${targetItem?.title || ''}`,
+              message: `Le livrable "${updated.title}" a été refusé par ${input.verifiedBy}${input.comment ? ` : "${input.comment}"` : ''}.`,
+              linkUrl: `/projects/${projectId}?tab=execution`,
+            });
+          }
+        }
+      } catch (notifErr) {
+        console.warn('Notification deliverable verification failed:', notifErr);
       }
 
       await this.recalculateWbsAndProjectRollup(tx, tenantId, projectId);
