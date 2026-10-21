@@ -1732,42 +1732,42 @@ export function ProjectDetailScreen() {
           <div className="space-y-6">
             {/* Sub-tab Navigation & PERT CPM Synchronizer */}
             <div className="flex flex-wrap items-center justify-between gap-3">
-              <div className="flex items-center gap-1.5 p-1 bg-slate-200/80 rounded-xl w-fit border border-slate-300 shadow-2xs">
+              <div className="inline-flex flex-wrap items-center gap-1 bg-slate-100/90 p-1 rounded-xl border border-slate-200 shadow-2xs">
                 <button
                   onClick={() => setPlanningSubTab('wbs')}
-                  className={`flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg text-xs font-bold transition ${
-                    planningSubTab === 'wbs' ? 'bg-white text-indigo-700 shadow-xs' : 'text-slate-600 hover:text-slate-900'
+                  className={`flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg text-xs font-semibold transition-all duration-150 ${
+                    planningSubTab === 'wbs' ? 'bg-white text-indigo-700 shadow-xs font-bold' : 'text-slate-600 hover:text-slate-900 hover:bg-slate-200/50'
                   }`}
                 >
                   <ListTodo className="h-3.5 w-3.5" />
-                  Arborescence WBS ({planItems.length})
+                  WBS ({planItems.length})
                 </button>
                 <button
                   onClick={() => setPlanningSubTab('gantt')}
-                  className={`flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg text-xs font-bold transition ${
-                    planningSubTab === 'gantt' ? 'bg-white text-indigo-700 shadow-xs' : 'text-slate-600 hover:text-slate-900'
+                  className={`flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg text-xs font-semibold transition-all duration-150 ${
+                    planningSubTab === 'gantt' ? 'bg-white text-indigo-700 shadow-xs font-bold' : 'text-slate-600 hover:text-slate-900 hover:bg-slate-200/50'
                   }`}
                 >
                   <Calendar className="h-3.5 w-3.5" />
-                  Diagramme de Gantt
+                  Gantt
                 </button>
                 <button
                   onClick={() => setPlanningSubTab('pert')}
-                  className={`flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg text-xs font-bold transition ${
-                    planningSubTab === 'pert' ? 'bg-white text-red-600 shadow-xs' : 'text-slate-600 hover:text-slate-900'
+                  className={`flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg text-xs font-semibold transition-all duration-150 ${
+                    planningSubTab === 'pert' ? 'bg-white text-rose-700 shadow-xs font-bold' : 'text-slate-600 hover:text-slate-900 hover:bg-slate-200/50'
                   }`}
                 >
-                  <Flame className="h-3.5 w-3.5" />
-                  Réseau PERT & Chemin Critique
+                  <Flame className="h-3.5 w-3.5 text-rose-500" />
+                  PERT & CPM
                 </button>
                 <button
                   onClick={() => setPlanningSubTab('budget_plan')}
-                  className={`flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg text-xs font-bold transition ${
-                    planningSubTab === 'budget_plan' ? 'bg-white text-emerald-700 shadow-xs' : 'text-slate-600 hover:text-slate-900'
+                  className={`flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg text-xs font-semibold transition-all duration-150 ${
+                    planningSubTab === 'budget_plan' ? 'bg-white text-emerald-700 shadow-xs font-bold' : 'text-slate-600 hover:text-slate-900 hover:bg-slate-200/50'
                   }`}
                 >
-                  <DollarSign className="h-3.5 w-3.5" />
-                  Budget Prévisionnel ({projBudget?.lines?.length || 0})
+                  <DollarSign className="h-3.5 w-3.5 text-emerald-600" />
+                  Budget ({projBudget?.lines?.length || 0})
                 </button>
               </div>
 

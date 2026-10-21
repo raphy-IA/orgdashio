@@ -60,35 +60,35 @@ export function ProjectMonitoringHub({
   const SUB_TABS = [
     {
       key: 'cockpit' as MonitoringSubTab,
-      label: 'Cockpit Exécutif 360°',
+      label: 'Cockpit 360°',
       icon: Activity,
       badge: blockedTasksCount > 0 ? `${blockedTasksCount} bloqué` : null,
-      badgeCls: 'bg-red-100 text-red-700 font-bold',
+      badgeCls: 'bg-rose-100 text-rose-700 font-bold',
     },
     {
       key: 'evm' as MonitoringSubTab,
-      label: 'Valeur Acquise (EVM) & Courbe en S',
+      label: 'Valeur Acquise (EVM)',
       icon: TrendingUp,
       badge: null,
       badgeCls: '',
     },
     {
       key: 'milestones' as MonitoringSubTab,
-      label: 'Jalons & Visas Qualité',
+      label: 'Jalons & Visas',
       icon: FileCheck,
       badge: pendingDeliverablesCount > 0 ? `${pendingDeliverablesCount} à viser` : null,
       badgeCls: 'bg-amber-100 text-amber-800 font-bold',
     },
     {
       key: 'raid' as MonitoringSubTab,
-      label: `Radar & Matrice RAID (${raidItems.length})`,
+      label: `Radar RAID (${raidItems.length})`,
       icon: AlertTriangle,
       badge: null,
       badgeCls: '',
     },
     {
       key: 'report' as MonitoringSubTab,
-      label: 'Rapport Flash COPIL',
+      label: 'Rapport COPIL',
       icon: FileText,
       badge: 'PDF',
       badgeCls: 'bg-indigo-100 text-indigo-700 font-mono font-bold',
@@ -99,7 +99,7 @@ export function ProjectMonitoringHub({
     <div className="space-y-6">
       {/* ── Sub-Navigation Pill Bar ── */}
       <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-200 pb-3">
-        <div className="flex flex-wrap items-center gap-1.5 rounded-xl bg-slate-100 p-1 border border-slate-200 shadow-2xs">
+        <div className="inline-flex flex-wrap items-center gap-1 rounded-xl bg-slate-100/90 p-1 border border-slate-200 shadow-2xs">
           {SUB_TABS.map((tab) => {
             const Icon = tab.icon;
             const isActive = subTab === tab.key;
@@ -108,9 +108,9 @@ export function ProjectMonitoringHub({
                 key={tab.key}
                 type="button"
                 onClick={() => setSubTab(tab.key)}
-                className={`flex items-center gap-2 rounded-lg px-3.5 py-1.5 text-xs font-bold transition ${
+                className={`flex items-center gap-1.5 rounded-lg px-3.5 py-1.5 text-xs font-semibold transition-all duration-150 ${
                   isActive
-                    ? 'bg-white text-indigo-700 shadow-xs'
+                    ? 'bg-white text-indigo-700 shadow-xs font-bold'
                     : 'text-slate-600 hover:text-slate-900 hover:bg-slate-200/50'
                 }`}
               >

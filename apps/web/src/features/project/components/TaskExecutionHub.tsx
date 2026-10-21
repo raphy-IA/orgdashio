@@ -288,33 +288,33 @@ export function TaskExecutionHub({
     <div className="space-y-6">
       {/* ── Sub-tab Navigation Pills ── */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
-        <div className="flex items-center gap-1.5 p-1 bg-slate-200/80 rounded-xl w-fit border border-slate-300 shadow-2xs">
+        <div className="inline-flex flex-wrap items-center gap-1 p-1 bg-slate-100/90 rounded-xl border border-slate-200 shadow-2xs">
           <button
             onClick={() => setActiveSubTab('tasks')}
-            className={`flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg text-xs font-bold transition ${
-              activeSubTab === 'tasks' ? 'bg-white text-indigo-700 shadow-xs' : 'text-slate-600 hover:text-slate-900'
+            className={`flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg text-xs font-semibold transition-all duration-150 ${
+              activeSubTab === 'tasks' ? 'bg-white text-indigo-700 shadow-xs font-bold' : 'text-slate-600 hover:text-slate-900 hover:bg-slate-200/50'
             }`}
           >
             <CheckCircle2 className="h-3.5 w-3.5" />
-            Tâches & Tableau Kanban ({tasksAndMilestones.length})
+            Tâches ({tasksAndMilestones.length})
           </button>
           <button
             onClick={() => setActiveSubTab('expenses')}
-            className={`flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg text-xs font-bold transition ${
-              activeSubTab === 'expenses' ? 'bg-white text-indigo-700 shadow-xs' : 'text-slate-600 hover:text-slate-900'
+            className={`flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg text-xs font-semibold transition-all duration-150 ${
+              activeSubTab === 'expenses' ? 'bg-white text-indigo-700 shadow-xs font-bold' : 'text-slate-600 hover:text-slate-900 hover:bg-slate-200/50'
             }`}
           >
-            <DollarSign className="h-3.5 w-3.5" />
-            Dépenses Réelles & Factures ({expenses.length})
+            <DollarSign className="h-3.5 w-3.5 text-emerald-600" />
+            Dépenses ({expenses.length})
           </button>
           <button
             onClick={() => setActiveSubTab('deliverables')}
-            className={`flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg text-xs font-bold transition ${
-              activeSubTab === 'deliverables' ? 'bg-white text-emerald-700 shadow-xs' : 'text-slate-600 hover:text-slate-900'
+            className={`flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg text-xs font-semibold transition-all duration-150 ${
+              activeSubTab === 'deliverables' ? 'bg-white text-indigo-700 shadow-xs font-bold' : 'text-slate-600 hover:text-slate-900 hover:bg-slate-200/50'
             }`}
           >
-            <PackageCheck className="h-3.5 w-3.5" />
-            Registre des Livrables ({deliverables.length})
+            <PackageCheck className="h-3.5 w-3.5 text-purple-600" />
+            Livrables ({deliverables.length})
           </button>
         </div>
 
