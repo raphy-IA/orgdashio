@@ -49,6 +49,17 @@ import {
   Unlink,
   Sparkles,
   UserPlus,
+  Radio,
+  Sliders,
+  BellRing,
+  HardDrive,
+  Cpu,
+  Receipt,
+  PlusCircle,
+  CheckCircle2,
+  AlertOctagon,
+  Eye,
+  FileSpreadsheet,
 } from 'lucide-react';
 import { PlatformNavbar } from '../../components/PlatformNavbar';
 
@@ -57,7 +68,9 @@ export function PlatformDashboardScreen() {
   const queryClient = useQueryClient();
 
   // Primary navigation tabs
-  const [activeTab, setActiveTab] = useState<'overview' | 'explorer' | 'clients' | 'support'>('explorer');
+  const [activeTab, setActiveTab] = useState<
+    'explorer' | 'financials' | 'provisioning' | 'feature_flags' | 'observability' | 'security_audit' | 'announcements'
+  >('explorer');
 
   // Client search & filter for Table Tab
   const [searchQuery, setSearchQuery] = useState('');
@@ -67,7 +80,7 @@ export function PlatformDashboardScreen() {
   // Selected Tenant for Explorer & 360° Management
   const [selectedTenantId, setSelectedTenantId] = useState<string | null>(null);
   const [explorerSubTab, setExplorerSubTab] = useState<
-    'overview' | 'projects' | 'staff' | 'beneficiaries' | 'cases' | 'trainings' | 'users' | 'settings' | 'support'
+    'overview' | 'quotas' | 'projects' | 'staff' | 'beneficiaries' | 'cases' | 'trainings' | 'users' | 'invoices' | 'settings' | 'support'
   >('overview');
 
   // Staff type filter inside Explorer
@@ -89,6 +102,16 @@ export function PlatformDashboardScreen() {
   const [editDataRetention, setEditDataRetention] = useState<number>(60);
   const [editMode, setEditMode] = useState<'shared' | 'dedicated' | 'self_hosted'>('shared');
   const [editStatus, setEditStatus] = useState<'active' | 'suspended'>('active');
+
+  // Quotas & Plan Override State
+  const [overridePlanCode, setOverridePlanCode] = useState('starter');
+  const [overrideCycle, setOverrideCycle] = useState<'monthly' | 'annual'>('monthly');
+  const [overrideSeatCount, setOverrideSeatCount] = useState<number>(5);
+  const [overrideMaxUsers, setOverrideMaxUsers] = useState<string>('');
+  const [overrideMaxStorage, setOverrideMaxStorage] = useState<string>('');
+  const [overrideMaxProjects, setOverrideMaxProjects] = useState<string>('');
+  const [overrideModules, setOverrideModules] = useState<string[]>([]);
+  const [quotaFeedback, setQuotaFeedback] = useState<string | null>(null);
 
   // Staff Edit State
   const [editingStaffId, setEditingStaffId] = useState<string | null>(null);
@@ -117,6 +140,49 @@ export function PlatformDashboardScreen() {
   const [supportReason, setSupportReason] = useState('');
   const [supportDuration, setSupportDuration] = useState(60);
   const [supportFeedback, setSupportFeedback] = useState<string | null>(null);
+
+  // Provisioning Wizard State
+  const [provStep, setProvStep] = useState<1 | 2 | 3>(1);
+  const [provName, setProvName] = useState('');
+  const [provSlug, setProvSlug] = useState('');
+  const [provAcronym, setProvAcronym] = useState('');
+  const [provOrgType, setProvOrgType] = useState('OBNL / NPO (Organisme à but non lucratif)');
+  const [provNeq, setProvNeq] = useState('');
+  const [provEmail, setProvEmail] = useState('');
+  const [provPhone, setProvPhone] = useState('');
+  const [provAddress, setProvAddress] = useState('');
+  const [provWebsite, setProvWebsite] = useState('');
+  const [provMode, setProvMode] = useState<'shared' | 'dedicated' | 'self_hosted'>('shared');
+  const [provPlanCode, setProvPlanCode] = useState<'community' | 'starter' | 'pro' | 'enterprise'>('starter');
+  const [provBillingCycle, setProvBillingCycle] = useState<'monthly' | 'annual'>('monthly');
+  const [provAdminFirstName, setProvAdminFirstName] = useState('');
+  const [provAdminLastName, setProvAdminLastName] = useState('');
+  const [provAdminEmail, setProvAdminEmail] = useState('');
+  const [provAdminPassword, setProvAdminPassword] = useState('OrgDashio@2026!');
+  const [provAdminJobTitle, setProvAdminJobTitle] = useState('Direction Générale');
+  const [provPrivacyOfficerName, setProvPrivacyOfficerName] = useState('');
+  const [provPrivacyOfficerEmail, setProvPrivacyOfficerEmail] = useState('');
+  const [provRetentionMonths, setProvRetentionMonths] = useState(60);
+  const [provSuccessFeedback, setProvSuccessFeedback] = useState<string | null>(null);
+
+  // Announcement Form State
+  const [annTitle, setAnnTitle] = useState('');
+  const [annMessage, setAnnMessage] = useState('');
+  const [annSeverity, setAnnSeverity] = useState<'info' | 'warning' | 'critical'>('info');
+  const [annTargetTenant, setAnnTargetTenant] = useState<string>('');
+  const [annFeedback, setAnnFeedback] = useState<string | null>(null);
+
+  // Security Incident Form State
+  const [incidentModalOpen, setIncidentModalOpen] = useState(false);
+  const [incTitle, setIncTitle] = useState('');
+  const [incDescription, setIncDescription] = useState('');
+  const [incSeverity, setIncSeverity] = useState<'low' | 'medium' | 'high' | 'critical'>('high');
+  const [incTenantId, setIncTenantId] = useState<string>('');
+  const [incImpactedCount, setIncImpactedCount] = useState<number>(0);
+  const [incContainment, setIncContainment] = useState('');
+  const [incNotifiedCai, setIncNotifiedCai] = useState(false);
+  const [incCaiRef, setIncCaiRef] = useState('');
+  const [incidentFeedback, setIncidentFeedback] = useState<string | null>(null);
 
   // 1. Fetch All Tenants with Metrics
   const { data: tenants = [], isLoading, refetch } = useQuery({
@@ -151,7 +217,98 @@ export function PlatformDashboardScreen() {
     enabled: !!selectedTenantId,
   });
 
-  // When tenantDetails is loaded, initialize edit form
+  // 3. Fetch Financial Cockpit
+  const { data: financials, refetch: refetchFinancials } = useQuery({
+    queryKey: ['platform-financials'],
+    queryFn: async () => {
+      const res = await fetch('/api/v1/platform/financials', {
+        headers: { 'x-platform-admin': 'true' },
+      });
+      if (!res.ok) throw new Error('Erreur chargement cockpit financier');
+      return res.json();
+    },
+    enabled: activeTab === 'financials',
+  });
+
+  // 4. Fetch Observability & Telemetry
+  const { data: telemetry, refetch: refetchTelemetry } = useQuery({
+    queryKey: ['platform-telemetry'],
+    queryFn: async () => {
+      const res = await fetch('/api/v1/platform/system/health', {
+        headers: { 'x-platform-admin': 'true' },
+      });
+      if (!res.ok) throw new Error('Erreur télémétrie système');
+      return res.json();
+    },
+    enabled: activeTab === 'observability',
+  });
+
+  // 5. Fetch Feature Flags
+  const { data: featureFlagsData, refetch: refetchFeatureFlags } = useQuery({
+    queryKey: ['platform-feature-flags'],
+    queryFn: async () => {
+      const res = await fetch('/api/v1/platform/feature-flags', {
+        headers: { 'x-platform-admin': 'true' },
+      });
+      if (!res.ok) throw new Error('Erreur feature flags');
+      return res.json();
+    },
+    enabled: activeTab === 'feature_flags',
+  });
+
+  // 6. Fetch Audit Logs & Security Incidents
+  const { data: auditLogs = [], refetch: refetchAuditLogs } = useQuery({
+    queryKey: ['platform-audit-logs'],
+    queryFn: async () => {
+      const res = await fetch('/api/v1/platform/audit-logs?limit=40', {
+        headers: { 'x-platform-admin': 'true' },
+      });
+      if (!res.ok) throw new Error('Erreur audit logs');
+      return res.json();
+    },
+    enabled: activeTab === 'security_audit',
+  });
+
+  const { data: securityIncidents = [], refetch: refetchIncidents } = useQuery({
+    queryKey: ['platform-security-incidents'],
+    queryFn: async () => {
+      const res = await fetch('/api/v1/platform/security-incidents', {
+        headers: { 'x-platform-admin': 'true' },
+      });
+      if (!res.ok) throw new Error('Erreur incidents sécurité');
+      return res.json();
+    },
+    enabled: activeTab === 'security_audit',
+  });
+
+  // 7. Fetch Announcements
+  const { data: announcements = [], refetch: refetchAnnouncements } = useQuery({
+    queryKey: ['platform-announcements'],
+    queryFn: async () => {
+      const res = await fetch('/api/v1/platform/announcements', {
+        headers: { 'x-platform-admin': 'true' },
+      });
+      if (!res.ok) throw new Error('Erreur annonces');
+      return res.json();
+    },
+    enabled: activeTab === 'announcements',
+  });
+
+  // 8. Fetch Invoices for selected tenant in Explorer
+  const { data: tenantInvoices = [], refetch: refetchTenantInvoices } = useQuery({
+    queryKey: ['platform-tenant-invoices', selectedTenantId],
+    queryFn: async () => {
+      if (!selectedTenantId) return [];
+      const res = await fetch(`/api/v1/platform/tenants/${selectedTenantId}/invoices`, {
+        headers: { 'x-platform-admin': 'true' },
+      });
+      if (!res.ok) return [];
+      return res.json();
+    },
+    enabled: !!selectedTenantId && activeTab === 'explorer' && explorerSubTab === 'invoices',
+  });
+
+  // When tenantDetails is loaded, initialize edit forms & quotas
   React.useEffect(() => {
     if (tenantDetails?.tenant) {
       const t = tenantDetails.tenant;
@@ -170,7 +327,13 @@ export function PlatformDashboardScreen() {
       setEditDataRetention(t.dataRetentionMonths || 60);
       setEditMode(t.mode || 'shared');
       setEditStatus(t.status || 'active');
+
+      setOverrideMaxUsers(t.maxUsersOverride !== null && t.maxUsersOverride !== undefined ? String(t.maxUsersOverride) : '');
+      setOverrideMaxStorage(t.maxStorageGbOverride !== null && t.maxStorageGbOverride !== undefined ? String(t.maxStorageGbOverride) : '');
+      setOverrideMaxProjects(t.maxProjectsOverride !== null && t.maxProjectsOverride !== undefined ? String(t.maxProjectsOverride) : '');
+      setOverrideModules(t.allowedModules || ['projects', 'staff', 'beneficiaries', 'cases', 'trainings', 'grants', 'timesheets']);
       setSupportFeedback(null);
+      setQuotaFeedback(null);
     }
   }, [tenantDetails]);
 
@@ -192,6 +355,23 @@ export function PlatformDashboardScreen() {
     },
   });
 
+  const updateQuotasMutation = useMutation({
+    mutationFn: async (payload: any) => {
+      const res = await fetch(`/api/v1/platform/tenants/${selectedTenantId}/plan`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json', 'x-platform-admin': 'true' },
+        body: JSON.stringify(payload),
+      });
+      if (!res.ok) throw new Error('Erreur mise à jour quotas/forfait');
+      return res.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['platform-tenants'] });
+      queryClient.invalidateQueries({ queryKey: ['platform-tenant-details', selectedTenantId] });
+      setQuotaFeedback('Forfait et quotas sur-mesure enregistrés avec succès !');
+    },
+  });
+
   const toggleTenantStatusMutation = useMutation({
     mutationFn: async ({ id, status }: { id: string; status: 'active' | 'suspended' }) => {
       const res = await fetch(`/api/v1/platform/tenants/${id}/status`, {
@@ -205,6 +385,47 @@ export function PlatformDashboardScreen() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['platform-tenants'] });
       queryClient.invalidateQueries({ queryKey: ['platform-tenant-details', selectedTenantId] });
+    },
+  });
+
+  const purgeTenantMutation = useMutation({
+    mutationFn: async (id: string) => {
+      const res = await fetch(`/api/v1/platform/tenants/${id}/purge`, {
+        method: 'DELETE',
+        headers: { 'x-platform-admin': 'true' },
+      });
+      if (!res.ok) throw new Error('Erreur purge client');
+      return res.json();
+    },
+    onSuccess: (data) => {
+      alert(data.message || 'Organisme purgé avec succès.');
+      queryClient.invalidateQueries({ queryKey: ['platform-tenants'] });
+      setSelectedTenantId(null);
+    },
+  });
+
+  const provisionTenantMutation = useMutation({
+    mutationFn: async (payload: any) => {
+      const res = await fetch('/api/v1/platform/tenants/provision', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'x-platform-admin': 'true' },
+        body: JSON.stringify(payload),
+      });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error(err.message || 'Erreur lors du provisioning');
+      }
+      return res.json();
+    },
+    onSuccess: (newTenant) => {
+      setProvSuccessFeedback(`L'organisme "${newTenant.name}" a été provisionné avec succès avec son administrateur principal !`);
+      queryClient.invalidateQueries({ queryKey: ['platform-tenants'] });
+      setSelectedTenantId(newTenant.id);
+      setTimeout(() => {
+        setProvStep(1);
+        setActiveTab('explorer');
+        setProvSuccessFeedback(null);
+      }, 2000);
     },
   });
 
@@ -233,7 +454,7 @@ export function PlatformDashboardScreen() {
       });
       if (!res.ok) {
         const data = await res.json().catch(() => ({}));
-        throw new Error(data.message || 'Erreur lors de la mise à jour du compte utilisateur');
+        throw new Error(data.message || 'Erreur lors de la mise à jour du compte');
       }
       return res.json();
     },
@@ -254,7 +475,7 @@ export function PlatformDashboardScreen() {
       });
       if (!res.ok) {
         const data = await res.json().catch(() => ({}));
-        throw new Error(data.message || 'Erreur lors de la liaison au dossier personnel');
+        throw new Error(data.message || 'Erreur liaison');
       }
       return res.json();
     },
@@ -262,50 +483,6 @@ export function PlatformDashboardScreen() {
       queryClient.invalidateQueries({ queryKey: ['platform-tenant-details', selectedTenantId] });
       queryClient.invalidateQueries({ queryKey: ['platform-tenants'] });
       setUserActionFeedback('Liaison avec la fiche du personnel effectuée avec succès !');
-    },
-  });
-
-  const generateRandomPassword = () => {
-    const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz23456789!@#$%&*';
-    let pwd = '';
-    for (let i = 0; i < 14; i++) {
-      pwd += chars.charAt(Math.floor(Math.random() * chars.length));
-    }
-    setEditUserPassword(pwd);
-  };
-
-  const handleOpenEditUser = (userItem: any) => {
-    const u = userItem.user;
-    setEditingUserItem(userItem);
-    setEditUserFirstName(u?.firstName || '');
-    setEditUserLastName(u?.lastName || '');
-    setEditUserEmail(u?.email || '');
-    setEditUserPhone(u?.phone || '');
-    setEditUserJobTitle(u?.jobTitle || '');
-    setEditUserRoles((userItem.roles || []).map((r: any) => r.name));
-    setEditUserPassword('');
-    setEditUserStatus(u?.status || 'active');
-    setLinkStaffMode('new');
-    setSelectedExistingPartyId('');
-    setNewStaffType('employee');
-    setNewStaffDeptId('');
-    setUserActionFeedback(null);
-  };
-
-  const updateStaffMutation = useMutation({
-    mutationFn: async ({ partyId, updates }: { partyId: string; updates: any }) => {
-      const res = await fetch(`/api/v1/platform/tenants/${selectedTenantId}/staff/${partyId}`, {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json', 'x-platform-admin': 'true' },
-        body: JSON.stringify(updates),
-      });
-      if (!res.ok) throw new Error('Erreur mise à jour collaborateur');
-      return res.json();
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['platform-tenant-details', selectedTenantId] });
-      queryClient.invalidateQueries({ queryKey: ['platform-tenants'] });
-      setEditingStaffId(null);
     },
   });
 
@@ -342,30 +519,122 @@ export function PlatformDashboardScreen() {
     },
   });
 
-  // Global KPIs
-  const activeTenants = tenants.filter((t: any) => t.status === 'active').length;
-  const suspendedTenants = tenants.filter((t: any) => t.status === 'suspended').length;
-  const totalRegisteredUsers = tenants.reduce((acc: number, t: any) => acc + (t.metrics?.totalUsers || 0), 0);
-  const totalRegisteredStaff = tenants.reduce((acc: number, t: any) => acc + (t.metrics?.totalStaff || 0), 0);
-  const totalVolunteers = tenants.reduce((acc: number, t: any) => acc + (t.metrics?.totalVolunteers || 0), 0);
-  const totalProjects = tenants.reduce((acc: number, t: any) => acc + (t.metrics?.totalProjects || 0), 0);
+  const toggleFeatureFlagMutation = useMutation({
+    mutationFn: async ({ key, isEnabled, tenantId }: { key: string; isEnabled: boolean; tenantId?: string }) => {
+      const res = await fetch('/api/v1/platform/feature-flags', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'x-platform-admin': 'true' },
+        body: JSON.stringify({ featureKey: key, isEnabled, tenantId: tenantId || null }),
+      });
+      if (!res.ok) throw new Error('Erreur flag');
+      return res.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['platform-feature-flags'] });
+    },
+  });
 
-  // Filtered tenants list for Table Tab
-  const filteredTenants = tenants.filter((t: any) => {
-    if (statusFilter !== 'all' && t.status !== statusFilter) return false;
-    if (modeFilter !== 'all' && t.mode !== modeFilter) return false;
-    if (searchQuery.trim()) {
-      const q = searchQuery.toLowerCase();
-      const name = (t.name || '').toLowerCase();
-      const slug = (t.slug || '').toLowerCase();
-      const email = (t.email || '').toLowerCase();
-      const neq = (t.neqNumber || '').toLowerCase();
-      return name.includes(q) || slug.includes(q) || email.includes(q) || neq.includes(q);
-    }
-    return true;
+  const createAnnouncementMutation = useMutation({
+    mutationFn: async (payload: any) => {
+      const res = await fetch('/api/v1/platform/announcements', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'x-platform-admin': 'true' },
+        body: JSON.stringify(payload),
+      });
+      if (!res.ok) throw new Error('Erreur création annonce');
+      return res.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['platform-announcements'] });
+      setAnnTitle('');
+      setAnnMessage('');
+      setAnnFeedback('Bannière de communication diffusée avec succès !');
+      setTimeout(() => setAnnFeedback(null), 3000);
+    },
+  });
+
+  const deleteAnnouncementMutation = useMutation({
+    mutationFn: async (id: string) => {
+      const res = await fetch(`/api/v1/platform/announcements/${id}`, {
+        method: 'DELETE',
+        headers: { 'x-platform-admin': 'true' },
+      });
+      if (!res.ok) throw new Error('Erreur suppression annonce');
+      return res.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['platform-announcements'] });
+    },
+  });
+
+  const createIncidentMutation = useMutation({
+    mutationFn: async (payload: any) => {
+      const res = await fetch('/api/v1/platform/security-incidents', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'x-platform-admin': 'true' },
+        body: JSON.stringify(payload),
+      });
+      if (!res.ok) throw new Error('Erreur enregistrement incident');
+      return res.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['platform-security-incidents'] });
+      setIncidentModalOpen(false);
+      setIncTitle('');
+      setIncDescription('');
+      setIncidentFeedback('Incident de sécurité enregistré et journalisé conformément à la Loi 25.');
+      setTimeout(() => setIncidentFeedback(null), 4000);
+    },
   });
 
   const currentSelectedTenant = tenants.find((t: any) => t.id === selectedTenantId) || tenantDetails?.tenant;
+
+  const generateRandomPassword = () => {
+    const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz23456789!@#$%&*';
+    let pwd = '';
+    for (let i = 0; i < 14; i++) {
+      pwd += chars.charAt(Math.floor(Math.random() * chars.length));
+    }
+    setEditUserPassword(pwd);
+  };
+
+  const handleOpenEditUser = (userItem: any) => {
+    const u = userItem.user;
+    setEditingUserItem(userItem);
+    setEditUserFirstName(u?.firstName || '');
+    setEditUserLastName(u?.lastName || '');
+    setEditUserEmail(u?.email || '');
+    setEditUserPhone(u?.phone || '');
+    setEditUserJobTitle(u?.jobTitle || '');
+    setEditUserRoles((userItem.roles || []).map((r: any) => r.name));
+    setEditUserPassword('');
+    setEditUserStatus(u?.status || 'active');
+    setLinkStaffMode('new');
+    setSelectedExistingPartyId('');
+    setNewStaffType('employee');
+    setNewStaffDeptId('');
+    setUserActionFeedback(null);
+  };
+
+  const allAvailableModules = [
+    { key: 'projects', name: 'Gestion de Projets & WBS', desc: 'Planification, budget et jalons' },
+    { key: 'advanced_pm_evm', name: 'MOP Avancé (EVM, PERT, CPM)', desc: 'Courbe en S, chemin critique et jalons COPIL' },
+    { key: 'staff', name: 'Personnel & Bénévoles RH', desc: 'Fiches collaborateurs, contrats et rôles' },
+    { key: 'beneficiaries', name: 'Bénéficiaires & Dossiers Usagers', desc: 'Suivi social, notes évolutives et consentements' },
+    { key: 'trainings', name: 'Formations & Inscriptions', desc: 'Catalogue, sessions et portail public' },
+    { key: 'grants', name: 'Subventions & Bailleurs', desc: 'Conventions, échéances et reporting financier' },
+    { key: 'timesheets', name: 'Feuilles de Temps Analytiques', desc: 'Saisie d’heures et ventilation multi-projets' },
+    { key: 'donations', name: 'Dons & Reçus Fiscaux', desc: 'Collecte, reçus officiels d’impôt et campagnes' },
+    { key: 'documents', name: 'GED Sécurisée & Loi 25', desc: 'Stockage chiffré et journal d’accès' },
+  ];
+
+  const handleToggleModule = (modKey: string) => {
+    if (overrideModules.includes(modKey)) {
+      setOverrideModules(overrideModules.filter((m) => m !== modKey));
+    } else {
+      setOverrideModules([...overrideModules, modKey]);
+    }
+  };
 
   return (
     <div className="min-h-screen bg-slate-950 text-slate-100 flex flex-col font-sans">
@@ -378,13 +647,13 @@ export function PlatformDashboardScreen() {
             <div>
               <div className="flex items-center space-x-2 text-amber-400 text-xs font-mono font-bold uppercase tracking-wider mb-1">
                 <ShieldCheck className="h-4 w-4" />
-                <span>Console Super-Admin SaaS • Control Plane</span>
+                <span>Console Fournisseur SaaS • Plan de Contrôle Global</span>
               </div>
               <h1 className="text-2xl sm:text-3xl font-extrabold text-white tracking-tight">
-                Administration Globale & Contrôle des Clients
+                Centre de Pilotage SaaS & Exploitation
               </h1>
-              <p className="mt-1 text-sm text-slate-400 max-w-2xl">
-                Supervisez, configurez et inspectez l'intégralité des éléments par client (projets, personnel, bénévoles, usagers, formations et paramètres).
+              <p className="mt-1 text-sm text-slate-400 max-w-3xl">
+                Supervision 360° des organismes clients, cockpit financier MRR, gestion des quotas sur-mesure, feature flags, provisioning assisté et conformité Loi 25.
               </p>
             </div>
 
@@ -392,7 +661,12 @@ export function PlatformDashboardScreen() {
               <Button
                 variant="outline"
                 size="sm"
-                onClick={() => refetch()}
+                onClick={() => {
+                  refetch();
+                  refetchFinancials();
+                  refetchTelemetry();
+                  refetchFeatureFlags();
+                }}
                 className="bg-slate-800 border-slate-700 text-slate-200 hover:bg-slate-700 text-xs"
               >
                 <RefreshCw className="mr-1.5 h-3.5 w-3.5 text-amber-400" />
@@ -402,56 +676,89 @@ export function PlatformDashboardScreen() {
           </div>
         </div>
 
-        {/* Tab Navigation */}
-        <div className="flex border-b border-slate-800 space-x-2 overflow-x-auto">
+        {/* 7 Core Control Plane Tabs */}
+        <div className="flex border-b border-slate-800 space-x-2 overflow-x-auto pb-1">
           <button
             onClick={() => setActiveTab('explorer')}
-            className={`flex items-center gap-2 px-5 py-3 text-sm font-bold border-b-2 transition shrink-0 ${
+            className={`flex items-center gap-2 px-4 py-3 text-xs sm:text-sm font-bold border-b-2 transition shrink-0 ${
               activeTab === 'explorer'
-                ? 'border-amber-400 text-amber-400 bg-slate-900/80 rounded-t-lg'
+                ? 'border-amber-400 text-amber-400 bg-slate-900/90 rounded-t-lg shadow'
                 : 'border-transparent text-slate-400 hover:text-slate-200'
             }`}
           >
             <Building2 className="h-4 w-4 text-amber-400" />
-            Explorateur 360° par Organisme Client
+            Explorateur 360° Client
           </button>
           <button
-            onClick={() => setActiveTab('overview')}
-            className={`flex items-center gap-2 px-5 py-3 text-sm font-bold border-b-2 transition shrink-0 ${
-              activeTab === 'overview'
-                ? 'border-amber-400 text-amber-400 bg-slate-900/80 rounded-t-lg'
+            onClick={() => setActiveTab('financials')}
+            className={`flex items-center gap-2 px-4 py-3 text-xs sm:text-sm font-bold border-b-2 transition shrink-0 ${
+              activeTab === 'financials'
+                ? 'border-emerald-400 text-emerald-400 bg-slate-900/90 rounded-t-lg shadow'
                 : 'border-transparent text-slate-400 hover:text-slate-200'
             }`}
           >
-            <Activity className="h-4 w-4" />
-            Vue Globale & Santé Plateforme
+            <DollarSign className="h-4 w-4 text-emerald-400" />
+            Cockpit Financier & MRR
           </button>
           <button
-            onClick={() => setActiveTab('clients')}
-            className={`flex items-center gap-2 px-5 py-3 text-sm font-bold border-b-2 transition shrink-0 ${
-              activeTab === 'clients'
-                ? 'border-amber-400 text-amber-400 bg-slate-900/80 rounded-t-lg'
+            onClick={() => setActiveTab('provisioning')}
+            className={`flex items-center gap-2 px-4 py-3 text-xs sm:text-sm font-bold border-b-2 transition shrink-0 ${
+              activeTab === 'provisioning'
+                ? 'border-indigo-400 text-indigo-400 bg-slate-900/90 rounded-t-lg shadow'
                 : 'border-transparent text-slate-400 hover:text-slate-200'
             }`}
           >
-            <Layers className="h-4 w-4 text-indigo-400" />
-            Tableau des Comptes ({tenants.length})
+            <PlusCircle className="h-4 w-4 text-indigo-400" />
+            Provisioning & Nouveau Client
           </button>
           <button
-            onClick={() => setActiveTab('support')}
-            className={`flex items-center gap-2 px-5 py-3 text-sm font-bold border-b-2 transition shrink-0 ${
-              activeTab === 'support'
-                ? 'border-amber-400 text-amber-400 bg-slate-900/80 rounded-t-lg'
+            onClick={() => setActiveTab('feature_flags')}
+            className={`flex items-center gap-2 px-4 py-3 text-xs sm:text-sm font-bold border-b-2 transition shrink-0 ${
+              activeTab === 'feature_flags'
+                ? 'border-purple-400 text-purple-400 bg-slate-900/90 rounded-t-lg shadow'
                 : 'border-transparent text-slate-400 hover:text-slate-200'
             }`}
           >
-            <Lock className="h-4 w-4 text-emerald-400" />
-            Sécurité, RLS & Support Loi 25
+            <Sliders className="h-4 w-4 text-purple-400" />
+            Feature Flags & Modules
+          </button>
+          <button
+            onClick={() => setActiveTab('observability')}
+            className={`flex items-center gap-2 px-4 py-3 text-xs sm:text-sm font-bold border-b-2 transition shrink-0 ${
+              activeTab === 'observability'
+                ? 'border-cyan-400 text-cyan-400 bg-slate-900/90 rounded-t-lg shadow'
+                : 'border-transparent text-slate-400 hover:text-slate-200'
+            }`}
+          >
+            <HardDrive className="h-4 w-4 text-cyan-400" />
+            Observabilité & GED
+          </button>
+          <button
+            onClick={() => setActiveTab('security_audit')}
+            className={`flex items-center gap-2 px-4 py-3 text-xs sm:text-sm font-bold border-b-2 transition shrink-0 ${
+              activeTab === 'security_audit'
+                ? 'border-rose-400 text-rose-400 bg-slate-900/90 rounded-t-lg shadow'
+                : 'border-transparent text-slate-400 hover:text-slate-200'
+            }`}
+          >
+            <Lock className="h-4 w-4 text-rose-400" />
+            Audit & Incidents Loi 25
+          </button>
+          <button
+            onClick={() => setActiveTab('announcements')}
+            className={`flex items-center gap-2 px-4 py-3 text-xs sm:text-sm font-bold border-b-2 transition shrink-0 ${
+              activeTab === 'announcements'
+                ? 'border-amber-400 text-amber-400 bg-slate-900/90 rounded-t-lg shadow'
+                : 'border-transparent text-slate-400 hover:text-slate-200'
+            }`}
+          >
+            <BellRing className="h-4 w-4 text-amber-400" />
+            Bannières Système
           </button>
         </div>
 
         {/* ═════════════════════════════════════════════════════════════════ */}
-        {/* TAB 1: EXPLORATEUR PAR CLIENT (VUE 360° & ÉLÉMENTS VISIBLES)      */}
+        {/* PILIER 1 : EXPLORATEUR 360° CLIENT                                */}
         {/* ═════════════════════════════════════════════════════════════════ */}
         {activeTab === 'explorer' && (
           <div className="space-y-6">
@@ -498,7 +805,7 @@ export function PlatformDashboardScreen() {
                     disabled={switchTenantMutation.isPending}
                   >
                     <ArrowRightLeft className="mr-1.5 h-3.5 w-3.5" />
-                    {switchTenantMutation.isPending ? 'Bascule en cours...' : "Basculer sur l'espace client"}
+                    {switchTenantMutation.isPending ? 'Bascule...' : "Basculer sur l'espace client"}
                   </Button>
 
                   {/* Suspend / Activate toggle */}
@@ -520,7 +827,25 @@ export function PlatformDashboardScreen() {
                     }}
                   >
                     <Power className="mr-1.5 h-3.5 w-3.5" />
-                    {currentSelectedTenant.status === 'active' ? 'Suspendre le client' : 'Réactiver le client'}
+                    {currentSelectedTenant.status === 'active' ? 'Suspendre' : 'Réactiver'}
+                  </Button>
+
+                  {/* Decommission / Purge button */}
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    className="text-xs border-red-900/60 text-red-500 hover:bg-red-950 hover:text-red-400"
+                    onClick={() => {
+                      if (selectedTenantId) {
+                        const confirmation = prompt(`⚠️ ATTENTION : Purge définitive Loi 25 !\nTapez "PURGER ${currentSelectedTenant.slug}" pour supprimer irréversiblement ce tenant et toutes ses données :`);
+                        if (confirmation === `PURGER ${currentSelectedTenant.slug}`) {
+                          purgeTenantMutation.mutate(selectedTenantId);
+                        }
+                      }
+                    }}
+                  >
+                    <Trash2 className="mr-1.5 h-3.5 w-3.5" />
+                    Purger (Loi 25)
                   </Button>
                 </div>
               )}
@@ -530,18 +855,29 @@ export function PlatformDashboardScreen() {
             <div className="flex border-b border-slate-800 space-x-1 overflow-x-auto">
               <button
                 onClick={() => setExplorerSubTab('overview')}
-                className={`flex items-center gap-1.5 px-4 py-2.5 text-xs font-bold border-b-2 transition shrink-0 ${
+                className={`flex items-center gap-1.5 px-3 py-2 text-xs font-bold border-b-2 transition shrink-0 ${
                   explorerSubTab === 'overview'
                     ? 'border-indigo-400 text-indigo-400 bg-slate-900/90 rounded-t'
                     : 'border-transparent text-slate-400 hover:text-slate-200'
                 }`}
               >
                 <Activity className="h-3.5 w-3.5" />
-                Vue d'ensemble & KPIs
+                Vue 360° & KPIs
+              </button>
+              <button
+                onClick={() => setExplorerSubTab('quotas')}
+                className={`flex items-center gap-1.5 px-3 py-2 text-xs font-bold border-b-2 transition shrink-0 ${
+                  explorerSubTab === 'quotas'
+                    ? 'border-indigo-400 text-indigo-400 bg-slate-900/90 rounded-t'
+                    : 'border-transparent text-slate-400 hover:text-slate-200'
+                }`}
+              >
+                <Sliders className="h-3.5 w-3.5 text-amber-400" />
+                Quotas & Forfait Sur-Mesure
               </button>
               <button
                 onClick={() => setExplorerSubTab('projects')}
-                className={`flex items-center gap-1.5 px-4 py-2.5 text-xs font-bold border-b-2 transition shrink-0 ${
+                className={`flex items-center gap-1.5 px-3 py-2 text-xs font-bold border-b-2 transition shrink-0 ${
                   explorerSubTab === 'projects'
                     ? 'border-indigo-400 text-indigo-400 bg-slate-900/90 rounded-t'
                     : 'border-transparent text-slate-400 hover:text-slate-200'
@@ -552,7 +888,7 @@ export function PlatformDashboardScreen() {
               </button>
               <button
                 onClick={() => setExplorerSubTab('staff')}
-                className={`flex items-center gap-1.5 px-4 py-2.5 text-xs font-bold border-b-2 transition shrink-0 ${
+                className={`flex items-center gap-1.5 px-3 py-2 text-xs font-bold border-b-2 transition shrink-0 ${
                   explorerSubTab === 'staff'
                     ? 'border-indigo-400 text-indigo-400 bg-slate-900/90 rounded-t'
                     : 'border-transparent text-slate-400 hover:text-slate-200'
@@ -563,18 +899,18 @@ export function PlatformDashboardScreen() {
               </button>
               <button
                 onClick={() => setExplorerSubTab('beneficiaries')}
-                className={`flex items-center gap-1.5 px-4 py-2.5 text-xs font-bold border-b-2 transition shrink-0 ${
+                className={`flex items-center gap-1.5 px-3 py-2 text-xs font-bold border-b-2 transition shrink-0 ${
                   explorerSubTab === 'beneficiaries'
                     ? 'border-indigo-400 text-indigo-400 bg-slate-900/90 rounded-t'
                     : 'border-transparent text-slate-400 hover:text-slate-200'
                 }`}
               >
                 <HeartHandshake className="h-3.5 w-3.5 text-teal-400" />
-                Bénéficiaires & Usagers ({tenantDetails?.beneficiaries?.length || 0})
+                Bénéficiaires ({tenantDetails?.beneficiaries?.length || 0})
               </button>
               <button
                 onClick={() => setExplorerSubTab('cases')}
-                className={`flex items-center gap-1.5 px-4 py-2.5 text-xs font-bold border-b-2 transition shrink-0 ${
+                className={`flex items-center gap-1.5 px-3 py-2 text-xs font-bold border-b-2 transition shrink-0 ${
                   explorerSubTab === 'cases'
                     ? 'border-indigo-400 text-indigo-400 bg-slate-900/90 rounded-t'
                     : 'border-transparent text-slate-400 hover:text-slate-200'
@@ -585,7 +921,7 @@ export function PlatformDashboardScreen() {
               </button>
               <button
                 onClick={() => setExplorerSubTab('trainings')}
-                className={`flex items-center gap-1.5 px-4 py-2.5 text-xs font-bold border-b-2 transition shrink-0 ${
+                className={`flex items-center gap-1.5 px-3 py-2 text-xs font-bold border-b-2 transition shrink-0 ${
                   explorerSubTab === 'trainings'
                     ? 'border-indigo-400 text-indigo-400 bg-slate-900/90 rounded-t'
                     : 'border-transparent text-slate-400 hover:text-slate-200'
@@ -596,7 +932,7 @@ export function PlatformDashboardScreen() {
               </button>
               <button
                 onClick={() => setExplorerSubTab('users')}
-                className={`flex items-center gap-1.5 px-4 py-2.5 text-xs font-bold border-b-2 transition shrink-0 ${
+                className={`flex items-center gap-1.5 px-3 py-2 text-xs font-bold border-b-2 transition shrink-0 ${
                   explorerSubTab === 'users'
                     ? 'border-indigo-400 text-indigo-400 bg-slate-900/90 rounded-t'
                     : 'border-transparent text-slate-400 hover:text-slate-200'
@@ -606,19 +942,30 @@ export function PlatformDashboardScreen() {
                 Comptes Utilisateurs ({tenantDetails?.users?.length || 0})
               </button>
               <button
+                onClick={() => setExplorerSubTab('invoices')}
+                className={`flex items-center gap-1.5 px-3 py-2 text-xs font-bold border-b-2 transition shrink-0 ${
+                  explorerSubTab === 'invoices'
+                    ? 'border-indigo-400 text-indigo-400 bg-slate-900/90 rounded-t'
+                    : 'border-transparent text-slate-400 hover:text-slate-200'
+                }`}
+              >
+                <Receipt className="h-3.5 w-3.5 text-green-400" />
+                Factures & Paiements
+              </button>
+              <button
                 onClick={() => setExplorerSubTab('settings')}
-                className={`flex items-center gap-1.5 px-4 py-2.5 text-xs font-bold border-b-2 transition shrink-0 ${
+                className={`flex items-center gap-1.5 px-3 py-2 text-xs font-bold border-b-2 transition shrink-0 ${
                   explorerSubTab === 'settings'
                     ? 'border-indigo-400 text-indigo-400 bg-slate-900/90 rounded-t'
                     : 'border-transparent text-slate-400 hover:text-slate-200'
                 }`}
               >
                 <Settings className="h-3.5 w-3.5 text-slate-300" />
-                Paramètres & Logo
+                Profil & Logo
               </button>
               <button
                 onClick={() => setExplorerSubTab('support')}
-                className={`flex items-center gap-1.5 px-4 py-2.5 text-xs font-bold border-b-2 transition shrink-0 ${
+                className={`flex items-center gap-1.5 px-3 py-2 text-xs font-bold border-b-2 transition shrink-0 ${
                   explorerSubTab === 'support'
                     ? 'border-indigo-400 text-indigo-400 bg-slate-900/90 rounded-t'
                     : 'border-transparent text-slate-400 hover:text-slate-200'
@@ -632,7 +979,6 @@ export function PlatformDashboardScreen() {
             {/* Sub-tab 1: Vue d'ensemble */}
             {explorerSubTab === 'overview' && (
               <div className="space-y-6">
-                {/* 8 Granular KPI Cards for this Client */}
                 <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
                   <div className="rounded-xl border border-slate-800 bg-slate-900 p-4">
                     <div className="flex items-center justify-between text-slate-400 text-xs font-mono uppercase">
@@ -653,7 +999,7 @@ export function PlatformDashboardScreen() {
                     <div className="mt-2 text-2xl font-bold text-emerald-400">
                       {tenantDetails?.metrics?.totalVolunteers || 0}
                     </div>
-                    <div className="text-[11px] text-slate-400">Bénévoles inscrits</div>
+                    <div className="text-[11px] text-slate-400">Bénévoles actifs</div>
                   </div>
 
                   <div className="rounded-xl border border-slate-800 bg-slate-900 p-4">
@@ -702,13 +1048,13 @@ export function PlatformDashboardScreen() {
 
                   <div className="rounded-xl border border-slate-800 bg-slate-900 p-4">
                     <div className="flex items-center justify-between text-slate-400 text-xs font-mono uppercase">
-                      <span>Documents</span>
+                      <span>Documents GED</span>
                       <FileText className="h-4 w-4 text-slate-300" />
                     </div>
                     <div className="mt-2 text-2xl font-bold text-white">
                       {tenantDetails?.metrics?.totalDocuments || 0}
                     </div>
-                    <div className="text-[11px] text-slate-400">GED sécurisée</div>
+                    <div className="text-[11px] text-slate-400">Fichiers hébergés</div>
                   </div>
 
                   <div className="rounded-xl border border-slate-800 bg-slate-900 p-4">
@@ -723,7 +1069,6 @@ export function PlatformDashboardScreen() {
                   </div>
                 </div>
 
-                {/* Identity & Legal Summary */}
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                   <div className="rounded-xl border border-slate-800 bg-slate-900 p-5 space-y-4">
                     <h3 className="font-bold text-white text-sm flex items-center gap-2 border-b border-slate-800 pb-3">
@@ -740,10 +1085,6 @@ export function PlatformDashboardScreen() {
                         <span className="font-semibold text-slate-200">{tenantDetails?.tenant?.acronym || 'Non défini'}</span>
                       </div>
                       <div className="flex justify-between py-1 border-b border-slate-800/60">
-                        <span className="text-slate-400">Type d'entité :</span>
-                        <span className="font-semibold text-slate-200">{tenantDetails?.tenant?.orgType || 'OBNL'}</span>
-                      </div>
-                      <div className="flex justify-between py-1 border-b border-slate-800/60">
                         <span className="text-slate-400">Numéro NEQ (Québec) :</span>
                         <span className="font-mono text-amber-300 font-semibold">{tenantDetails?.tenant?.neqNumber || 'Non renseigné'}</span>
                       </div>
@@ -751,13 +1092,9 @@ export function PlatformDashboardScreen() {
                         <span className="text-slate-400">Courriel contact :</span>
                         <span className="font-semibold text-slate-200">{tenantDetails?.tenant?.email || 'Non renseigné'}</span>
                       </div>
-                      <div className="flex justify-between py-1 border-b border-slate-800/60">
+                      <div className="flex justify-between py-1">
                         <span className="text-slate-400">Téléphone :</span>
                         <span className="font-semibold text-slate-200">{tenantDetails?.tenant?.phone || 'Non renseigné'}</span>
-                      </div>
-                      <div className="flex justify-between py-1">
-                        <span className="text-slate-400">Adresse :</span>
-                        <span className="font-semibold text-slate-200">{tenantDetails?.tenant?.address || 'Non renseignée'}</span>
                       </div>
                     </div>
                   </div>
@@ -765,30 +1102,24 @@ export function PlatformDashboardScreen() {
                   <div className="rounded-xl border border-slate-800 bg-slate-900 p-5 space-y-4">
                     <h3 className="font-bold text-white text-sm flex items-center gap-2 border-b border-slate-800 pb-3">
                       <ShieldCheck className="h-4 w-4 text-emerald-400" />
-                      Gouvernance Loi 25 & Paramètres SaaS
+                      Gouvernance Loi 25 & Hébergement
                     </h3>
                     <div className="space-y-2 text-xs">
                       <div className="flex justify-between py-1 border-b border-slate-800/60">
-                        <span className="text-slate-400">Responsable Protection PRP (DPO) :</span>
+                        <span className="text-slate-400">Responsable PRP (DPO) :</span>
                         <span className="font-semibold text-white">{tenantDetails?.tenant?.privacyOfficerName || 'Non assigné'}</span>
                       </div>
                       <div className="flex justify-between py-1 border-b border-slate-800/60">
-                        <span className="text-slate-400">Courriel PRP dédié :</span>
+                        <span className="text-slate-400">Courriel PRP :</span>
                         <span className="font-semibold text-slate-200">{tenantDetails?.tenant?.privacyOfficerEmail || 'Non assigné'}</span>
                       </div>
                       <div className="flex justify-between py-1 border-b border-slate-800/60">
                         <span className="text-slate-400">Durée conservation données :</span>
                         <span className="font-semibold text-indigo-300">{tenantDetails?.tenant?.dataRetentionMonths || 60} mois</span>
                       </div>
-                      <div className="flex justify-between py-1 border-b border-slate-800/60">
+                      <div className="flex justify-between py-1">
                         <span className="text-slate-400">Mode d'hébergement :</span>
                         <Badge variant="default" className="uppercase font-mono text-[10px]">{tenantDetails?.tenant?.mode}</Badge>
-                      </div>
-                      <div className="flex justify-between py-1">
-                        <span className="text-slate-400">Créé le :</span>
-                        <span className="font-mono text-slate-300">
-                          {tenantDetails?.tenant?.createdAt ? new Date(tenantDetails.tenant.createdAt).toLocaleDateString() : '—'}
-                        </span>
                       </div>
                     </div>
                   </div>
@@ -796,618 +1127,422 @@ export function PlatformDashboardScreen() {
               </div>
             )}
 
-            {/* Sub-tab 2: Projets du client */}
-            {explorerSubTab === 'projects' && (
-              <div className="rounded-xl border border-slate-800 bg-slate-900 p-6 shadow-lg space-y-4">
-                <div className="flex items-center justify-between border-b border-slate-800 pb-3">
-                  <div className="flex items-center gap-2">
-                    <FolderKanban className="h-5 w-5 text-amber-400" />
-                    <h3 className="font-bold text-white text-base">Portefeuille de Projets de l'Organisme</h3>
+            {/* Sub-tab 2: Quotas & Forfait Sur-Mesure */}
+            {explorerSubTab === 'quotas' && (
+              <div className="rounded-xl border border-slate-800 bg-slate-900 p-6 space-y-6">
+                <div className="flex items-center justify-between border-b border-slate-800 pb-4">
+                  <div>
+                    <h3 className="text-lg font-bold text-white flex items-center gap-2">
+                      <Sliders className="h-5 w-5 text-amber-400" />
+                      Configuration des Quotas & Modules Sur-Mesure
+                    </h3>
+                    <p className="text-xs text-slate-400 mt-1">
+                      Accordez des plafonds personnalisés (utilisateurs, stockage, projets) et activez ou désactivez sélectivement les modules pour ce client.
+                    </p>
                   </div>
-                  <Badge variant="default">{tenantDetails?.projects?.length || 0} Projet(s)</Badge>
+                  <Button
+                    onClick={() => {
+                      updateQuotasMutation.mutate({
+                        planCode: overridePlanCode,
+                        billingCycle: overrideCycle,
+                        seatCount: overrideSeatCount,
+                        maxUsersOverride: overrideMaxUsers ? parseInt(overrideMaxUsers, 10) : null,
+                        maxStorageGbOverride: overrideMaxStorage ? parseInt(overrideMaxStorage, 10) : null,
+                        maxProjectsOverride: overrideMaxProjects ? parseInt(overrideMaxProjects, 10) : null,
+                        allowedModules: overrideModules,
+                      });
+                    }}
+                    disabled={updateQuotasMutation.isPending}
+                    className="bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold text-xs"
+                  >
+                    <Check className="mr-1.5 h-4 w-4" />
+                    {updateQuotasMutation.isPending ? 'Enregistrement...' : 'Enregistrer les Quotas'}
+                  </Button>
                 </div>
 
-                {!tenantDetails?.projects || tenantDetails.projects.length === 0 ? (
-                  <div className="py-12 text-center text-slate-500 text-sm">
-                    Aucun projet n'a encore été créé pour cet organisme.
+                {quotaFeedback && (
+                  <div className="p-3 bg-emerald-950/60 border border-emerald-800 text-emerald-300 text-xs rounded-lg flex items-center gap-2">
+                    <CheckCircle2 className="h-4 w-4 text-emerald-400 shrink-0" />
+                    <span>{quotaFeedback}</span>
                   </div>
+                )}
+
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                  <div className="space-y-4 rounded-lg bg-slate-950/60 p-4 border border-slate-800">
+                    <h4 className="text-xs font-mono uppercase text-slate-400 font-bold">1. Forfait de Base</h4>
+                    <div>
+                      <label className="text-xs text-slate-300 block mb-1">Palier d'abonnement</label>
+                      <select
+                        value={overridePlanCode}
+                        onChange={(e) => setOverridePlanCode(e.target.value)}
+                        className="w-full rounded bg-slate-900 border border-slate-700 px-3 py-2 text-xs text-white"
+                      >
+                        <option value="community">Community (Gratuit - 5 usagers)</option>
+                        <option value="starter">Starter (99 $ / mois)</option>
+                        <option value="pro">Pro (199 $ / mois)</option>
+                        <option value="enterprise">Enterprise (Sur-mesure)</option>
+                      </select>
+                    </div>
+
+                    <div>
+                      <label className="text-xs text-slate-300 block mb-1">Cycle de facturation</label>
+                      <select
+                        value={overrideCycle}
+                        onChange={(e) => setOverrideCycle(e.target.value as any)}
+                        className="w-full rounded bg-slate-900 border border-slate-700 px-3 py-2 text-xs text-white"
+                      >
+                        <option value="monthly">Mensuel</option>
+                        <option value="annual">Annuel (-20%)</option>
+                      </select>
+                    </div>
+                  </div>
+
+                  <div className="space-y-4 rounded-lg bg-slate-950/60 p-4 border border-slate-800">
+                    <h4 className="text-xs font-mono uppercase text-slate-400 font-bold">2. Plafonds Dérogatoires (Overrides)</h4>
+                    <div>
+                      <label className="text-xs text-slate-300 block mb-1">Max Utilisateurs (laisser vide = standard)</label>
+                      <Input
+                        type="number"
+                        placeholder="Ex: 25"
+                        value={overrideMaxUsers}
+                        onChange={(e) => setOverrideMaxUsers(e.target.value)}
+                        className="bg-slate-900 border-slate-700 text-xs"
+                      />
+                    </div>
+                    <div>
+                      <label className="text-xs text-slate-300 block mb-1">Max Stockage GED en Go (laisser vide = standard)</label>
+                      <Input
+                        type="number"
+                        placeholder="Ex: 100"
+                        value={overrideMaxStorage}
+                        onChange={(e) => setOverrideMaxStorage(e.target.value)}
+                        className="bg-slate-900 border-slate-700 text-xs"
+                      />
+                    </div>
+                    <div>
+                      <label className="text-xs text-slate-300 block mb-1">Max Projets WBS (laisser vide = standard)</label>
+                      <Input
+                        type="number"
+                        placeholder="Ex: 50"
+                        value={overrideMaxProjects}
+                        onChange={(e) => setOverrideMaxProjects(e.target.value)}
+                        className="bg-slate-900 border-slate-700 text-xs"
+                      />
+                    </div>
+                  </div>
+
+                  <div className="space-y-4 rounded-lg bg-slate-950/60 p-4 border border-slate-800">
+                    <h4 className="text-xs font-mono uppercase text-slate-400 font-bold">3. Modules Activés pour ce Client</h4>
+                    <div className="space-y-2 max-h-60 overflow-y-auto pr-1">
+                      {allAvailableModules.map((m) => {
+                        const isChecked = overrideModules.includes(m.key);
+                        return (
+                          <label
+                            key={m.key}
+                            className={`flex items-start gap-2 p-2 rounded cursor-pointer border transition text-xs ${
+                              isChecked
+                                ? 'bg-indigo-950/40 border-indigo-700/60 text-indigo-200'
+                                : 'bg-slate-900 border-slate-800 text-slate-400 hover:border-slate-700'
+                            }`}
+                          >
+                            <input
+                              type="checkbox"
+                              checked={isChecked}
+                              onChange={() => handleToggleModule(m.key)}
+                              className="mt-0.5 rounded bg-slate-950 border-slate-700 text-indigo-600 focus:ring-0"
+                            />
+                            <div>
+                              <div className="font-semibold text-white">{m.name}</div>
+                              <div className="text-[10px] text-slate-400">{m.desc}</div>
+                            </div>
+                          </label>
+                        );
+                      })}
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* Sub-tab: Projects */}
+            {explorerSubTab === 'projects' && (
+              <div className="rounded-xl border border-slate-800 bg-slate-900 p-5 space-y-4">
+                <div className="flex items-center justify-between border-b border-slate-800 pb-3">
+                  <h3 className="font-bold text-white text-sm flex items-center gap-2">
+                    <FolderKanban className="h-4 w-4 text-amber-400" />
+                    Portefeuille de Projets du Client ({tenantDetails?.projects?.length || 0})
+                  </h3>
+                </div>
+                {tenantDetails?.projects?.length === 0 ? (
+                  <p className="text-xs text-slate-500 py-4">Aucun projet enregistré.</p>
                 ) : (
-                  <div className="overflow-x-auto">
-                    <table className="w-full text-left text-xs text-slate-300">
-                      <thead className="bg-slate-950 uppercase font-mono text-slate-400 border-b border-slate-800">
-                        <tr>
-                          <th className="px-4 py-3">Code & Projet</th>
-                          <th className="px-4 py-3">Statut</th>
-                          <th className="px-4 py-3">Budget Financement</th>
-                          <th className="px-4 py-3">Avancement WBS</th>
-                          <th className="px-4 py-3">Tâches</th>
-                          <th className="px-4 py-3">Créé le</th>
-                        </tr>
-                      </thead>
-                      <tbody className="divide-y divide-slate-800">
-                        {tenantDetails.projects.map((p: any) => (
-                          <tr key={p.id} className="hover:bg-slate-800/40 transition">
-                            <td className="px-4 py-3">
-                              <div className="font-bold text-white">{p.name}</div>
-                              <span className="font-mono text-amber-400 text-[11px]">{p.code}</span>
-                            </td>
-                            <td className="px-4 py-3">
-                              <Badge variant={p.status === 'active' ? 'success' : 'secondary'} className="text-[10px]">
-                                {p.status}
-                              </Badge>
-                            </td>
-                            <td className="px-4 py-3 font-semibold text-emerald-400">
-                              {Number(p.totalBudget || 0).toLocaleString('fr-CA', { style: 'currency', currency: 'CAD' })}
-                            </td>
-                            <td className="px-4 py-3 min-w-[140px]">
-                              <div className="flex items-center gap-2">
-                                <div className="flex-1 h-2 bg-slate-800 rounded-full overflow-hidden">
-                                  <div
-                                    className="h-full bg-amber-400 rounded-full"
-                                    style={{ width: `${Math.min(100, p.avgProgressPct || 0)}%` }}
-                                  />
-                                </div>
-                                <span className="font-mono font-bold text-white text-[11px]">{p.avgProgressPct || 0}%</span>
-                              </div>
-                            </td>
-                            <td className="px-4 py-3 font-mono text-slate-300">
-                              {p.completedTasks || 0} / {p.taskCount || 0} finies
-                            </td>
-                            <td className="px-4 py-3 text-slate-400">
-                              {p.createdAt ? new Date(p.createdAt).toLocaleDateString() : '—'}
-                            </td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
+                  <div className="space-y-3">
+                    {tenantDetails?.projects?.map((p: any) => (
+                      <div key={p.id} className="rounded-lg border border-slate-800 bg-slate-950 p-4 flex flex-col md:flex-row md:items-center justify-between gap-3">
+                        <div>
+                          <div className="flex items-center gap-2">
+                            <span className="font-bold text-sm text-white">{p.name}</span>
+                            <Badge variant={p.status === 'in_progress' ? 'default' : 'secondary'}>{p.status}</Badge>
+                          </div>
+                          <p className="text-xs text-slate-400 mt-0.5">{p.description || 'Aucune description'}</p>
+                          <div className="flex items-center gap-4 text-[11px] text-slate-400 mt-2 font-mono">
+                            <span>Tâches: {p.taskCount}</span>
+                            <span>Terminées: {p.completedTasks}</span>
+                            <span>Budget: {Number(p.totalBudget).toLocaleString()} CAD</span>
+                          </div>
+                        </div>
+                        <div className="w-full md:w-48 space-y-1">
+                          <div className="flex justify-between text-[11px] text-slate-400">
+                            <span>Progression</span>
+                            <span className="font-bold text-amber-400">{p.avgProgressPct}%</span>
+                          </div>
+                          <div className="h-2 w-full rounded-full bg-slate-800 overflow-hidden">
+                            <div className="h-full bg-amber-500" style={{ width: `${p.avgProgressPct}%` }} />
+                          </div>
+                        </div>
+                      </div>
+                    ))}
                   </div>
                 )}
               </div>
             )}
 
-            {/* Sub-tab 3: Personnel & Bénévoles du client */}
+            {/* Sub-tab: Staff */}
             {explorerSubTab === 'staff' && (
-              <div className="rounded-xl border border-slate-800 bg-slate-900 p-6 shadow-lg space-y-4">
-                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-slate-800 pb-3">
-                  <div className="flex items-center gap-2">
-                    <Users className="h-5 w-5 text-emerald-400" />
-                    <h3 className="font-bold text-white text-base">Annuaire du Personnel & Bénévoles</h3>
-                  </div>
-
-                  <div className="flex items-center gap-2">
-                    <span className="text-xs font-bold text-slate-300">Type :</span>
+              <div className="rounded-xl border border-slate-800 bg-slate-900 p-5 space-y-4">
+                <div className="flex items-center justify-between border-b border-slate-800 pb-3">
+                  <h3 className="font-bold text-white text-sm flex items-center gap-2">
+                    <Users className="h-4 w-4 text-emerald-400" />
+                    Personnel & Bénévoles RH ({tenantDetails?.staff?.length || 0})
+                  </h3>
+                  <div className="flex gap-2">
                     <select
                       value={staffTypeFilter}
                       onChange={(e) => setStaffTypeFilter(e.target.value as any)}
-                      className="rounded-lg border border-slate-700 bg-slate-950 px-2.5 py-1.5 text-xs font-medium text-slate-200"
+                      className="rounded bg-slate-950 border border-slate-700 text-xs px-2 py-1 text-slate-200"
                     >
-                      <option value="all">Tous les profils ({tenantDetails?.staff?.length || 0})</option>
-                      <option value="employee">Salariés / Employés</option>
+                      <option value="all">Tous les profils</option>
+                      <option value="employee">Salariés</option>
                       <option value="volunteer">Bénévoles</option>
                       <option value="board_member">Conseil d'administration</option>
                     </select>
                   </div>
                 </div>
 
-                {/* Staff Table */}
-                {!tenantDetails?.staff || tenantDetails.staff.length === 0 ? (
-                  <div className="py-12 text-center text-slate-500 text-sm">
-                    Aucun collaborateur ni bénévole n'a été enregistré pour cet organisme.
-                  </div>
-                ) : (
-                  <div className="overflow-x-auto">
-                    <table className="w-full text-left text-xs text-slate-300">
-                      <thead className="bg-slate-950 uppercase font-mono text-slate-400 border-b border-slate-800">
-                        <tr>
-                          <th className="px-4 py-3">Nom & Coordonnées</th>
-                          <th className="px-4 py-3">Poste / Fonction</th>
-                          <th className="px-4 py-3">Type Contrat</th>
-                          <th className="px-4 py-3">Département</th>
-                          <th className="px-4 py-3">Statut</th>
-                          <th className="px-4 py-3 text-right">Action</th>
-                        </tr>
-                      </thead>
-                      <tbody className="divide-y divide-slate-800">
-                        {tenantDetails.staff
-                          .filter((s: any) => staffTypeFilter === 'all' || s.employmentType === staffTypeFilter)
-                          .map((s: any) => (
-                            <tr key={s.id} className="hover:bg-slate-800/40 transition">
-                              <td className="px-4 py-3">
-                                <div className="font-bold text-white">
-                                  {s.party ? `${s.party.firstName || ''} ${s.party.lastName || ''}` : 'Sans nom'}
-                                </div>
-                                <div className="text-[11px] text-slate-400">{s.party?.email || s.party?.phone || '—'}</div>
-                              </td>
-                              <td className="px-4 py-3 font-medium text-slate-200">{s.jobTitle}</td>
-                              <td className="px-4 py-3">
-                                <Badge
-                                  variant={
-                                    s.employmentType === 'volunteer'
-                                      ? 'success'
-                                      : s.employmentType === 'employee'
-                                      ? 'default'
-                                      : 'secondary'
-                                  }
-                                  className="text-[10px]"
-                                >
-                                  {s.employmentType === 'volunteer'
-                                    ? 'Bénévole'
-                                    : s.employmentType === 'employee'
-                                    ? 'Salarié'
-                                    : s.employmentType === 'board_member'
-                                    ? 'C.A.'
-                                    : s.employmentType}
-                                </Badge>
-                              </td>
-                              <td className="px-4 py-3 text-slate-400">{s.department?.name || 'Général'}</td>
-                              <td className="px-4 py-3">
-                                <span
-                                  className={`inline-block px-2 py-0.5 rounded text-[10px] font-bold ${
-                                    s.status === 'active'
-                                      ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20'
-                                      : 'bg-slate-800 text-slate-400'
-                                  }`}
-                                >
-                                  {s.status}
+                <div className="overflow-x-auto">
+                  <table className="w-full text-left text-xs">
+                    <thead className="bg-slate-950 text-slate-400 uppercase font-mono border-b border-slate-800">
+                      <tr>
+                        <th className="p-3">Nom & Prénom</th>
+                        <th className="p-3">Poste / Fonction</th>
+                        <th className="p-3">Type</th>
+                        <th className="p-3">Département</th>
+                        <th className="p-3">Statut</th>
+                        <th className="p-3">Compte Lié</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-800">
+                      {tenantDetails?.staff
+                        ?.filter((s: any) => staffTypeFilter === 'all' || s.employmentType === staffTypeFilter)
+                        ?.map((s: any) => (
+                          <tr key={s.id} className="hover:bg-slate-800/40">
+                            <td className="p-3 font-semibold text-white">
+                              {s.party?.firstName} {s.party?.lastName}
+                            </td>
+                            <td className="p-3 text-slate-300">{s.jobTitle}</td>
+                            <td className="p-3">
+                              <Badge variant="default" className="text-[10px]">{s.employmentType}</Badge>
+                            </td>
+                            <td className="p-3 text-slate-400">{s.department?.name || '—'}</td>
+                            <td className="p-3">
+                              <Badge variant={s.status === 'active' ? 'success' : 'secondary'}>{s.status}</Badge>
+                            </td>
+                            <td className="p-3">
+                              {s.userId ? (
+                                <span className="text-emerald-400 font-mono text-[11px] flex items-center gap-1">
+                                  <Check className="h-3 w-3" /> Lié
                                 </span>
-                              </td>
-                              <td className="px-4 py-3 text-right">
-                                <Button
-                                  size="sm"
-                                  variant="ghost"
-                                  className="text-xs text-amber-400 hover:text-amber-300 hover:bg-slate-800"
-                                  onClick={() => {
-                                    setEditingStaffId(s.partyId);
-                                    setEditStaffJobTitle(s.jobTitle || '');
-                                    setEditStaffType(s.employmentType || 'employee');
-                                    setEditStaffStatus(s.status || 'active');
-                                    setEditStaffDeptId(s.departmentId || '');
-                                  }}
-                                >
-                                  <Pencil className="h-3.5 w-3.5 mr-1" />
-                                  Modifier
-                                </Button>
-                              </td>
-                            </tr>
-                          ))}
-                      </tbody>
-                    </table>
-                  </div>
-                )}
-
-                {/* Inline Staff Edit Drawer */}
-                {editingStaffId && (
-                  <div className="rounded-xl border border-amber-500/30 bg-slate-950 p-4 space-y-3 mt-4">
-                    <div className="flex items-center justify-between border-b border-slate-800 pb-2">
-                      <span className="font-bold text-amber-400 text-xs flex items-center gap-1.5">
-                        <Pencil className="h-3.5 w-3.5" />
-                        Modifier la fiche de ce collaborateur (Action Super-Admin)
-                      </span>
-                      <button onClick={() => setEditingStaffId(null)} className="text-slate-400 hover:text-white">
-                        <X className="h-4 w-4" />
-                      </button>
-                    </div>
-
-                    <div className="grid grid-cols-1 sm:grid-cols-4 gap-3">
-                      <div>
-                        <label className="text-[11px] font-mono text-slate-400 block mb-1">Poste / Fonction</label>
-                        <Input
-                          value={editStaffJobTitle}
-                          onChange={(e) => setEditStaffJobTitle(e.target.value)}
-                          className="h-8 text-xs bg-slate-900 border-slate-700"
-                        />
-                      </div>
-                      <div>
-                        <label className="text-[11px] font-mono text-slate-400 block mb-1">Type de statut</label>
-                        <select
-                          value={editStaffType}
-                          onChange={(e) => setEditStaffType(e.target.value as any)}
-                          className="w-full h-8 rounded-lg border border-slate-700 bg-slate-900 px-2 text-xs text-slate-200"
-                        >
-                          <option value="employee">Salarié / Employé</option>
-                          <option value="volunteer">Bénévole</option>
-                          <option value="board_member">Membre du Conseil (C.A.)</option>
-                          <option value="contractor">Prestataire / Consultant</option>
-                          <option value="intern">Stagiaire</option>
-                        </select>
-                      </div>
-                      <div>
-                        <label className="text-[11px] font-mono text-slate-400 block mb-1">Statut d'activité</label>
-                        <select
-                          value={editStaffStatus}
-                          onChange={(e) => setEditStaffStatus(e.target.value as any)}
-                          className="w-full h-8 rounded-lg border border-slate-700 bg-slate-900 px-2 text-xs text-slate-200"
-                        >
-                          <option value="active">Actif</option>
-                          <option value="on_leave">En congé</option>
-                          <option value="inactive">Inactif</option>
-                          <option value="archived">Archivé</option>
-                        </select>
-                      </div>
-                      <div>
-                        <label className="text-[11px] font-mono text-slate-400 block mb-1">Département</label>
-                        <select
-                          value={editStaffDeptId}
-                          onChange={(e) => setEditStaffDeptId(e.target.value)}
-                          className="w-full h-8 rounded-lg border border-slate-700 bg-slate-900 px-2 text-xs text-slate-200"
-                        >
-                          <option value="">(Aucun / Général)</option>
-                          {tenantDetails?.departments?.map((d: any) => (
-                            <option key={d.id} value={d.id}>
-                              {d.name}
-                            </option>
-                          ))}
-                        </select>
-                      </div>
-                    </div>
-
-                    <div className="flex justify-end gap-2 pt-2">
-                      <Button size="sm" variant="ghost" className="text-xs" onClick={() => setEditingStaffId(null)}>
-                        Annuler
-                      </Button>
-                      <Button
-                        size="sm"
-                        className="bg-amber-500 text-slate-950 font-bold text-xs hover:bg-amber-400"
-                        onClick={() => {
-                          updateStaffMutation.mutate({
-                            partyId: editingStaffId,
-                            updates: {
-                              jobTitle: editStaffJobTitle,
-                              employmentType: editStaffType,
-                              status: editStaffStatus,
-                              departmentId: editStaffDeptId || null,
-                            },
-                          });
-                        }}
-                      >
-                        Enregistrer modifications
-                      </Button>
-                    </div>
-                  </div>
-                )}
+                              ) : (
+                                <span className="text-slate-500 text-[11px]">Non lié</span>
+                              )}
+                            </td>
+                          </tr>
+                        ))}
+                    </tbody>
+                  </table>
+                </div>
               </div>
             )}
 
-            {/* Sub-tab: Bénéficiaires & Usagers enregistrés */}
+            {/* Sub-tab: Beneficiaries & Cases */}
             {explorerSubTab === 'beneficiaries' && (
-              <div className="rounded-xl border border-slate-800 bg-slate-900 p-6 shadow-lg space-y-4">
-                <div className="flex items-center justify-between border-b border-slate-800 pb-3">
-                  <div className="flex items-center gap-2">
-                    <HeartHandshake className="h-5 w-5 text-teal-400" />
-                    <h3 className="font-bold text-white text-base">Bénéficiaires & Usagers Enregistrés</h3>
-                  </div>
-                  <Badge variant="default">{tenantDetails?.beneficiaries?.length || 0} Bénéficiaire(s)</Badge>
-                </div>
-
-                {!tenantDetails?.beneficiaries || tenantDetails.beneficiaries.length === 0 ? (
-                  <div className="py-12 text-center text-slate-500 text-sm">
-                    Aucun bénéficiaire enregistré pour cet organisme.
-                  </div>
-                ) : (
-                  <div className="overflow-x-auto">
-                    <table className="w-full text-left text-xs text-slate-300">
-                      <thead className="bg-slate-950 uppercase font-mono text-slate-400 border-b border-slate-800">
-                        <tr>
-                          <th className="px-4 py-3">Bénéficiaire / Usager</th>
-                          <th className="px-4 py-3">Courriel & Téléphone</th>
-                          <th className="px-4 py-3">Date de naissance</th>
-                          <th className="px-4 py-3">Genre</th>
-                          <th className="px-4 py-3">Statut</th>
-                          <th className="px-4 py-3">Date d'admission</th>
+              <div className="rounded-xl border border-slate-800 bg-slate-900 p-5 space-y-4">
+                <h3 className="font-bold text-white text-sm flex items-center gap-2 border-b border-slate-800 pb-3">
+                  <HeartHandshake className="h-4 w-4 text-teal-400" />
+                  Registre des Bénéficiaires & Usagers ({tenantDetails?.beneficiaries?.length || 0})
+                </h3>
+                <div className="overflow-x-auto">
+                  <table className="w-full text-left text-xs">
+                    <thead className="bg-slate-950 text-slate-400 uppercase font-mono border-b border-slate-800">
+                      <tr>
+                        <th className="p-3">Nom & Prénom</th>
+                        <th className="p-3">Numéro Dossier</th>
+                        <th className="p-3">Courriel</th>
+                        <th className="p-3">Téléphone</th>
+                        <th className="p-3">Statut</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-800">
+                      {tenantDetails?.beneficiaries?.map((b: any) => (
+                        <tr key={b.id} className="hover:bg-slate-800/40">
+                          <td className="p-3 font-semibold text-white">{b.party?.firstName} {b.party?.lastName}</td>
+                          <td className="p-3 font-mono text-teal-300">{b.fileNumber || '—'}</td>
+                          <td className="p-3 text-slate-400">{b.party?.email || '—'}</td>
+                          <td className="p-3 text-slate-400">{b.party?.phone || '—'}</td>
+                          <td className="p-3"><Badge variant="default">{b.status}</Badge></td>
                         </tr>
-                      </thead>
-                      <tbody className="divide-y divide-slate-800">
-                        {tenantDetails.beneficiaries.map((b: any) => (
-                          <tr key={b.id} className="hover:bg-slate-800/40 transition">
-                            <td className="px-4 py-3">
-                              <div className="font-bold text-white">
-                                {b.party ? `${b.party.firstName || ''} ${b.party.lastName || ''}` : 'Sans nom'}
-                              </div>
-                            </td>
-                            <td className="px-4 py-3">
-                              <div className="text-slate-200">{b.party?.email || '—'}</div>
-                              <div className="text-[11px] text-slate-400">{b.party?.phone || '—'}</div>
-                            </td>
-                            <td className="px-4 py-3 font-mono text-slate-300">
-                              {b.birthDate ? new Date(b.birthDate).toLocaleDateString() : '—'}
-                            </td>
-                            <td className="px-4 py-3 font-mono text-teal-300">{b.genderCode || 'Non spécifié'}</td>
-                            <td className="px-4 py-3">
-                              <Badge variant={b.status === 'active' ? 'success' : 'secondary'} className="text-[10px]">
-                                {b.status}
-                              </Badge>
-                            </td>
-                            <td className="px-4 py-3 text-slate-400">
-                              {b.intakeDate ? new Date(b.intakeDate).toLocaleDateString() : '—'}
-                            </td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  </div>
-                )}
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
               </div>
             )}
 
-            {/* Sub-tab 4: Dossiers Usagers / Cas */}
+            {/* Sub-tab: Cases */}
             {explorerSubTab === 'cases' && (
-              <div className="rounded-xl border border-slate-800 bg-slate-900 p-6 shadow-lg space-y-4">
-                <div className="flex items-center justify-between border-b border-slate-800 pb-3">
-                  <div className="flex items-center gap-2">
-                    <ShieldAlert className="h-5 w-5 text-rose-400" />
-                    <h3 className="font-bold text-white text-base">Dossiers & Usagers Pris en Charge</h3>
-                  </div>
-                  <Badge variant="default">{tenantDetails?.cases?.length || 0} Dossier(s)</Badge>
-                </div>
-
-                {!tenantDetails?.cases || tenantDetails.cases.length === 0 ? (
-                  <div className="py-12 text-center text-slate-500 text-sm">
-                    Aucun dossier usager n'a encore été ouvert dans cet organisme.
-                  </div>
-                ) : (
-                  <div className="overflow-x-auto">
-                    <table className="w-full text-left text-xs text-slate-300">
-                      <thead className="bg-slate-950 uppercase font-mono text-slate-400 border-b border-slate-800">
-                        <tr>
-                          <th className="px-4 py-3">Numéro & Titre</th>
-                          <th className="px-4 py-3">Bénéficiaire / Usager</th>
-                          <th className="px-4 py-3">Intervenant Principal</th>
-                          <th className="px-4 py-3">Confidentialité</th>
-                          <th className="px-4 py-3">Statut</th>
-                          <th className="px-4 py-3">Ouvert le</th>
+              <div className="rounded-xl border border-slate-800 bg-slate-900 p-5 space-y-4">
+                <h3 className="font-bold text-white text-sm flex items-center gap-2 border-b border-slate-800 pb-3">
+                  <ShieldAlert className="h-4 w-4 text-rose-400" />
+                  Dossiers d'Accompagnement Social ({tenantDetails?.cases?.length || 0})
+                </h3>
+                <div className="overflow-x-auto">
+                  <table className="w-full text-left text-xs">
+                    <thead className="bg-slate-950 text-slate-400 uppercase font-mono border-b border-slate-800">
+                      <tr>
+                        <th className="p-3">Titre du Dossier</th>
+                        <th className="p-3">Bénéficiaire</th>
+                        <th className="p-3">Intervenant Assigné</th>
+                        <th className="p-3">Priorité</th>
+                        <th className="p-3">Statut</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-800">
+                      {tenantDetails?.cases?.map((c: any) => (
+                        <tr key={c.id} className="hover:bg-slate-800/40">
+                          <td className="p-3 font-semibold text-white">{c.title}</td>
+                          <td className="p-3 text-slate-300">{c.beneficiary?.firstName} {c.beneficiary?.lastName}</td>
+                          <td className="p-3 text-slate-400">{c.primaryWorker?.email || 'Non assigné'}</td>
+                          <td className="p-3"><Badge variant={c.priority === 'urgent' ? 'danger' : 'secondary'}>{c.priority}</Badge></td>
+                          <td className="p-3"><Badge variant="default">{c.status}</Badge></td>
                         </tr>
-                      </thead>
-                      <tbody className="divide-y divide-slate-800">
-                        {tenantDetails.cases.map((c: any) => (
-                          <tr key={c.id} className="hover:bg-slate-800/40 transition">
-                            <td className="px-4 py-3">
-                              <div className="font-bold text-white">{c.title}</div>
-                              <span className="font-mono text-rose-400 text-[11px]">{c.caseNumber}</span>
-                            </td>
-                            <td className="px-4 py-3">
-                              <div className="font-semibold text-slate-200">
-                                {c.beneficiary ? `${c.beneficiary.firstName || ''} ${c.beneficiary.lastName || ''}` : 'Anonyme'}
-                              </div>
-                              <div className="text-[11px] text-slate-400">{c.beneficiary?.email || c.beneficiary?.phone || ''}</div>
-                            </td>
-                            <td className="px-4 py-3 text-slate-300">
-                              {c.primaryWorker ? `${c.primaryWorker.firstName || ''} ${c.primaryWorker.lastName || ''}` : 'Non assigné'}
-                            </td>
-                            <td className="px-4 py-3">
-                              <Badge variant="secondary" className="text-[10px] uppercase font-mono">
-                                {c.confidentialityLevel}
-                              </Badge>
-                            </td>
-                            <td className="px-4 py-3">
-                              <Badge variant={c.status === 'active' || c.status === 'open' ? 'success' : 'secondary'} className="text-[10px]">
-                                {c.status}
-                              </Badge>
-                            </td>
-                            <td className="px-4 py-3 text-slate-400">
-                              {c.openedAt ? new Date(c.openedAt).toLocaleDateString() : '—'}
-                            </td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  </div>
-                )}
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
               </div>
             )}
 
-            {/* Sub-tab 5: Formations */}
-            {explorerSubTab === 'trainings' && (
-              <div className="rounded-xl border border-slate-800 bg-slate-900 p-6 shadow-lg space-y-4">
-                <div className="flex items-center justify-between border-b border-slate-800 pb-3">
-                  <div className="flex items-center gap-2">
-                    <GraduationCap className="h-5 w-5 text-purple-400" />
-                    <h3 className="font-bold text-white text-base">Sessions de Formation & Cours</h3>
-                  </div>
-                  <Badge variant="default">{tenantDetails?.trainings?.length || 0} Session(s)</Badge>
-                </div>
-
-                {!tenantDetails?.trainings || tenantDetails.trainings.length === 0 ? (
-                  <div className="py-12 text-center text-slate-500 text-sm">
-                    Aucune session de formation n'a été planifiée pour cet organisme.
-                  </div>
-                ) : (
-                  <div className="overflow-x-auto">
-                    <table className="w-full text-left text-xs text-slate-300">
-                      <thead className="bg-slate-950 uppercase font-mono text-slate-400 border-b border-slate-800">
-                        <tr>
-                          <th className="px-4 py-3">Titre de la session</th>
-                          <th className="px-4 py-3">Programme</th>
-                          <th className="px-4 py-3">Dates</th>
-                          <th className="px-4 py-3">Capacité</th>
-                          <th className="px-4 py-3">Statut</th>
-                        </tr>
-                      </thead>
-                      <tbody className="divide-y divide-slate-800">
-                        {tenantDetails.trainings.map((tr: any) => (
-                          <tr key={tr.id} className="hover:bg-slate-800/40 transition">
-                            <td className="px-4 py-3 font-bold text-white">{tr.title}</td>
-                            <td className="px-4 py-3 text-purple-300">{tr.program?.name || 'Formation autonome'}</td>
-                            <td className="px-4 py-3 text-slate-400">
-                              {tr.startDate ? new Date(tr.startDate).toLocaleDateString() : '—'} au{' '}
-                              {tr.endDate ? new Date(tr.endDate).toLocaleDateString() : '—'}
-                            </td>
-                            <td className="px-4 py-3 font-mono text-slate-200">{tr.capacity || 20} places</td>
-                            <td className="px-4 py-3">
-                              <Badge variant={tr.status === 'open' || tr.status === 'in_progress' ? 'success' : 'secondary'} className="text-[10px]">
-                                {tr.status}
-                              </Badge>
-                            </td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  </div>
-                )}
-              </div>
-            )}
-
-            {/* Sub-tab 6: Utilisateurs & Droits */}
+            {/* Sub-tab: Users */}
             {explorerSubTab === 'users' && (
-              <div className="rounded-xl border border-slate-800 bg-slate-900 p-6 shadow-lg space-y-4">
-                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-800 pb-3">
-                  <div className="flex items-center gap-2">
-                    <Key className="h-5 w-5 text-cyan-400" />
-                    <div>
-                      <h3 className="font-bold text-white text-base">Comptes Utilisateurs Informatiques & Rôles</h3>
-                      <p className="text-xs text-slate-400">
-                        Gestion complète des identifiants, réinitialisation de mots de passe et liaison RH au personnel.
-                      </p>
-                    </div>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <Badge variant="default" className="font-mono">
-                      {tenantDetails?.users?.length || 0} Compte(s) enregistrés
-                    </Badge>
-                  </div>
+              <div className="rounded-xl border border-slate-800 bg-slate-900 p-5 space-y-4">
+                <div className="flex items-center justify-between border-b border-slate-800 pb-3">
+                  <h3 className="font-bold text-white text-sm flex items-center gap-2">
+                    <Key className="h-4 w-4 text-cyan-400" />
+                    Comptes Utilisateurs & Droits d'Accès ({tenantDetails?.users?.length || 0})
+                  </h3>
                 </div>
 
                 {userActionFeedback && (
-                  <div className="p-3 rounded-lg bg-emerald-950/70 border border-emerald-500/40 text-emerald-300 text-xs flex items-center justify-between">
-                    <div className="flex items-center gap-2">
-                      <Check className="h-4 w-4 shrink-0 text-emerald-400" />
-                      <span>{userActionFeedback}</span>
-                    </div>
-                    <button onClick={() => setUserActionFeedback(null)} className="text-slate-400 hover:text-white">
-                      <X className="h-3.5 w-3.5" />
-                    </button>
+                  <div className="p-3 bg-emerald-950/60 border border-emerald-800 text-emerald-300 text-xs rounded-lg flex items-center gap-2">
+                    <CheckCircle2 className="h-4 w-4 text-emerald-400 shrink-0" />
+                    <span>{userActionFeedback}</span>
                   </div>
                 )}
 
-                {!tenantDetails?.users || tenantDetails.users.length === 0 ? (
-                  <div className="py-12 text-center text-slate-500 text-sm">
-                    Aucun compte utilisateur n'est rattaché à cet organisme.
-                  </div>
+                <div className="overflow-x-auto">
+                  <table className="w-full text-left text-xs">
+                    <thead className="bg-slate-950 text-slate-400 uppercase font-mono border-b border-slate-800">
+                      <tr>
+                        <th className="p-3">Utilisateur</th>
+                        <th className="p-3">Courriel</th>
+                        <th className="p-3">Rôles Attribués</th>
+                        <th className="p-3">Statut</th>
+                        <th className="p-3 text-right">Actions</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-800">
+                      {tenantDetails?.users?.map((u: any) => (
+                        <tr key={u.membershipId} className="hover:bg-slate-800/40">
+                          <td className="p-3 font-semibold text-white">
+                            {u.user?.firstName} {u.user?.lastName}
+                          </td>
+                          <td className="p-3 font-mono text-slate-300">{u.user?.email}</td>
+                          <td className="p-3">
+                            <div className="flex flex-wrap gap-1">
+                              {u.roles?.map((r: any) => (
+                                <Badge key={r.id} variant="default" className="text-[10px]">{r.name}</Badge>
+                              ))}
+                            </div>
+                          </td>
+                          <td className="p-3">
+                            <Badge variant={u.status === 'active' ? 'success' : 'secondary'}>{u.status}</Badge>
+                          </td>
+                          <td className="p-3 text-right space-x-2">
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              className="text-[11px] h-7 px-2 border-slate-700"
+                              onClick={() => handleOpenEditUser(u)}
+                            >
+                              <Pencil className="h-3 w-3 mr-1" />
+                              Gérer / MDP
+                            </Button>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            )}
+
+            {/* Sub-tab: Invoices */}
+            {explorerSubTab === 'invoices' && (
+              <div className="rounded-xl border border-slate-800 bg-slate-900 p-5 space-y-4">
+                <h3 className="font-bold text-white text-sm flex items-center gap-2 border-b border-slate-800 pb-3">
+                  <Receipt className="h-4 w-4 text-green-400" />
+                  Historique des Factures Émises ({tenantInvoices.length})
+                </h3>
+                {tenantInvoices.length === 0 ? (
+                  <p className="text-xs text-slate-500 py-4">Aucune facture enregistrée pour ce compte.</p>
                 ) : (
                   <div className="overflow-x-auto">
-                    <table className="w-full text-left text-xs text-slate-300">
-                      <thead className="bg-slate-950 uppercase font-mono text-slate-400 border-b border-slate-800">
+                    <table className="w-full text-left text-xs">
+                      <thead className="bg-slate-950 text-slate-400 uppercase font-mono border-b border-slate-800">
                         <tr>
-                          <th className="px-4 py-3">Utilisateur</th>
-                          <th className="px-4 py-3">Courriel (Identifiant)</th>
-                          <th className="px-4 py-3">Fiche RH Associée</th>
-                          <th className="px-4 py-3">Rôles Applicatifs</th>
-                          <th className="px-4 py-3">Statut</th>
-                          <th className="px-4 py-3 text-right">Actions Super-Admin</th>
+                          <th className="p-3">Numéro</th>
+                          <th className="p-3">Plan / Cycle</th>
+                          <th className="p-3">Sous-total</th>
+                          <th className="p-3">TPS + TVQ (QC)</th>
+                          <th className="p-3">Total (CAD)</th>
+                          <th className="p-3">Statut</th>
+                          <th className="p-3">Date d'émission</th>
                         </tr>
                       </thead>
                       <tbody className="divide-y divide-slate-800">
-                        {tenantDetails.users.map((u: any) => {
-                          const userObj = u.user;
-                          const hasStaffLink = !!u.linkedStaff;
-                          return (
-                            <tr key={u.membershipId || userObj?.id} className="hover:bg-slate-800/40 transition">
-                              <td className="px-4 py-3">
-                                <div className="flex items-center gap-2.5">
-                                  <div className="h-8 w-8 rounded-full bg-slate-800 border border-slate-700 flex items-center justify-center font-bold text-slate-200 text-xs shrink-0">
-                                    {userObj?.firstName?.[0] || userObj?.email?.[0] || 'U'}
-                                  </div>
-                                  <div>
-                                    <div className="font-bold text-white">
-                                      {userObj?.firstName || userObj?.lastName
-                                        ? `${userObj.firstName || ''} ${userObj.lastName || ''}`.trim()
-                                        : 'Utilisateur sans nom'}
-                                    </div>
-                                    <div className="text-[11px] text-slate-400">
-                                      {userObj?.jobTitle || 'Titre non spécifié'}
-                                      {userObj?.phone && <span className="ml-1.5 font-mono text-slate-500">• {userObj.phone}</span>}
-                                    </div>
-                                  </div>
-                                </div>
-                              </td>
-                              <td className="px-4 py-3 font-mono text-cyan-300">
-                                {userObj?.email}
-                              </td>
-                              <td className="px-4 py-3">
-                                {hasStaffLink ? (
-                                  <div className="flex items-center gap-1.5">
-                                    <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-medium bg-emerald-500/10 text-emerald-400 border border-emerald-500/30">
-                                      <Check className="h-3 w-3" />
-                                      Lié RH : {u.linkedStaff.firstName} {u.linkedStaff.lastName}
-                                    </span>
-                                  </div>
-                                ) : (
-                                  <div className="flex items-center gap-2">
-                                    <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-medium bg-amber-500/10 text-amber-400 border border-amber-500/30">
-                                      <AlertTriangle className="h-3 w-3" />
-                                      Non lié au personnel
-                                    </span>
-                                    <button
-                                      onClick={() => handleOpenEditUser(u)}
-                                      className="text-[10px] text-cyan-400 hover:text-cyan-300 underline"
-                                    >
-                                      Lier
-                                    </button>
-                                  </div>
-                                )}
-                              </td>
-                              <td className="px-4 py-3">
-                                <div className="flex flex-wrap gap-1">
-                                  {u.roles?.map((r: any) => (
-                                    <Badge key={r.id || r.name} variant="secondary" className="text-[10px]">
-                                      {r.name}
-                                    </Badge>
-                                  ))}
-                                  {(!u.roles || u.roles.length === 0) && (
-                                    <span className="text-[10px] text-slate-500">Aucun rôle</span>
-                                  )}
-                                </div>
-                              </td>
-                              <td className="px-4 py-3">
-                                <Badge
-                                  variant={userObj?.status === 'active' ? 'success' : 'secondary'}
-                                  className="text-[10px]"
-                                >
-                                  {userObj?.status === 'active' ? 'Actif' : 'Suspendu'}
-                                </Badge>
-                              </td>
-                              <td className="px-4 py-3 text-right">
-                                <div className="flex items-center justify-end gap-2">
-                                  <Button
-                                    size="sm"
-                                    variant="outline"
-                                    className="text-[11px] border-slate-700 bg-slate-800 hover:bg-slate-700 text-white"
-                                    onClick={() => handleOpenEditUser(u)}
-                                  >
-                                    <Pencil className="h-3 w-3 mr-1 text-cyan-400" />
-                                    Gérer & Réinitialiser
-                                  </Button>
-                                  {userObj && (
-                                    <Button
-                                      size="sm"
-                                      variant="outline"
-                                      className={`text-[11px] border-slate-700 ${
-                                        userObj.status === 'active'
-                                          ? 'text-red-400 hover:bg-red-950/40 hover:border-red-500'
-                                          : 'text-emerald-400 hover:bg-emerald-950/40 hover:border-emerald-500'
-                                      }`}
-                                      onClick={() => {
-                                        const nextStatus = userObj.status === 'active' ? 'suspended' : 'active';
-                                        toggleUserStatusMutation.mutate({ userId: userObj.id, status: nextStatus });
-                                      }}
-                                    >
-                                      {userObj.status === 'active' ? (
-                                        <>
-                                          <UserX className="h-3 w-3 mr-1" />
-                                          Suspendre
-                                        </>
-                                      ) : (
-                                        <>
-                                          <UserCheck className="h-3 w-3 mr-1" />
-                                          Activer
-                                        </>
-                                      )}
-                                    </Button>
-                                  )}
-                                </div>
-                              </td>
-                            </tr>
-                          );
-                        })}
+                        {tenantInvoices.map((inv: any) => (
+                          <tr key={inv.id} className="hover:bg-slate-800/40">
+                            <td className="p-3 font-mono text-amber-300 font-semibold">{inv.invoiceNumber}</td>
+                            <td className="p-3 text-slate-200">{inv.planName} ({inv.billingCycle})</td>
+                            <td className="p-3 font-mono">{Number(inv.subtotal).toFixed(2)} $</td>
+                            <td className="p-3 font-mono text-slate-400">{(Number(inv.taxTps) + Number(inv.taxTvq)).toFixed(2)} $</td>
+                            <td className="p-3 font-mono font-bold text-white">{Number(inv.total).toFixed(2)} $</td>
+                            <td className="p-3">
+                              <Badge variant={inv.status === 'paid' ? 'success' : 'secondary'}>{inv.status}</Badge>
+                            </td>
+                            <td className="p-3 text-slate-400">{new Date(inv.createdAt).toLocaleDateString()}</td>
+                          </tr>
+                        ))}
                       </tbody>
                     </table>
                   </div>
@@ -1415,567 +1550,64 @@ export function PlatformDashboardScreen() {
               </div>
             )}
 
-            {/* Modal d'édition complète du compte utilisateur & Mot de passe */}
-            {editingUserItem && (
-              <div className="fixed inset-0 z-50 bg-slate-950/80 backdrop-blur-sm flex items-center justify-center p-4">
-                <div className="bg-slate-900 border border-slate-800 rounded-2xl max-w-2xl w-full p-6 shadow-2xl space-y-5 max-h-[90vh] overflow-y-auto">
-                  <div className="flex items-center justify-between border-b border-slate-800 pb-3">
-                    <div className="flex items-center gap-2">
-                      <div className="h-9 w-9 rounded-lg bg-cyan-500/10 border border-cyan-500/30 flex items-center justify-center text-cyan-400">
-                        <Key className="h-5 w-5" />
-                      </div>
-                      <div>
-                        <h3 className="text-base font-bold text-white">Gestion du Compte & Identifiants</h3>
-                        <p className="text-xs text-slate-400">
-                          {editingUserItem.user?.email} • {currentSelectedTenant?.name}
-                        </p>
-                      </div>
-                    </div>
-                    <button
-                      onClick={() => setEditingUserItem(null)}
-                      className="text-slate-400 hover:text-white p-1 rounded-lg hover:bg-slate-800"
-                    >
-                      <X className="h-5 w-5" />
-                    </button>
-                  </div>
-
-                  {/* Formulaire des coordonnées */}
-                  <div className="space-y-4">
-                    <h4 className="text-xs font-mono uppercase tracking-wider text-slate-400 flex items-center gap-1.5">
-                      <Briefcase className="h-3.5 w-3.5 text-indigo-400" />
-                      1. Coordonnées & Identité Professionnelle
-                    </h4>
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
-                      <div>
-                        <label className="text-[11px] font-medium text-slate-300 block mb-1">Prénom</label>
-                        <Input
-                          value={editUserFirstName}
-                          onChange={(e) => setEditUserFirstName(e.target.value)}
-                          placeholder="Ex: Jean"
-                          className="bg-slate-950 border-slate-700 text-xs"
-                        />
-                      </div>
-                      <div>
-                        <label className="text-[11px] font-medium text-slate-300 block mb-1">Nom de famille</label>
-                        <Input
-                          value={editUserLastName}
-                          onChange={(e) => setEditUserLastName(e.target.value)}
-                          placeholder="Ex: Tremblay"
-                          className="bg-slate-950 border-slate-700 text-xs"
-                        />
-                      </div>
-                      <div>
-                        <label className="text-[11px] font-medium text-slate-300 block mb-1">Courriel de connexion</label>
-                        <Input
-                          type="email"
-                          value={editUserEmail}
-                          onChange={(e) => setEditUserEmail(e.target.value)}
-                          placeholder="jean.tremblay@organisme.ca"
-                          className="bg-slate-950 border-slate-700 text-xs"
-                        />
-                      </div>
-                      <div>
-                        <label className="text-[11px] font-medium text-slate-300 block mb-1">Téléphone direct</label>
-                        <Input
-                          value={editUserPhone}
-                          onChange={(e) => setEditUserPhone(e.target.value)}
-                          placeholder="514-555-0199"
-                          className="bg-slate-950 border-slate-700 text-xs"
-                        />
-                      </div>
-                      <div className="sm:col-span-2">
-                        <label className="text-[11px] font-medium text-slate-300 block mb-1">Titre du poste / Fonction</label>
-                        <Input
-                          value={editUserJobTitle}
-                          onChange={(e) => setEditUserJobTitle(e.target.value)}
-                          placeholder="Ex: Directeur Général / Coordonnateur de projets"
-                          className="bg-slate-950 border-slate-700 text-xs"
-                        />
-                      </div>
-                    </div>
-
-                    {/* Rôles et Droits */}
-                    <div className="pt-3 border-t border-slate-800 space-y-2">
-                      <h4 className="text-xs font-mono uppercase tracking-wider text-slate-400 flex items-center gap-1.5">
-                        <ShieldCheck className="h-3.5 w-3.5 text-cyan-400" />
-                        2. Rôles & Niveaux d'Accès Applicatifs
-                      </h4>
-                      <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
-                        {['Administrateur', "Membre d'équipe", 'Lecteur', 'Coordonnateur', 'Comptable'].map((roleName) => {
-                          const isSelected = editUserRoles.includes(roleName);
-                          return (
-                            <button
-                              key={roleName}
-                              type="button"
-                              onClick={() => {
-                                if (isSelected) {
-                                  setEditUserRoles(editUserRoles.filter((r) => r !== roleName));
-                                } else {
-                                  setEditUserRoles([...editUserRoles, roleName]);
-                                }
-                              }}
-                              className={`p-2.5 rounded-lg border text-left flex items-center justify-between text-xs transition ${
-                                isSelected
-                                  ? 'bg-cyan-950/50 border-cyan-500 text-cyan-200 font-bold'
-                                  : 'bg-slate-950 border-slate-800 text-slate-400 hover:border-slate-700'
-                              }`}
-                            >
-                              <span>{roleName}</span>
-                              {isSelected ? (
-                                <Check className="h-4 w-4 text-cyan-400 shrink-0" />
-                              ) : (
-                                <div className="h-4 w-4 rounded border border-slate-700 shrink-0" />
-                              )}
-                            </button>
-                          );
-                        })}
-                      </div>
-                    </div>
-
-                    {/* Réinitialisation de mot de passe */}
-                    <div className="pt-3 border-t border-slate-800 space-y-2">
-                      <div className="flex items-center justify-between">
-                        <h4 className="text-xs font-mono uppercase tracking-wider text-slate-400 flex items-center gap-1.5">
-                          <Lock className="h-3.5 w-3.5 text-amber-400" />
-                          3. Sécurité & Réinitialisation du Mot de Passe
-                        </h4>
-                        <button
-                          type="button"
-                          onClick={generateRandomPassword}
-                          className="inline-flex items-center gap-1 text-[11px] text-amber-400 hover:text-amber-300 font-medium"
-                        >
-                          <Sparkles className="h-3.5 w-3.5" />
-                          Générer un mot de passe temporaire
-                        </button>
-                      </div>
-                      <p className="text-[11px] text-slate-400">
-                        Laissez ce champ vide pour conserver le mot de passe actuel sans modification.
-                      </p>
-                      <div className="flex gap-2">
-                        <Input
-                          type="text"
-                          value={editUserPassword}
-                          onChange={(e) => setEditUserPassword(e.target.value)}
-                          placeholder="Saisir ou générer un nouveau mot de passe (min. 8 caractères)..."
-                          className="bg-slate-950 border-slate-700 text-xs font-mono text-amber-300"
-                        />
-                      </div>
-                    </div>
-
-                    {/* Statut du compte */}
-                    <div className="pt-3 border-t border-slate-800 space-y-2">
-                      <h4 className="text-xs font-mono uppercase tracking-wider text-slate-400 flex items-center gap-1.5">
-                        <Power className="h-3.5 w-3.5 text-emerald-400" />
-                        4. Statut d'Activité du Compte
-                      </h4>
-                      <div className="flex gap-3">
-                        <label className="flex items-center gap-2 cursor-pointer text-xs">
-                          <input
-                            type="radio"
-                            name="userStatus"
-                            value="active"
-                            checked={editUserStatus === 'active'}
-                            onChange={() => setEditUserStatus('active')}
-                            className="text-emerald-500 focus:ring-emerald-500"
-                          />
-                          <span className="text-emerald-400 font-medium">Actif (Accès autorisé)</span>
-                        </label>
-                        <label className="flex items-center gap-2 cursor-pointer text-xs">
-                          <input
-                            type="radio"
-                            name="userStatus"
-                            value="suspended"
-                            checked={editUserStatus === 'suspended'}
-                            onChange={() => setEditUserStatus('suspended')}
-                            className="text-red-500 focus:ring-red-500"
-                          />
-                          <span className="text-red-400 font-medium">Suspendu (Accès bloqué)</span>
-                        </label>
-                      </div>
-                    </div>
-
-                    {/* Liaison RH au dossier Personnel */}
-                    <div className="pt-3 border-t border-slate-800 space-y-3">
-                      <h4 className="text-xs font-mono uppercase tracking-wider text-slate-400 flex items-center gap-1.5">
-                        <Users className="h-3.5 w-3.5 text-purple-400" />
-                        5. Liaison avec la Fiche RH du Personnel
-                      </h4>
-                      {editingUserItem.linkedStaff ? (
-                        <div className="p-3 rounded-lg bg-emerald-950/40 border border-emerald-500/30 text-xs space-y-1">
-                          <div className="flex items-center gap-2 text-emerald-300 font-bold">
-                            <Check className="h-4 w-4" />
-                            Ce compte utilisateur est lié à : {editingUserItem.linkedStaff.firstName} {editingUserItem.linkedStaff.lastName}
-                          </div>
-                          <div className="text-slate-400 text-[11px]">
-                            Poste RH : {editingUserItem.linkedStaff.jobTitle || 'Non renseigné'} • Statut RH : {editingUserItem.linkedStaff.staffStatus || 'Actif'}
-                          </div>
-                        </div>
-                      ) : (
-                        <div className="p-3 rounded-lg bg-slate-950 border border-slate-800 space-y-3">
-                          <div className="flex items-center gap-2 text-amber-400 text-xs">
-                            <AlertTriangle className="h-4 w-4 shrink-0" />
-                            <span>Ce compte utilisateur n'est relié à aucune fiche collaborateur dans le module Personnel.</span>
-                          </div>
-
-                          <div className="space-y-2">
-                            <div className="flex gap-4 text-xs">
-                              <label className="flex items-center gap-1.5 cursor-pointer">
-                                <input
-                                  type="radio"
-                                  name="linkMode"
-                                  value="new"
-                                  checked={linkStaffMode === 'new'}
-                                  onChange={() => setLinkStaffMode('new')}
-                                />
-                                <span className="text-slate-300 font-medium">Créer une nouvelle fiche RH</span>
-                              </label>
-                              <label className="flex items-center gap-1.5 cursor-pointer">
-                                <input
-                                  type="radio"
-                                  name="linkMode"
-                                  value="existing"
-                                  checked={linkStaffMode === 'existing'}
-                                  onChange={() => setLinkStaffMode('existing')}
-                                />
-                                <span className="text-slate-300 font-medium">Lier à un collaborateur existant</span>
-                              </label>
-                            </div>
-
-                            {linkStaffMode === 'new' ? (
-                              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs pt-1">
-                                <div>
-                                  <label className="text-[10px] text-slate-400 block mb-0.5">Type de collaborateur</label>
-                                  <select
-                                    value={newStaffType}
-                                    onChange={(e) => setNewStaffType(e.target.value as any)}
-                                    className="w-full h-8 rounded border border-slate-700 bg-slate-900 px-2 text-xs text-slate-200"
-                                  >
-                                    <option value="employee">Salarié / Employé</option>
-                                    <option value="volunteer">Bénévole</option>
-                                    <option value="contractor">Contractuel / Consultant</option>
-                                    <option value="board_member">Membre du CA</option>
-                                  </select>
-                                </div>
-                                <div>
-                                  <label className="text-[10px] text-slate-400 block mb-0.5">Département</label>
-                                  <select
-                                    value={newStaffDeptId}
-                                    onChange={(e) => setNewStaffDeptId(e.target.value)}
-                                    className="w-full h-8 rounded border border-slate-700 bg-slate-900 px-2 text-xs text-slate-200"
-                                  >
-                                    <option value="">Aucun département</option>
-                                    {(tenantDetails.departments || []).map((d: any) => (
-                                      <option key={d.id} value={d.id}>
-                                        {d.name}
-                                      </option>
-                                    ))}
-                                  </select>
-                                </div>
-                              </div>
-                            ) : (
-                              <div className="text-xs pt-1">
-                                <label className="text-[10px] text-slate-400 block mb-0.5">Sélectionner le collaborateur</label>
-                                <select
-                                  value={selectedExistingPartyId}
-                                  onChange={(e) => setSelectedExistingPartyId(e.target.value)}
-                                  className="w-full h-8 rounded border border-slate-700 bg-slate-900 px-2 text-xs text-slate-200"
-                                >
-                                  <option value="">-- Choisir un collaborateur --</option>
-                                  {(tenantDetails.staff || []).map((s: any) => (
-                                    <option key={s.id} value={s.id}>
-                                      {s.firstName} {s.lastName} ({s.jobTitle || 'Sans titre'} • {s.staffType})
-                                    </option>
-                                  ))}
-                                </select>
-                              </div>
-                            )}
-
-                            <Button
-                              type="button"
-                              size="sm"
-                              className="w-full bg-purple-600 hover:bg-purple-500 text-white font-bold text-xs mt-2"
-                              disabled={linkStaffMutation.isPending}
-                              onClick={() => {
-                                linkStaffMutation.mutate({
-                                  userId: editingUserItem.user.id,
-                                  payload: {
-                                    createIfMissing: linkStaffMode === 'new',
-                                    partyId: linkStaffMode === 'existing' ? selectedExistingPartyId : undefined,
-                                    jobTitle: editUserJobTitle,
-                                    staffType: newStaffType,
-                                    departmentId: newStaffDeptId || undefined,
-                                  },
-                                });
-                              }}
-                            >
-                              <Link2 className="h-3.5 w-3.5 mr-1" />
-                              {linkStaffMutation.isPending
-                                ? 'Liaison en cours...'
-                                : linkStaffMode === 'new'
-                                ? 'Créer la fiche RH et lier immédiatement'
-                                : 'Associer à cette fiche collaborateur'}
-                            </Button>
-                          </div>
-                        </div>
-                      )}
-                    </div>
-                  </div>
-
-                  {/* Actions de validation */}
-                  <div className="flex items-center justify-end gap-3 pt-4 border-t border-slate-800">
-                    <Button
-                      variant="outline"
-                      className="border-slate-700 text-slate-300 text-xs"
-                      onClick={() => setEditingUserItem(null)}
-                    >
-                      Annuler
-                    </Button>
-                    <Button
-                      className="bg-cyan-600 hover:bg-cyan-500 text-white font-bold text-xs"
-                      disabled={updateUserMutation.isPending}
-                      onClick={() => {
-                        updateUserMutation.mutate({
-                          userId: editingUserItem.user.id,
-                          payload: {
-                            firstName: editUserFirstName,
-                            lastName: editUserLastName,
-                            email: editUserEmail,
-                            phone: editUserPhone,
-                            jobTitle: editUserJobTitle,
-                            roleNames: editUserRoles,
-                            status: editUserStatus,
-                            ...(editUserPassword.trim() ? { password: editUserPassword.trim() } : {}),
-                          },
-                        });
-                      }}
-                    >
-                      {updateUserMutation.isPending ? 'Enregistrement...' : 'Enregistrer toutes les modifications'}
-                    </Button>
-                  </div>
-                </div>
-              </div>
-            )}
-
-            {/* Sub-tab 7: Paramètres & Logo Client */}
-            {explorerSubTab === 'settings' && (
-              <div className="rounded-xl border border-slate-800 bg-slate-900 p-6 shadow-lg space-y-6">
-                <div className="flex items-center justify-between border-b border-slate-800 pb-3">
-                  <div className="flex items-center gap-2">
-                    <Settings className="h-5 w-5 text-amber-400" />
-                    <h3 className="font-bold text-white text-base">Configuration & Profil de l'Organisme Client</h3>
-                  </div>
-                </div>
-
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-xs">
-                  <div>
-                    <label className="text-[11px] font-mono text-slate-400 block mb-1">Nom légal de l'organisme</label>
-                    <Input
-                      value={editName}
-                      onChange={(e) => setEditName(e.target.value)}
-                      className="bg-slate-950 border-slate-700 text-slate-100"
-                    />
-                  </div>
-
-                  <div>
-                    <label className="text-[11px] font-mono text-slate-400 block mb-1">Acronyme / Sigle</label>
-                    <Input
-                      value={editAcronym}
-                      onChange={(e) => setEditAcronym(e.target.value)}
-                      className="bg-slate-950 border-slate-700 text-slate-100"
-                    />
-                  </div>
-
-                  <div>
-                    <label className="text-[11px] font-mono text-slate-400 block mb-1">Type d'entité</label>
-                    <Input
-                      value={editOrgType}
-                      onChange={(e) => setEditOrgType(e.target.value)}
-                      className="bg-slate-950 border-slate-700 text-slate-100"
-                    />
-                  </div>
-
-                  <div>
-                    <label className="text-[11px] font-mono text-slate-400 block mb-1">Numéro NEQ (Québec)</label>
-                    <Input
-                      value={editNeq}
-                      onChange={(e) => setEditNeq(e.target.value)}
-                      className="bg-slate-950 border-slate-700 text-slate-100"
-                    />
-                  </div>
-
-                  <div>
-                    <label className="text-[11px] font-mono text-slate-400 block mb-1">Courriel officiel</label>
-                    <Input
-                      value={editEmail}
-                      onChange={(e) => setEditEmail(e.target.value)}
-                      className="bg-slate-950 border-slate-700 text-slate-100"
-                    />
-                  </div>
-
-                  <div>
-                    <label className="text-[11px] font-mono text-slate-400 block mb-1">Téléphone officiel</label>
-                    <Input
-                      value={editPhone}
-                      onChange={(e) => setEditPhone(e.target.value)}
-                      className="bg-slate-950 border-slate-700 text-slate-100"
-                    />
-                  </div>
-
-                  <div className="md:col-span-2">
-                    <label className="text-[11px] font-mono text-slate-400 block mb-1">Adresse postale complète</label>
-                    <Input
-                      value={editAddress}
-                      onChange={(e) => setEditAddress(e.target.value)}
-                      className="bg-slate-950 border-slate-700 text-slate-100"
-                    />
-                  </div>
-
-                  <div>
-                    <label className="text-[11px] font-mono text-slate-400 block mb-1">Site Web</label>
-                    <Input
-                      value={editWebsite}
-                      onChange={(e) => setEditWebsite(e.target.value)}
-                      className="bg-slate-950 border-slate-700 text-slate-100"
-                    />
-                  </div>
-
-                  <div>
-                    <label className="text-[11px] font-mono text-slate-400 block mb-1">URL du Logo (White-Label)</label>
-                    <Input
-                      value={editLogoUrl}
-                      onChange={(e) => setEditLogoUrl(e.target.value)}
-                      className="bg-slate-950 border-slate-700 text-slate-100"
-                    />
-                  </div>
-
-                  <div>
-                    <label className="text-[11px] font-mono text-slate-400 block mb-1">Responsable Protection PRP (Loi 25)</label>
-                    <Input
-                      value={editPrivacyOfficerName}
-                      onChange={(e) => setEditPrivacyOfficerName(e.target.value)}
-                      className="bg-slate-950 border-slate-700 text-slate-100"
-                    />
-                  </div>
-
-                  <div>
-                    <label className="text-[11px] font-mono text-slate-400 block mb-1">Courriel PRP Loi 25</label>
-                    <Input
-                      value={editPrivacyOfficerEmail}
-                      onChange={(e) => setEditPrivacyOfficerEmail(e.target.value)}
-                      className="bg-slate-950 border-slate-700 text-slate-100"
-                    />
-                  </div>
-
-                  <div>
-                    <label className="text-[11px] font-mono text-slate-400 block mb-1">Rétention des données (Mois)</label>
-                    <Input
-                      type="number"
-                      value={editDataRetention}
-                      onChange={(e) => setEditDataRetention(Number(e.target.value))}
-                      className="bg-slate-950 border-slate-700 text-slate-100"
-                    />
-                  </div>
-
-                  <div>
-                    <label className="text-[11px] font-mono text-slate-400 block mb-1">Mode d'hébergement SaaS</label>
-                    <select
-                      value={editMode}
-                      onChange={(e) => setEditMode(e.target.value as any)}
-                      className="w-full h-9 rounded-lg border border-slate-700 bg-slate-950 px-3 text-xs text-slate-200"
-                    >
-                      <option value="shared">Shared (Multi-tenant standard)</option>
-                      <option value="dedicated">Dedicated (Schéma isolé)</option>
-                      <option value="self_hosted">Self-Hosted (Déploiement sur site)</option>
-                    </select>
-                  </div>
-                </div>
-
-                <div className="flex justify-end pt-4 border-t border-slate-800">
-                  <Button
-                    className="bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold text-xs"
-                    onClick={() => {
-                      updateTenantMutation.mutate({
-                        name: editName,
-                        acronym: editAcronym,
-                        orgType: editOrgType,
-                        neqNumber: editNeq,
-                        description: editDescription,
-                        email: editEmail,
-                        phone: editPhone,
-                        address: editAddress,
-                        website: editWebsite,
-                        logoUrl: editLogoUrl,
-                        privacyOfficerName: editPrivacyOfficerName,
-                        privacyOfficerEmail: editPrivacyOfficerEmail,
-                        dataRetentionMonths: editDataRetention,
-                        mode: editMode,
-                      });
-                    }}
-                    disabled={updateTenantMutation.isPending}
-                  >
-                    {updateTenantMutation.isPending ? 'Enregistrement...' : 'Enregistrer tous les paramètres du client'}
-                  </Button>
-                </div>
-              </div>
-            )}
-
-            {/* Sub-tab 8: Accès Support Break-Glass */}
+            {/* Sub-tab: Support Break-Glass */}
             {explorerSubTab === 'support' && (
-              <div className="rounded-xl border border-slate-800 bg-slate-900 p-6 shadow-lg space-y-4">
-                <div className="flex items-center gap-2 border-b border-slate-800 pb-3">
-                  <Lock className="h-5 w-5 text-red-400" />
-                  <h3 className="font-bold text-white text-base">Accès Support d'Urgence & Audit Loi 25</h3>
+              <div className="rounded-xl border border-red-900/60 bg-slate-900 p-6 space-y-6">
+                <div className="border-b border-red-900/40 pb-4">
+                  <h3 className="text-lg font-bold text-red-400 flex items-center gap-2">
+                    <Lock className="h-5 w-5 text-red-400" />
+                    Accès Support d'Urgence (Break-Glass Loi 25)
+                  </h3>
+                  <p className="text-xs text-slate-400 mt-1">
+                    Débloquez un accès temporaire pour dépannage technique ou assistance à la demande du client. Cet événement est horodaté et consigné dans le registre légal Loi 25.
+                  </p>
                 </div>
-
-                <p className="text-xs text-slate-400">
-                  Permet à un Super-Admin de débloquer temporairement un accès de dépannage avec consignation obligatoire dans le journal d'audit conformément à la Loi 25.
-                </p>
 
                 {supportFeedback && (
-                  <div className="p-3 rounded-lg bg-emerald-950/60 border border-emerald-500/40 text-emerald-300 text-xs flex items-center gap-2">
-                    <Check className="h-4 w-4 shrink-0" />
-                    {supportFeedback}
+                  <div className="p-3 bg-red-950/40 border border-red-800 text-red-300 text-xs rounded-lg flex items-center gap-2">
+                    <CheckCircle2 className="h-4 w-4 text-red-400 shrink-0" />
+                    <span>{supportFeedback}</span>
                   </div>
                 )}
 
-                <div className="space-y-3 max-w-xl">
+                <div className="max-w-xl space-y-4">
                   <div>
-                    <label className="text-[11px] font-mono text-slate-400 block mb-1">
-                      Justification obligatoire (Audit Loi 25)
-                    </label>
+                    <label className="text-xs font-bold text-slate-300 block mb-1">Motif de l'intervention de support (Requis Loi 25) :</label>
                     <Input
+                      placeholder="Ex: Demande expresse du directeur pour déblocage import subventions..."
                       value={supportReason}
                       onChange={(e) => setSupportReason(e.target.value)}
-                      placeholder="Ex: Demande de support ticket #4092 - incident synchronisation"
-                      className="bg-slate-950 border-slate-700 text-xs"
+                      className="bg-slate-950 border-slate-700 text-xs text-white"
                     />
                   </div>
 
                   <div>
-                    <label className="text-[11px] font-mono text-slate-400 block mb-1">Durée de l'accès (minutes)</label>
+                    <label className="text-xs font-bold text-slate-300 block mb-1">Durée d'autorisation :</label>
                     <select
                       value={supportDuration}
-                      onChange={(e) => setSupportDuration(Number(e.target.value))}
-                      className="w-full h-9 rounded-lg border border-slate-700 bg-slate-950 px-3 text-xs text-slate-200"
+                      onChange={(e) => setSupportDuration(parseInt(e.target.value, 10))}
+                      className="w-full rounded bg-slate-950 border border-slate-700 px-3 py-2 text-xs text-white"
                     >
                       <option value={30}>30 minutes</option>
-                      <option value={60}>1 heure (Recommandé)</option>
+                      <option value={60}>1 heure (recommandé)</option>
                       <option value={120}>2 heures</option>
                       <option value={240}>4 heures</option>
                     </select>
                   </div>
 
                   <Button
-                    className="bg-red-600 hover:bg-red-500 text-white font-bold text-xs"
-                    disabled={!supportReason.trim() || grantSupportMutation.isPending}
                     onClick={() => {
-                      grantSupportMutation.mutate({
-                        reason: supportReason,
-                        durationMinutes: supportDuration,
-                      });
+                      if (!supportReason.trim()) {
+                        alert('Veuillez spécifier le motif légal de l’intervention.');
+                        return;
+                      }
+                      grantSupportMutation.mutate({ reason: supportReason, durationMinutes: supportDuration });
                     }}
+                    disabled={grantSupportMutation.isPending}
+                    className="bg-red-600 hover:bg-red-500 text-white font-bold text-xs"
                   >
-                    {grantSupportMutation.isPending ? 'Activation...' : "Activer l'accès support Loi 25"}
+                    <Lock className="mr-1.5 h-4 w-4" />
+                    {grantSupportMutation.isPending ? 'Activation...' : 'Activer l’Accès d’Urgence'}
                   </Button>
                 </div>
               </div>
@@ -1984,159 +1616,528 @@ export function PlatformDashboardScreen() {
         )}
 
         {/* ═════════════════════════════════════════════════════════════════ */}
-        {/* TAB 2: VUE GLOBALE DU SAAS                                        */}
+        {/* PILIER 2 : COCKPIT FINANCIER & MRR (MONÉTISATION)                 */}
         {/* ═════════════════════════════════════════════════════════════════ */}
-        {activeTab === 'overview' && (
+        {activeTab === 'financials' && (
           <div className="space-y-6">
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-              <div className="rounded-xl border border-slate-800 bg-slate-900 p-5 shadow-sm">
-                <div className="flex items-center justify-between">
-                  <span className="text-xs font-mono text-slate-400 uppercase">Organismes Clients</span>
-                  <div className="rounded-lg bg-indigo-500/10 p-2 text-indigo-400 border border-indigo-500/20">
-                    <Building className="h-5 w-5" />
-                  </div>
+              <div className="rounded-xl border border-slate-800 bg-slate-900 p-5 shadow">
+                <div className="flex items-center justify-between text-slate-400 text-xs font-mono uppercase">
+                  <span>MRR (Revenu Mensuel)</span>
+                  <DollarSign className="h-4 w-4 text-emerald-400" />
                 </div>
-                <div className="mt-3 flex items-baseline justify-between">
-                  <div className="text-2xl font-bold text-white">{tenants.length}</div>
-                  <Badge variant="default" className="text-[10px]">{activeTenants} Actifs / {suspendedTenants} Suspendus</Badge>
+                <div className="mt-2 text-3xl font-extrabold text-emerald-400">
+                  {financials?.totalMRR?.toLocaleString() || '0'} $
                 </div>
-                <p className="mt-2 text-xs text-slate-400 flex items-center">
-                  <Activity className="mr-1 h-3.5 w-3.5 text-emerald-400" />
-                  Multi-tenant prêt pour la mise à l'échelle
-                </p>
+                <div className="text-[11px] text-slate-400 mt-1">CAD récurrent mensuel</div>
               </div>
 
-              <div className="rounded-xl border border-slate-800 bg-slate-900 p-5 shadow-sm">
-                <div className="flex items-center justify-between">
-                  <span className="text-xs font-mono text-slate-400 uppercase">Effectifs & Utilisateurs</span>
-                  <div className="rounded-lg bg-emerald-500/10 p-2 text-emerald-400 border border-emerald-500/20">
-                    <Users className="h-5 w-5" />
-                  </div>
+              <div className="rounded-xl border border-slate-800 bg-slate-900 p-5 shadow">
+                <div className="flex items-center justify-between text-slate-400 text-xs font-mono uppercase">
+                  <span>ARR (Revenu Annuel)</span>
+                  <TrendingUp className="h-4 w-4 text-blue-400" />
                 </div>
-                <div className="mt-3 flex items-baseline justify-between">
-                  <div className="text-2xl font-bold text-white">{totalRegisteredStaff} Membres</div>
-                  <Badge variant="default" className="text-[10px]">{totalVolunteers} Bénévoles</Badge>
+                <div className="mt-2 text-3xl font-extrabold text-blue-400">
+                  {financials?.totalARR?.toLocaleString() || '0'} $
                 </div>
-                <p className="mt-2 text-xs text-slate-400 flex items-center">
-                  <UserCheck className="mr-1 h-3.5 w-3.5 text-blue-400" />
-                  {totalRegisteredUsers} comptes informatiques actifs
-                </p>
+                <div className="text-[11px] text-slate-400 mt-1">Projection annuelle</div>
               </div>
 
-              <div className="rounded-xl border border-slate-800 bg-slate-900 p-5 shadow-sm">
-                <div className="flex items-center justify-between">
-                  <span className="text-xs font-mono text-slate-400 uppercase">Activité Opérationnelle</span>
-                  <div className="rounded-lg bg-amber-500/10 p-2 text-amber-400 border border-amber-500/20">
-                    <FolderKanban className="h-5 w-5" />
-                  </div>
+              <div className="rounded-xl border border-slate-800 bg-slate-900 p-5 shadow">
+                <div className="flex items-center justify-between text-slate-400 text-xs font-mono uppercase">
+                  <span>Abonnements Actifs</span>
+                  <Award className="h-4 w-4 text-amber-400" />
                 </div>
-                <div className="mt-3 flex items-baseline justify-between">
-                  <div className="text-2xl font-bold text-amber-400">{totalProjects} Projets</div>
-                  <Badge variant="success" className="text-[10px]">WBS Rollup Actif</Badge>
+                <div className="mt-2 text-3xl font-extrabold text-white">
+                  {financials?.activeSubscriptions || 0}
                 </div>
-                <p className="mt-2 text-xs text-slate-400 flex items-center">
-                  <Check className="mr-1 h-3.5 w-3.5 text-emerald-400" />
-                  Gestion de projets & budgets temps réel
-                </p>
+                <div className="text-[11px] text-slate-400 mt-1">Sur {tenants.length} organismes enregistrés</div>
               </div>
 
-              <div className="rounded-xl border border-slate-800 bg-slate-900 p-5 shadow-sm">
-                <div className="flex items-center justify-between">
-                  <span className="text-xs font-mono text-slate-400 uppercase">Isolation RLS & Loi 25</span>
-                  <div className="rounded-lg bg-purple-500/10 p-2 text-purple-400 border border-purple-500/20">
-                    <ShieldCheck className="h-5 w-5" />
-                  </div>
+              <div className="rounded-xl border border-slate-800 bg-slate-900 p-5 shadow">
+                <div className="flex items-center justify-between text-slate-400 text-xs font-mono uppercase">
+                  <span>Impayés / En Retard</span>
+                  <AlertTriangle className="h-4 w-4 text-rose-400" />
                 </div>
-                <div className="mt-3 flex items-baseline justify-between">
-                  <div className="text-2xl font-bold text-emerald-400">100% Étanchéité</div>
-                  <Badge variant="default" className="text-[10px]">RLS Multi-Tenant</Badge>
+                <div className="mt-2 text-3xl font-extrabold text-rose-400">
+                  {financials?.pastDueCount || 0}
                 </div>
-                <p className="mt-2 text-xs text-slate-400 flex items-center">
-                  <Lock className="mr-1 h-3.5 w-3.5 text-purple-400" />
-                  Zéro fuite inter-organismes certifiée
-                </p>
+                <div className="text-[11px] text-slate-400 mt-1">Comptes à relancer</div>
+              </div>
+            </div>
+
+            {/* Plans Distribution & Recent Invoices */}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              <div className="rounded-xl border border-slate-800 bg-slate-900 p-5 space-y-4">
+                <h3 className="font-bold text-white text-sm flex items-center gap-2 border-b border-slate-800 pb-3">
+                  <Award className="h-4 w-4 text-amber-400" />
+                  Répartition par Forfait SaaS
+                </h3>
+                <div className="space-y-3">
+                  {financials?.plans?.map((p: any) => {
+                    const count = financials?.planDistribution?.[p.code] || 0;
+                    return (
+                      <div key={p.id} className="p-3 bg-slate-950 rounded-lg border border-slate-800 flex items-center justify-between">
+                        <div>
+                          <div className="font-bold text-white text-xs">{p.name} ({p.code})</div>
+                          <div className="text-[11px] text-slate-400">
+                            {Number(p.priceMonthly).toFixed(0)} $/mois • Jusqu'à {p.maxUsers} utilisateurs
+                          </div>
+                        </div>
+                        <div className="text-right">
+                          <Badge variant="default" className="text-xs font-bold">{count} Client(s)</Badge>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+
+              <div className="rounded-xl border border-slate-800 bg-slate-900 p-5 space-y-4">
+                <h3 className="font-bold text-white text-sm flex items-center gap-2 border-b border-slate-800 pb-3">
+                  <Receipt className="h-4 w-4 text-green-400" />
+                  Dernières Factures Émises sur la Plateforme
+                </h3>
+                <div className="space-y-2 max-h-80 overflow-y-auto pr-1">
+                  {financials?.recentInvoices?.map((inv: any) => (
+                    <div key={inv.id} className="p-3 bg-slate-950 rounded-lg border border-slate-800 flex items-center justify-between text-xs">
+                      <div>
+                        <div className="font-semibold text-white">{inv.tenant?.name || 'Client'}</div>
+                        <div className="text-[11px] text-slate-400 font-mono">{inv.invoiceNumber} • {new Date(inv.createdAt).toLocaleDateString()}</div>
+                      </div>
+                      <div className="text-right">
+                        <div className="font-bold text-white font-mono">{Number(inv.total).toFixed(2)} $ CAD</div>
+                        <Badge variant={inv.status === 'paid' ? 'success' : 'secondary'} className="text-[10px]">{inv.status}</Badge>
+                      </div>
+                    </div>
+                  ))}
+                </div>
               </div>
             </div>
           </div>
         )}
 
         {/* ═════════════════════════════════════════════════════════════════ */}
-        {/* TAB 3: TABLEAU DE TOUS LES COMPTES CLIENTS                         */}
+        {/* PILIER 3 : PROVISIONING CLIENT ASSISTÉ & NOUVEAU CLIENT          */}
         {/* ═════════════════════════════════════════════════════════════════ */}
-        {activeTab === 'clients' && (
-          <div className="space-y-6">
-            <div className="flex flex-wrap items-center justify-between gap-4 rounded-xl border border-slate-800 bg-slate-900 p-4 shadow-sm">
-              <div className="flex flex-wrap items-center gap-3">
-                <div className="flex items-center gap-2">
-                  <Filter className="h-4 w-4 text-slate-400" />
-                  <span className="text-xs font-bold text-slate-300">Statut :</span>
-                  <select
-                    value={statusFilter}
-                    onChange={(e) => setStatusFilter(e.target.value as any)}
-                    className="rounded-lg border border-slate-700 bg-slate-950 px-2.5 py-1.5 text-xs font-medium text-slate-200"
+        {activeTab === 'provisioning' && (
+          <div className="rounded-2xl border border-slate-800 bg-slate-900 p-6 space-y-6 max-w-4xl mx-auto shadow-2xl">
+            <div className="border-b border-slate-800 pb-4">
+              <div className="flex items-center gap-2 text-indigo-400 font-mono text-xs uppercase font-bold">
+                <PlusCircle className="h-4 w-4" />
+                <span>Assistant de Provisioning Fournisseur</span>
+              </div>
+              <h2 className="text-xl font-bold text-white mt-1">Créer et Déployer un Nouvel Organisme Client</h2>
+              <p className="text-xs text-slate-400">
+                Créez le tenant, configurez ses quotas, générez son administrateur principal et activez ses modules en 3 étapes.
+              </p>
+            </div>
+
+            {/* Stepper */}
+            <div className="flex items-center justify-between border-b border-slate-800 pb-4 text-xs font-bold">
+              <button
+                onClick={() => setProvStep(1)}
+                className={`flex items-center gap-2 ${provStep === 1 ? 'text-amber-400' : 'text-slate-400'}`}
+              >
+                <span className={`h-6 w-6 rounded-full flex items-center justify-center ${provStep === 1 ? 'bg-amber-400 text-slate-950 font-bold' : 'bg-slate-800 text-slate-300'}`}>1</span>
+                <span>Fiche d'Identité & Coordonnées</span>
+              </button>
+              <ChevronRight className="h-4 w-4 text-slate-600" />
+              <button
+                onClick={() => setProvStep(2)}
+                className={`flex items-center gap-2 ${provStep === 2 ? 'text-amber-400' : 'text-slate-400'}`}
+              >
+                <span className={`h-6 w-6 rounded-full flex items-center justify-center ${provStep === 2 ? 'bg-amber-400 text-slate-950 font-bold' : 'bg-slate-800 text-slate-300'}`}>2</span>
+                <span>Forfait & Mode d'Hébergement</span>
+              </button>
+              <ChevronRight className="h-4 w-4 text-slate-600" />
+              <button
+                onClick={() => setProvStep(3)}
+                className={`flex items-center gap-2 ${provStep === 3 ? 'text-amber-400' : 'text-slate-400'}`}
+              >
+                <span className={`h-6 w-6 rounded-full flex items-center justify-center ${provStep === 3 ? 'bg-amber-400 text-slate-950 font-bold' : 'bg-slate-800 text-slate-300'}`}>3</span>
+                <span>Administrateur Initial & Loi 25</span>
+              </button>
+            </div>
+
+            {provSuccessFeedback && (
+              <div className="p-4 bg-emerald-950/80 border border-emerald-800 text-emerald-300 text-xs rounded-xl flex items-center gap-3">
+                <CheckCircle2 className="h-5 w-5 text-emerald-400 shrink-0" />
+                <span className="font-semibold">{provSuccessFeedback}</span>
+              </div>
+            )}
+
+            {/* Step 1: Legal & Profile */}
+            {provStep === 1 && (
+              <div className="space-y-4">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <div>
+                    <label className="text-xs font-bold text-slate-300 block mb-1">Raison Sociale / Nom de l'organisme *</label>
+                    <Input
+                      placeholder="Ex: Fondation Espoir Jeunesse"
+                      value={provName}
+                      onChange={(e) => {
+                        setProvName(e.target.value);
+                        if (!provSlug) {
+                          setProvSlug(e.target.value.toLowerCase().replace(/[^a-z0-9]/g, '-'));
+                        }
+                      }}
+                      className="bg-slate-950 border-slate-700 text-xs text-white"
+                    />
+                  </div>
+                  <div>
+                    <label className="text-xs font-bold text-slate-300 block mb-1">Slug URL unique (ex: espoir-jeunesse) *</label>
+                    <Input
+                      placeholder="ex: espoir-jeunesse"
+                      value={provSlug}
+                      onChange={(e) => setProvSlug(e.target.value.toLowerCase().replace(/[^a-z0-9-]/g, ''))}
+                      className="bg-slate-950 border-slate-700 text-xs text-white font-mono"
+                    />
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                  <div>
+                    <label className="text-xs font-bold text-slate-300 block mb-1">Acronyme</label>
+                    <Input
+                      placeholder="Ex: FEJ"
+                      value={provAcronym}
+                      onChange={(e) => setProvAcronym(e.target.value)}
+                      className="bg-slate-950 border-slate-700 text-xs text-white"
+                    />
+                  </div>
+                  <div>
+                    <label className="text-xs font-bold text-slate-300 block mb-1">Numéro NEQ (Québec)</label>
+                    <Input
+                      placeholder="Ex: 1172839401"
+                      value={provNeq}
+                      onChange={(e) => setProvNeq(e.target.value)}
+                      className="bg-slate-950 border-slate-700 text-xs text-white font-mono"
+                    />
+                  </div>
+                  <div>
+                    <label className="text-xs font-bold text-slate-300 block mb-1">Courriel officiel *</label>
+                    <Input
+                      type="email"
+                      placeholder="direction@organisme.org"
+                      value={provEmail}
+                      onChange={(e) => setProvEmail(e.target.value)}
+                      className="bg-slate-950 border-slate-700 text-xs text-white"
+                    />
+                  </div>
+                </div>
+
+                <div className="flex justify-end pt-4">
+                  <Button
+                    onClick={() => {
+                      if (!provName.trim() || !provSlug.trim() || !provEmail.trim()) {
+                        alert('Veuillez remplir le nom, le slug et le courriel.');
+                        return;
+                      }
+                      setProvStep(2);
+                    }}
+                    className="bg-indigo-600 hover:bg-indigo-500 text-white font-bold text-xs"
                   >
-                    <option value="all">Tous les statuts ({tenants.length})</option>
-                    <option value="active">Actifs uniquement ({activeTenants})</option>
-                    <option value="suspended">Suspendus uniquement ({suspendedTenants})</option>
-                  </select>
+                    Suivant : Forfait & Hébergement
+                    <ChevronRight className="ml-1.5 h-4 w-4" />
+                  </Button>
                 </div>
               </div>
+            )}
 
-              <div className="w-80">
-                <Input
-                  value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
-                  placeholder="Rechercher par nom, slug, email, NEQ..."
-                  className="h-9 text-xs bg-slate-950 border-slate-700 text-slate-100"
-                />
+            {/* Step 2: Plan & Isolation Mode */}
+            {provStep === 2 && (
+              <div className="space-y-4">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <div>
+                    <label className="text-xs font-bold text-slate-300 block mb-1">Palier d'Abonnement Initial</label>
+                    <select
+                      value={provPlanCode}
+                      onChange={(e) => setProvPlanCode(e.target.value as any)}
+                      className="w-full rounded-lg bg-slate-950 border border-slate-700 px-3 py-2 text-xs text-white font-bold"
+                    >
+                      <option value="community">Community (Gratuit pour petits OBNL)</option>
+                      <option value="starter">Starter (99 $/mois • 5 postes)</option>
+                      <option value="pro">Pro (199 $/mois • 20 postes & EVM)</option>
+                      <option value="enterprise">Enterprise (Sur-mesure)</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label className="text-xs font-bold text-slate-300 block mb-1">Cycle de Facturation</label>
+                    <select
+                      value={provBillingCycle}
+                      onChange={(e) => setProvBillingCycle(e.target.value as any)}
+                      className="w-full rounded-lg bg-slate-950 border border-slate-700 px-3 py-2 text-xs text-white font-bold"
+                    >
+                      <option value="monthly">Facturation Mensuelle</option>
+                      <option value="annual">Facturation Annuelle (-20%)</option>
+                    </select>
+                  </div>
+                </div>
+
+                <div>
+                  <label className="text-xs font-bold text-slate-300 block mb-1">Mode d'Isolation / Architecture</label>
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                    <label className={`p-3 rounded-xl border cursor-pointer ${provMode === 'shared' ? 'bg-indigo-950/60 border-indigo-500 text-white' : 'bg-slate-950 border-slate-800 text-slate-400'}`}>
+                      <input type="radio" name="mode" checked={provMode === 'shared'} onChange={() => setProvMode('shared')} className="sr-only" />
+                      <div className="font-bold text-xs">Mutualisé (Shared RLS)</div>
+                      <div className="text-[10px] text-slate-400 mt-1">PostgreSQL partagé avec isolation RLS automatique.</div>
+                    </label>
+                    <label className={`p-3 rounded-xl border cursor-pointer ${provMode === 'dedicated' ? 'bg-indigo-950/60 border-indigo-500 text-white' : 'bg-slate-950 border-slate-800 text-slate-400'}`}>
+                      <input type="radio" name="mode" checked={provMode === 'dedicated'} onChange={() => setProvMode('dedicated')} className="sr-only" />
+                      <div className="font-bold text-xs">Instance Dédiée</div>
+                      <div className="text-[10px] text-slate-400 mt-1">Base de données ou schéma isolé pour grands comptes.</div>
+                    </label>
+                    <label className={`p-3 rounded-xl border cursor-pointer ${provMode === 'self_hosted' ? 'bg-indigo-950/60 border-indigo-500 text-white' : 'bg-slate-950 border-slate-800 text-slate-400'}`}>
+                      <input type="radio" name="mode" checked={provMode === 'self_hosted'} onChange={() => setProvMode('self_hosted')} className="sr-only" />
+                      <div className="font-bold text-xs">Auto-hébergé (On-Prem)</div>
+                      <div className="text-[10px] text-slate-400 mt-1">Infrastructure propre gérée par le client.</div>
+                    </label>
+                  </div>
+                </div>
+
+                <div className="flex justify-between pt-4">
+                  <Button variant="outline" onClick={() => setProvStep(1)} className="text-xs border-slate-700">Précédent</Button>
+                  <Button onClick={() => setProvStep(3)} className="bg-indigo-600 hover:bg-indigo-500 text-white font-bold text-xs">
+                    Suivant : Administrateur
+                    <ChevronRight className="ml-1.5 h-4 w-4" />
+                  </Button>
+                </div>
+              </div>
+            )}
+
+            {/* Step 3: Initial Admin & Loi 25 */}
+            {provStep === 3 && (
+              <div className="space-y-4">
+                <div className="rounded-xl bg-slate-950 p-4 border border-slate-800 space-y-4">
+                  <h4 className="text-xs font-mono uppercase text-amber-400 font-bold">Compte Administrateur Principal (Super-User Client)</h4>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <div>
+                      <label className="text-xs font-bold text-slate-300 block mb-1">Prénom *</label>
+                      <Input
+                        placeholder="Ex: Jean"
+                        value={provAdminFirstName}
+                        onChange={(e) => setProvAdminFirstName(e.target.value)}
+                        className="bg-slate-900 border-slate-700 text-xs text-white"
+                      />
+                    </div>
+                    <div>
+                      <label className="text-xs font-bold text-slate-300 block mb-1">Nom *</label>
+                      <Input
+                        placeholder="Ex: Dupont"
+                        value={provAdminLastName}
+                        onChange={(e) => setProvAdminLastName(e.target.value)}
+                        className="bg-slate-900 border-slate-700 text-xs text-white"
+                      />
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <div>
+                      <label className="text-xs font-bold text-slate-300 block mb-1">Courriel de connexion *</label>
+                      <Input
+                        type="email"
+                        placeholder="j.dupont@organisme.org"
+                        value={provAdminEmail}
+                        onChange={(e) => setProvAdminEmail(e.target.value)}
+                        className="bg-slate-900 border-slate-700 text-xs text-white font-mono"
+                      />
+                    </div>
+                    <div>
+                      <label className="text-xs font-bold text-slate-300 block mb-1">Mot de passe initial *</label>
+                      <Input
+                        type="text"
+                        value={provAdminPassword}
+                        onChange={(e) => setProvAdminPassword(e.target.value)}
+                        className="bg-slate-900 border-slate-700 text-xs text-white font-mono"
+                      />
+                    </div>
+                  </div>
+                </div>
+
+                <div className="flex justify-between pt-4">
+                  <Button variant="outline" onClick={() => setProvStep(2)} className="text-xs border-slate-700">Précédent</Button>
+                  <Button
+                    onClick={() => {
+                      if (!provAdminFirstName.trim() || !provAdminLastName.trim() || !provAdminEmail.trim() || !provAdminPassword.trim()) {
+                        alert('Veuillez compléter les informations de l’administrateur.');
+                        return;
+                      }
+                      provisionTenantMutation.mutate({
+                        name: provName,
+                        slug: provSlug,
+                        acronym: provAcronym,
+                        orgType: provOrgType,
+                        neqNumber: provNeq,
+                        email: provEmail,
+                        phone: provPhone,
+                        address: provAddress,
+                        website: provWebsite,
+                        mode: provMode,
+                        planCode: provPlanCode,
+                        billingCycle: provBillingCycle,
+                        adminFirstName: provAdminFirstName,
+                        adminLastName: provAdminLastName,
+                        adminEmail: provAdminEmail,
+                        adminPassword: provAdminPassword,
+                        adminJobTitle: provAdminJobTitle,
+                        privacyOfficerName: provPrivacyOfficerName || `${provAdminFirstName} ${provAdminLastName}`,
+                        privacyOfficerEmail: provPrivacyOfficerEmail || provAdminEmail,
+                        dataRetentionMonths: provRetentionMonths,
+                      });
+                    }}
+                    disabled={provisionTenantMutation.isPending}
+                    className="bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs"
+                  >
+                    <Check className="mr-1.5 h-4 w-4" />
+                    {provisionTenantMutation.isPending ? 'Provisioning en cours...' : 'Provisionner le Client Immédiatement'}
+                  </Button>
+                </div>
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* ═════════════════════════════════════════════════════════════════ */}
+        {/* PILIER 4 : FEATURE FLAGS & MODULES (ENTITLEMENTS)                 */}
+        {/* ═════════════════════════════════════════════════════════════════ */}
+        {activeTab === 'feature_flags' && (
+          <div className="rounded-xl border border-slate-800 bg-slate-900 p-6 space-y-6">
+            <div className="border-b border-slate-800 pb-4">
+              <h2 className="text-lg font-bold text-white flex items-center gap-2">
+                <Sliders className="h-5 w-5 text-purple-400" />
+                Matrice des Feature Flags & Déploiement Progressif
+              </h2>
+              <p className="text-xs text-slate-400 mt-1">
+                Activez ou désactivez globalement de nouveaux modules ou fonctionnalités en bêta pour tous les tenants ou des cohortes spécifiques.
+              </p>
+            </div>
+
+            <div className="space-y-3">
+              {featureFlagsData?.systemFlags?.map((flag: any) => {
+                const isConfigured = featureFlagsData?.configuredFlags?.find((f: any) => f.featureKey === flag.key);
+                const isEnabled = isConfigured ? isConfigured.isEnabled : flag.default;
+
+                return (
+                  <div key={flag.key} className="p-4 rounded-xl border border-slate-800 bg-slate-950 flex items-center justify-between">
+                    <div>
+                      <div className="font-bold text-sm text-white flex items-center gap-2">
+                        <span>{flag.name}</span>
+                        <code className="text-[10px] text-purple-400 font-mono bg-purple-950/40 px-2 py-0.5 rounded">{flag.key}</code>
+                      </div>
+                      <p className="text-xs text-slate-400 mt-1">
+                        Contrôle l'accès à ce composant sur l'ensemble des interfaces clients.
+                      </p>
+                    </div>
+
+                    <button
+                      onClick={() => {
+                        toggleFeatureFlagMutation.mutate({ key: flag.key, isEnabled: !isEnabled });
+                      }}
+                      className={`px-4 py-2 rounded-lg font-bold text-xs transition flex items-center gap-1.5 ${
+                        isEnabled
+                          ? 'bg-emerald-600 text-white hover:bg-emerald-500'
+                          : 'bg-slate-800 text-slate-400 hover:bg-slate-700'
+                      }`}
+                    >
+                      <Power className="h-3.5 w-3.5" />
+                      {isEnabled ? 'Activé (Global)' : 'Désactivé'}
+                    </button>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        )}
+
+        {/* ═════════════════════════════════════════════════════════════════ */}
+        {/* PILIER 5 : OBSERVABILITÉ, GED & QUOTAS (SRE / OPS)               */}
+        {/* ═════════════════════════════════════════════════════════════════ */}
+        {activeTab === 'observability' && (
+          <div className="space-y-6">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+              <div className="rounded-xl border border-slate-800 bg-slate-900 p-5">
+                <div className="flex items-center justify-between text-slate-400 text-xs font-mono uppercase">
+                  <span>Base PostgreSQL</span>
+                  <Database className="h-4 w-4 text-emerald-400" />
+                </div>
+                <div className="mt-2 text-2xl font-bold text-emerald-400 flex items-center gap-2">
+                  <span className="h-3 w-3 rounded-full bg-emerald-500 animate-pulse" />
+                  Opérationnelle
+                </div>
+                <div className="text-[11px] text-slate-400 mt-1">Connexion Pool OK</div>
+              </div>
+
+              <div className="rounded-xl border border-slate-800 bg-slate-900 p-5">
+                <div className="flex items-center justify-between text-slate-400 text-xs font-mono uppercase">
+                  <span>Sessions Actives</span>
+                  <Activity className="h-4 w-4 text-cyan-400" />
+                </div>
+                <div className="mt-2 text-2xl font-bold text-white">
+                  {telemetry?.activeSessionsCount || 0}
+                </div>
+                <div className="text-[11px] text-slate-400 mt-1">Jetons valides en cours</div>
+              </div>
+
+              <div className="rounded-xl border border-slate-800 bg-slate-900 p-5">
+                <div className="flex items-center justify-between text-slate-400 text-xs font-mono uppercase">
+                  <span>Total Fichiers GED</span>
+                  <FileText className="h-4 w-4 text-amber-400" />
+                </div>
+                <div className="mt-2 text-2xl font-bold text-white">
+                  {telemetry?.totalDocumentsCount || 0}
+                </div>
+                <div className="text-[11px] text-slate-400 mt-1">Pièces jointes & reçus</div>
+              </div>
+
+              <div className="rounded-xl border border-slate-800 bg-slate-900 p-5">
+                <div className="flex items-center justify-between text-slate-400 text-xs font-mono uppercase">
+                  <span>Disponibilité (Uptime)</span>
+                  <Server className="h-4 w-4 text-purple-400" />
+                </div>
+                <div className="mt-2 text-2xl font-bold text-purple-400">
+                  {Math.floor((telemetry?.uptimeSeconds || 0) / 3600)} h {Math.floor(((telemetry?.uptimeSeconds || 0) % 3600) / 60)} m
+                </div>
+                <div className="text-[11px] text-slate-400 mt-1">Node {telemetry?.nodeVersion}</div>
               </div>
             </div>
 
-            <div className="rounded-xl border border-slate-800 bg-slate-900 shadow-lg overflow-hidden">
+            {/* Storage Quotas Usage Table */}
+            <div className="rounded-xl border border-slate-800 bg-slate-900 p-5 space-y-4">
+              <h3 className="font-bold text-white text-sm flex items-center gap-2 border-b border-slate-800 pb-3">
+                <HardDrive className="h-4 w-4 text-cyan-400" />
+                Consommation de Stockage GED par Client vs Plafond
+              </h3>
               <div className="overflow-x-auto">
-                <table className="w-full text-left text-sm text-slate-300">
-                  <thead className="bg-slate-950 text-xs font-mono uppercase text-slate-400 border-b border-slate-800">
+                <table className="w-full text-left text-xs">
+                  <thead className="bg-slate-950 text-slate-400 uppercase font-mono border-b border-slate-800">
                     <tr>
-                      <th className="px-6 py-3.5">Organisme Client</th>
-                      <th className="px-6 py-3.5">Identifiant / Slug</th>
-                      <th className="px-6 py-3.5">Statut</th>
-                      <th className="px-6 py-3.5">Membres / Bénévoles</th>
-                      <th className="px-6 py-3.5">Projets</th>
-                      <th className="px-6 py-3.5 text-right">Actions Super-Admin</th>
+                      <th className="p-3">Organisme</th>
+                      <th className="p-3">Documents</th>
+                      <th className="p-3">Espace Utilisé (Mo)</th>
+                      <th className="p-3">Quota Alloué (Go)</th>
+                      <th className="p-3">Jauge d'Utilisation</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-800">
-                    {filteredTenants.map((t: any) => (
-                      <tr key={t.id} className="hover:bg-slate-800/40 transition">
-                        <td className="px-6 py-4">
-                          <div className="font-bold text-white">{t.name}</div>
-                          <div className="text-xs text-slate-400">{t.email || t.phone || 'Non renseigné'}</div>
-                        </td>
-                        <td className="px-6 py-4 font-mono text-xs text-indigo-400">{t.slug}</td>
-                        <td className="px-6 py-4">
-                          <Badge variant={t.status === 'active' ? 'success' : 'secondary'}>
-                            {t.status === 'active' ? 'Actif' : 'Suspendu'}
-                          </Badge>
-                        </td>
-                        <td className="px-6 py-4 text-xs">
-                          <span className="font-semibold text-white">{t.metrics?.totalStaff || 0}</span> membres
-                          <span className="text-slate-400"> ({t.metrics?.totalVolunteers || 0} bénév.)</span>
-                        </td>
-                        <td className="px-6 py-4 font-semibold text-amber-400 text-xs">
-                          {t.metrics?.totalProjects || 0}
-                        </td>
-                        <td className="px-6 py-4 text-right space-x-2">
-                          <Button
-                            size="sm"
-                            className="bg-indigo-600 hover:bg-indigo-500 text-white text-xs"
-                            onClick={() => {
-                              setSelectedTenantId(t.id);
-                              setActiveTab('explorer');
-                              setExplorerSubTab('overview');
-                            }}
-                          >
-                            Inspecter 360°
-                          </Button>
+                    {telemetry?.storageTelemetry?.map((st: any) => (
+                      <tr key={st.tenantId} className="hover:bg-slate-800/40">
+                        <td className="p-3 font-semibold text-white">{st.tenantName} ({st.slug})</td>
+                        <td className="p-3 font-mono text-slate-300">{st.documentCount}</td>
+                        <td className="p-3 font-mono text-cyan-300">{st.usedStorageMb} Mo</td>
+                        <td className="p-3 font-mono text-slate-300">{st.allocatedStorageGb} Go</td>
+                        <td className="p-3">
+                          <div className="w-48 space-y-1">
+                            <div className="flex justify-between text-[10px] text-slate-400">
+                              <span>{st.usagePct}%</span>
+                            </div>
+                            <div className="h-2 w-full rounded-full bg-slate-800 overflow-hidden">
+                              <div
+                                className={`h-full ${st.usagePct > 80 ? 'bg-red-500' : 'bg-cyan-500'}`}
+                                style={{ width: `${Math.max(2, st.usagePct)}%` }}
+                              />
+                            </div>
+                          </div>
                         </td>
                       </tr>
                     ))}
@@ -2148,17 +2149,432 @@ export function PlatformDashboardScreen() {
         )}
 
         {/* ═════════════════════════════════════════════════════════════════ */}
-        {/* TAB 4: SÉCURITÉ & LOI 25                                          */}
+        {/* PILIER 6 : GOUVERNANCE, AUDIT GLOBAL & INCIDENTS LOI 25          */}
         {/* ═════════════════════════════════════════════════════════════════ */}
-        {activeTab === 'support' && (
-          <div className="rounded-xl border border-slate-800 bg-slate-900 p-6 shadow-lg space-y-4">
-            <h3 className="font-bold text-white text-base flex items-center gap-2">
-              <ShieldCheck className="h-5 w-5 text-emerald-400" />
-              Politique d'Isolation des Données & Conformité Loi 25
-            </h3>
-            <p className="text-xs text-slate-400 leading-relaxed max-w-3xl">
-              OrgDashio applique des politiques strictes de sécurité multi-tenant (RLS PostgreSQL). Chaque organisme possède ses données de manière hermétique. Les accès d'administration plateforme s'effectuent via les jetons de session d'audit journalisés.
-            </p>
+        {activeTab === 'security_audit' && (
+          <div className="space-y-6">
+            <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+              <div>
+                <h2 className="text-lg font-bold text-white flex items-center gap-2">
+                  <Lock className="h-5 w-5 text-rose-400" />
+                  Gouvernance Loi 25 & Registre des Incidents de Sécurité
+                </h2>
+                <p className="text-xs text-slate-400 mt-0.5">
+                  Journal d'audit universel des interventions super-admin et registre obligatoire de déclaration d'incidents CAI.
+                </p>
+              </div>
+              <Button
+                onClick={() => setIncidentModalOpen(true)}
+                className="bg-rose-600 hover:bg-rose-500 text-white font-bold text-xs"
+              >
+                <AlertOctagon className="mr-1.5 h-4 w-4" />
+                Déclarer un Incident Loi 25
+              </Button>
+            </div>
+
+            {incidentFeedback && (
+              <div className="p-4 bg-rose-950/80 border border-rose-800 text-rose-300 text-xs rounded-xl flex items-center gap-3">
+                <CheckCircle2 className="h-5 w-5 text-rose-400 shrink-0" />
+                <span>{incidentFeedback}</span>
+              </div>
+            )}
+
+            {/* Incidents Table */}
+            <div className="rounded-xl border border-rose-950 bg-slate-900 p-5 space-y-4">
+              <h3 className="font-bold text-white text-sm flex items-center gap-2 border-b border-slate-800 pb-3">
+                <ShieldAlert className="h-4 w-4 text-rose-400" />
+                Registre des Incidents de Confidentialité Loi 25 ({securityIncidents.length})
+              </h3>
+              {securityIncidents.length === 0 ? (
+                <p className="text-xs text-emerald-400 py-2">✅ Aucun incident de sécurité ou fuite de données n'a été enregistré.</p>
+              ) : (
+                <div className="space-y-3">
+                  {securityIncidents.map((inc: any) => (
+                    <div key={inc.id} className="p-4 rounded-lg bg-slate-950 border border-slate-800 flex flex-col md:flex-row md:items-center justify-between gap-3">
+                      <div>
+                        <div className="flex items-center gap-2">
+                          <span className="font-bold text-white text-sm">{inc.title}</span>
+                          <Badge variant={inc.severity === 'critical' || inc.severity === 'high' ? 'danger' : 'secondary'}>
+                            {inc.severity}
+                          </Badge>
+                          <Badge variant="default" className="text-[10px]">{inc.status}</Badge>
+                        </div>
+                        <p className="text-xs text-slate-400 mt-1">{inc.description}</p>
+                        <div className="flex items-center gap-4 text-[11px] text-slate-400 mt-2 font-mono">
+                          <span>Client: {inc.tenant?.name || 'Plateforme globale'}</span>
+                          <span>Usagers affectés: {inc.impactedUsersCount}</span>
+                          <span>Déclaré CAI: {inc.notifiedCai ? '✅ Oui' : 'Non'}</span>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            {/* Platform Universal Audit Trail */}
+            <div className="rounded-xl border border-slate-800 bg-slate-900 p-5 space-y-4">
+              <h3 className="font-bold text-white text-sm flex items-center gap-2 border-b border-slate-800 pb-3">
+                <FileCheck2 className="h-4 w-4 text-amber-400" />
+                Journal d'Audit Universel Super-Admin ({auditLogs.length})
+              </h3>
+              <div className="overflow-x-auto">
+                <table className="w-full text-left text-xs">
+                  <thead className="bg-slate-950 text-slate-400 uppercase font-mono border-b border-slate-800">
+                    <tr>
+                      <th className="p-3">Date & Heure</th>
+                      <th className="p-3">Action</th>
+                      <th className="p-3">Client (Tenant)</th>
+                      <th className="p-3">Opérateur</th>
+                      <th className="p-3">Détails</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-800 font-mono">
+                    {auditLogs.map((log: any) => (
+                      <tr key={log.id} className="hover:bg-slate-800/40 text-[11px]">
+                        <td className="p-3 text-slate-400">{new Date(log.createdAt).toLocaleString()}</td>
+                        <td className="p-3 font-bold text-amber-300">{log.action}</td>
+                        <td className="p-3 text-white font-sans">{log.tenant?.name || 'Système'}</td>
+                        <td className="p-3 text-slate-300 font-sans">{log.user?.email || 'Super-Admin'}</td>
+                        <td className="p-3 text-slate-400 max-w-xs truncate">{JSON.stringify(log.payload || {})}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* ═════════════════════════════════════════════════════════════════ */}
+        {/* PILIER 7 : BANNIÈRES DE COMMUNICATION & MAINTENANCE SYSTÈME       */}
+        {/* ═════════════════════════════════════════════════════════════════ */}
+        {activeTab === 'announcements' && (
+          <div className="space-y-6">
+            <div className="rounded-xl border border-slate-800 bg-slate-900 p-6 space-y-4">
+              <div className="border-b border-slate-800 pb-3">
+                <h3 className="font-bold text-white text-base flex items-center gap-2">
+                  <BellRing className="h-5 w-5 text-amber-400" />
+                  Diffuser une Nouvelle Bannière Système
+                </h3>
+                <p className="text-xs text-slate-400">
+                  Cette bannière apparaîtra en haut des écrans de tous les utilisateurs connectés sur leurs espaces clients.
+                </p>
+              </div>
+
+              {annFeedback && (
+                <div className="p-3 bg-emerald-950/80 border border-emerald-800 text-emerald-300 text-xs rounded-lg flex items-center gap-2">
+                  <CheckCircle2 className="h-4 w-4 text-emerald-400 shrink-0" />
+                  <span>{annFeedback}</span>
+                </div>
+              )}
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div>
+                  <label className="text-xs font-bold text-slate-300 block mb-1">Titre de l'alerte / annonce *</label>
+                  <Input
+                    placeholder="Ex: Maintenance programmée dimanche à 02h00"
+                    value={annTitle}
+                    onChange={(e) => setAnnTitle(e.target.value)}
+                    className="bg-slate-950 border-slate-700 text-xs text-white"
+                  />
+                </div>
+                <div>
+                  <label className="text-xs font-bold text-slate-300 block mb-1">Niveau d'Urgence</label>
+                  <select
+                    value={annSeverity}
+                    onChange={(e) => setAnnSeverity(e.target.value as any)}
+                    className="w-full rounded bg-slate-950 border border-slate-700 px-3 py-2 text-xs text-white"
+                  >
+                    <option value="info">Information (Bleu)</option>
+                    <option value="warning">Avertissement (Orange)</option>
+                    <option value="critical">Critique / Interruption (Rouge)</option>
+                  </select>
+                </div>
+              </div>
+
+              <div>
+                <label className="text-xs font-bold text-slate-300 block mb-1">Message complet *</label>
+                <textarea
+                  rows={3}
+                  placeholder="Ex: Une mise à jour majeure de la plateforme sera déployée. L'accès sera interrompu pendant 15 minutes."
+                  value={annMessage}
+                  onChange={(e) => setAnnMessage(e.target.value)}
+                  className="w-full rounded-lg bg-slate-950 border border-slate-700 p-3 text-xs text-white focus:outline-none"
+                />
+              </div>
+
+              <div className="flex justify-end">
+                <Button
+                  onClick={() => {
+                    if (!annTitle.trim() || !annMessage.trim()) {
+                      alert('Veuillez remplir le titre et le message.');
+                      return;
+                    }
+                    createAnnouncementMutation.mutate({
+                      title: annTitle,
+                      message: annMessage,
+                      severity: annSeverity,
+                    });
+                  }}
+                  disabled={createAnnouncementMutation.isPending}
+                  className="bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold text-xs"
+                >
+                  <BellRing className="mr-1.5 h-4 w-4" />
+                  Publier l'Annonce en Direct
+                </Button>
+              </div>
+            </div>
+
+            {/* Active Announcements List */}
+            <div className="rounded-xl border border-slate-800 bg-slate-900 p-5 space-y-4">
+              <h3 className="font-bold text-white text-sm flex items-center gap-2 border-b border-slate-800 pb-3">
+                <Radio className="h-4 w-4 text-amber-400" />
+                Bannières Diffusées ({announcements.length})
+              </h3>
+              {announcements.length === 0 ? (
+                <p className="text-xs text-slate-500 py-3">Aucune bannière active actuellement.</p>
+              ) : (
+                <div className="space-y-3">
+                  {announcements.map((ann: any) => (
+                    <div key={ann.id} className="p-4 rounded-lg bg-slate-950 border border-slate-800 flex items-center justify-between">
+                      <div>
+                        <div className="flex items-center gap-2">
+                          <span className="font-bold text-white text-sm">{ann.title}</span>
+                          <Badge variant={ann.severity === 'critical' ? 'danger' : 'default'}>{ann.severity}</Badge>
+                        </div>
+                        <p className="text-xs text-slate-300 mt-1">{ann.message}</p>
+                        <div className="text-[10px] text-slate-500 mt-1 font-mono">{new Date(ann.createdAt).toLocaleString()}</div>
+                      </div>
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        className="text-xs text-red-400 border-slate-800 hover:bg-red-950/40"
+                        onClick={() => deleteAnnouncementMutation.mutate(ann.id)}
+                      >
+                        <Trash2 className="h-3.5 w-3.5 mr-1" />
+                        Retirer
+                      </Button>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+
+        {/* Modal : Declarer Incident Loi 25 */}
+        {incidentModalOpen && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 p-4">
+            <div className="rounded-2xl border border-red-900 bg-slate-900 p-6 max-w-lg w-full space-y-4 shadow-2xl">
+              <div className="flex justify-between items-center border-b border-slate-800 pb-3">
+                <h3 className="font-bold text-white text-base flex items-center gap-2">
+                  <AlertOctagon className="h-5 w-5 text-red-400" />
+                  Déclarer un Incident de Confidentialité (Loi 25)
+                </h3>
+                <button onClick={() => setIncidentModalOpen(false)} className="text-slate-400 hover:text-white">
+                  <X className="h-5 w-5" />
+                </button>
+              </div>
+
+              <div className="space-y-3">
+                <div>
+                  <label className="text-xs font-bold text-slate-300 block mb-1">Titre de l'incident *</label>
+                  <Input
+                    placeholder="Ex: Tentative d'accès non autorisé par force brute"
+                    value={incTitle}
+                    onChange={(e) => setIncTitle(e.target.value)}
+                    className="bg-slate-950 border-slate-700 text-xs text-white"
+                  />
+                </div>
+
+                <div>
+                  <label className="text-xs font-bold text-slate-300 block mb-1">Gravité</label>
+                  <select
+                    value={incSeverity}
+                    onChange={(e) => setIncSeverity(e.target.value as any)}
+                    className="w-full rounded bg-slate-950 border border-slate-700 px-3 py-2 text-xs text-white"
+                  >
+                    <option value="low">Faible (Aucune fuite avérée)</option>
+                    <option value="medium">Moyenne (Impact limité)</option>
+                    <option value="high">Élevée (Données personnelles consultées)</option>
+                    <option value="critical">Critique (Risque sérieux de préjudice)</option>
+                  </select>
+                </div>
+
+                <div>
+                  <label className="text-xs font-bold text-slate-300 block mb-1">Description détaillée des faits *</label>
+                  <textarea
+                    rows={3}
+                    placeholder="Détaillez la nature de l'incident, les journaux observés et les vecteurs d'attaque."
+                    value={incDescription}
+                    onChange={(e) => setIncDescription(e.target.value)}
+                    className="w-full rounded bg-slate-950 border border-slate-700 p-2 text-xs text-white"
+                  />
+                </div>
+
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="text-xs font-bold text-slate-300 block mb-1">Usagers affectés (estimation)</label>
+                    <Input
+                      type="number"
+                      value={incImpactedCount}
+                      onChange={(e) => setIncImpactedCount(parseInt(e.target.value, 10) || 0)}
+                      className="bg-slate-950 border-slate-700 text-xs text-white font-mono"
+                    />
+                  </div>
+                  <div>
+                    <label className="text-xs font-bold text-slate-300 block mb-1">Notification CAI (Québec)</label>
+                    <label className="flex items-center gap-2 pt-2 text-xs text-slate-300 cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={incNotifiedCai}
+                        onChange={(e) => setIncNotifiedCai(e.target.checked)}
+                        className="rounded bg-slate-950 border-slate-700 text-red-600"
+                      />
+                      <span>Déclaré à la CAI</span>
+                    </label>
+                  </div>
+                </div>
+              </div>
+
+              <div className="flex justify-end gap-3 pt-3 border-t border-slate-800">
+                <Button variant="outline" onClick={() => setIncidentModalOpen(false)} className="text-xs border-slate-700">Annuler</Button>
+                <Button
+                  onClick={() => {
+                    if (!incTitle.trim() || !incDescription.trim()) {
+                      alert('Veuillez renseigner le titre et la description.');
+                      return;
+                    }
+                    createIncidentMutation.mutate({
+                      title: incTitle,
+                      description: incDescription,
+                      severity: incSeverity,
+                      impactedUsersCount: incImpactedCount,
+                      notifiedCai: incNotifiedCai,
+                    });
+                  }}
+                  className="bg-red-600 hover:bg-red-500 text-white font-bold text-xs"
+                >
+                  Enregistrer l'Incident
+                </Button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Modal : Edition Utilisateur & Reset Password */}
+        {editingUserItem && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 p-4">
+            <div className="rounded-2xl border border-slate-800 bg-slate-900 p-6 max-w-lg w-full space-y-4 shadow-2xl">
+              <div className="flex justify-between items-center border-b border-slate-800 pb-3">
+                <h3 className="font-bold text-white text-base flex items-center gap-2">
+                  <Key className="h-5 w-5 text-cyan-400" />
+                  Gérer le Compte Utilisateur
+                </h3>
+                <button onClick={() => setEditingUserItem(null)} className="text-slate-400 hover:text-white">
+                  <X className="h-5 w-5" />
+                </button>
+              </div>
+
+              <div className="space-y-3">
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="text-xs font-bold text-slate-300 block mb-1">Prénom</label>
+                    <Input
+                      value={editUserFirstName}
+                      onChange={(e) => setEditUserFirstName(e.target.value)}
+                      className="bg-slate-950 border-slate-700 text-xs text-white"
+                    />
+                  </div>
+                  <div>
+                    <label className="text-xs font-bold text-slate-300 block mb-1">Nom</label>
+                    <Input
+                      value={editUserLastName}
+                      onChange={(e) => setEditUserLastName(e.target.value)}
+                      className="bg-slate-950 border-slate-700 text-xs text-white"
+                    />
+                  </div>
+                </div>
+
+                <div>
+                  <label className="text-xs font-bold text-slate-300 block mb-1">Courriel</label>
+                  <Input
+                    type="email"
+                    value={editUserEmail}
+                    onChange={(e) => setEditUserEmail(e.target.value)}
+                    className="bg-slate-950 border-slate-700 text-xs text-white font-mono"
+                  />
+                </div>
+
+                <div>
+                  <label className="text-xs font-bold text-slate-300 block mb-1">Titre / Fonction</label>
+                  <Input
+                    value={editUserJobTitle}
+                    onChange={(e) => setEditUserJobTitle(e.target.value)}
+                    className="bg-slate-950 border-slate-700 text-xs text-white"
+                  />
+                </div>
+
+                <div className="p-3 bg-slate-950 rounded-lg border border-slate-800 space-y-2">
+                  <div className="flex justify-between items-center">
+                    <label className="text-xs font-bold text-amber-400">Réinitialiser le mot de passe</label>
+                    <button
+                      type="button"
+                      onClick={generateRandomPassword}
+                      className="text-[10px] text-indigo-400 hover:text-indigo-300 flex items-center gap-1 font-semibold"
+                    >
+                      <Sparkles className="h-3 w-3" /> Générer
+                    </button>
+                  </div>
+                  <Input
+                    type="text"
+                    placeholder="Laisser vide pour ne pas modifier"
+                    value={editUserPassword}
+                    onChange={(e) => setEditUserPassword(e.target.value)}
+                    className="bg-slate-900 border-slate-700 text-xs text-white font-mono"
+                  />
+                </div>
+              </div>
+
+              <div className="flex justify-between items-center pt-3 border-t border-slate-800">
+                <Button
+                  size="sm"
+                  variant="outline"
+                  className={editUserStatus === 'active' ? 'text-red-400 border-slate-700 text-xs' : 'text-emerald-400 border-slate-700 text-xs'}
+                  onClick={() => {
+                    const newSt = editUserStatus === 'active' ? 'suspended' : 'active';
+                    setEditUserStatus(newSt);
+                    toggleUserStatusMutation.mutate({ userId: editingUserItem.user.id, status: newSt });
+                  }}
+                >
+                  <Power className="h-3 w-3 mr-1" />
+                  {editUserStatus === 'active' ? 'Suspendre l’accès' : 'Réactiver l’accès'}
+                </Button>
+
+                <div className="flex gap-2">
+                  <Button variant="outline" onClick={() => setEditingUserItem(null)} className="text-xs border-slate-700">Annuler</Button>
+                  <Button
+                    onClick={() => {
+                      updateUserMutation.mutate({
+                        userId: editingUserItem.user.id,
+                        payload: {
+                          firstName: editUserFirstName,
+                          lastName: editUserLastName,
+                          email: editUserEmail,
+                          jobTitle: editUserJobTitle,
+                          ...(editUserPassword.trim() && { password: editUserPassword.trim() }),
+                        },
+                      });
+                    }}
+                    disabled={updateUserMutation.isPending}
+                    className="bg-cyan-600 hover:bg-cyan-500 text-white font-bold text-xs"
+                  >
+                    Enregistrer
+                  </Button>
+                </div>
+              </div>
+            </div>
           </div>
         )}
       </main>

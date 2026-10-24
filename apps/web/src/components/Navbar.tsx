@@ -28,6 +28,7 @@ import {
 
 import { useAuth } from '../features/auth/AuthContext';
 import { NotificationPopover } from '../features/notification/NotificationPopover';
+import { SystemAnnouncementBanner } from './SystemAnnouncementBanner';
 
 export function Navbar() {
   const { t, i18n } = useTranslation();
@@ -108,6 +109,8 @@ export function Navbar() {
           </div>
         </div>
       )}
+
+      <SystemAnnouncementBanner />
 
       <header className="border-b bg-white px-4 py-2 shadow-sm sticky top-0 z-40">
       <div className="mx-auto flex max-w-7xl items-center justify-between">

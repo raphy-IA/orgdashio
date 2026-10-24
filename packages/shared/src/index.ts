@@ -13,5 +13,6 @@ export * from './schemas/billing.schema';
 export * from './schemas/grants.schema';
 export * from './schemas/donations.schema';
 export * from './schemas/timesheets.schema';
+export * from './schemas/platform.schema';
 export * from './utils/cpm-engine';
 export * from './utils/evm-engine';

@@ -44,6 +44,13 @@ export const tenantRegistry = pgTable('tenant_registry', {
   privacyOfficerEmail: text('privacy_officer_email'),
   dataRetentionMonths: integer('data_retention_months').default(60),
   onboardingCompleted: boolean('onboarding_completed').notNull().default(false),
+  maxUsersOverride: integer('max_users_override'),
+  maxStorageGbOverride: integer('max_storage_gb_override'),
+  maxProjectsOverride: integer('max_projects_override'),
+  allowedModules: jsonb('allowed_modules').$type<string[]>(),
+  healthScore: integer('health_score').default(100),
+  billingContactName: text('billing_contact_name'),
+  billingContactPhone: text('billing_contact_phone'),
   createdAt: timestamp('created_at', { withTimezone: true })
     .notNull()
     .defaultNow(),
@@ -171,6 +178,47 @@ export const tenantInvoice = pgTable('tenant_invoice', {
   periodEnd: timestamp('period_end', { withTimezone: true }).notNull().defaultNow(),
   pdfUrl: text('pdf_url'),
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+});
+
+export const systemAnnouncement = pgTable('system_announcement', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  title: text('title').notNull(),
+  message: text('message').notNull(),
+  severity: text('severity', { enum: ['info', 'warning', 'critical'] }).notNull().default('info'),
+  targetTenantId: uuid('target_tenant_id').references(() => tenantRegistry.id, { onDelete: 'cascade' }),
+  isActive: boolean('is_active').notNull().default(true),
+  startsAt: timestamp('starts_at', { withTimezone: true }),
+  endsAt: timestamp('ends_at', { withTimezone: true }),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+});
+
+export const securityIncident = pgTable('security_incident', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  tenantId: uuid('tenant_id').references(() => tenantRegistry.id, { onDelete: 'set null' }),
+  title: text('title').notNull(),
+  description: text('description').notNull(),
+  severity: text('severity', { enum: ['low', 'medium', 'high', 'critical'] }).notNull().default('high'),
+  status: text('status', { enum: ['investigating', 'contained', 'notified_cai', 'resolved'] }).notNull().default('investigating'),
+  impactedUsersCount: integer('impacted_users_count').notNull().default(0),
+  containmentSteps: text('containment_steps'),
+  notifiedCai: boolean('notified_cai').notNull().default(false),
+  caiReferenceNumber: text('cai_reference_number'),
+  notifiedAt: timestamp('notified_at', { withTimezone: true }),
+  resolvedAt: timestamp('resolved_at', { withTimezone: true }),
+  reportedByUserId: uuid('reported_by_user_id').references(() => userAccount.id, { onDelete: 'set null' }),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+});
+
+export const tenantFeatureFlag = pgTable('tenant_feature_flag', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  tenantId: uuid('target_tenant_id').references(() => tenantRegistry.id, { onDelete: 'cascade' }),
+  featureKey: text('feature_key').notNull(),
+  isEnabled: boolean('is_enabled').notNull().default(false),
+  description: text('description'),
+  config: jsonb('config'),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
 });
 
 // ---------------------------------------------------------------------------
@@ -754,7 +802,19 @@ export const program = pgTable(
       .references(() => tenantRegistry.id, { onDelete: 'cascade' }),
     code: text('code').notNull(),
     name: text('name').notNull(),
+    thematicPillar: text('thematic_pillar'),
+    leadManagerName: text('lead_manager_name'),
+    leadManagerEmail: text('lead_manager_email'),
     description: text('description'),
+    strategicObjectives: text('strategic_objectives'),
+    startDate: date('start_date'),
+    endDate: date('end_date'),
+    targetBudget: numeric('target_budget', { precision: 19, scale: 4 }).default('0'),
+    targetBeneficiariesCount: integer('target_beneficiaries_count').default(0),
+    primaryDonorName: text('primary_donor_name'),
+    reviewCadence: text('review_cadence', {
+      enum: ['monthly', 'quarterly', 'biannual', 'annual'],
+    }).default('quarterly'),
     status: text('status', {
       enum: ['planned', 'active', 'suspended', 'closed'],
     })
@@ -1664,6 +1724,7 @@ export const indicator = pgTable(
   {
     id: uuid('id').primaryKey().defaultRandom(),
     tenantId: uuid('tenant_id').notNull(),
+    programId: uuid('program_id'),
     projectId: uuid('project_id'),
     resultNodeId: uuid('result_node_id'),
     code: text('code').notNull(),
@@ -1684,6 +1745,10 @@ export const indicator = pgTable(
     updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
   },
   (table) => ({
+    programFk: foreignKey({
+      columns: [table.tenantId, table.programId],
+      foreignColumns: [program.tenantId, program.id],
+    }).onDelete('cascade'),
     tenantIdIdUk: unique().on(table.tenantId, table.id),
     tenantIdCodeUk: unique().on(table.tenantId, table.code),
   })

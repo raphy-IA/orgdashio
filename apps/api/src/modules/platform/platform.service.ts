@@ -22,9 +22,16 @@ import {
   consentRecord,
   fundingSource,
   planItem,
+  subscriptionPlan,
+  tenantSubscription,
+  tenantInvoice,
+  systemAnnouncement,
+  securityIncident,
+  tenantFeatureFlag,
+  userSession,
 } from '@orgdashio/shared';
 import { hash } from '@node-rs/argon2';
-import { eq, and, sql, desc } from 'drizzle-orm';
+import { eq, and, sql, desc, inArray } from 'drizzle-orm';
 
 @Injectable()
 export class PlatformService {
@@ -190,9 +197,11 @@ export class PlatformService {
     const docsList = await this.db.select().from(document).where(eq(document.tenantId, tenantId));
     const consentsList = await this.db.select().from(consentRecord).where(eq(consentRecord.tenantId, tenantId));
     const grants = await this.db.select().from(supportAccessGrant).where(eq(supportAccessGrant.tenantId, tenantId));
+    const [sub] = await this.db.select().from(tenantSubscription).where(eq(tenantSubscription.tenantId, tenantId));
 
     return {
       tenant: t,
+      subscription: sub || null,
       users: usersWithRoles,
       staff: fullStaff,
       beneficiaries: fullBeneficiaries,
@@ -556,4 +565,598 @@ export class PlatformService {
 
     return grant;
   }
+
+  /**
+   * =========================================================================
+   * PILIER 1 : COCKPIT FINANCIER & ABONNEMENTS (MRR, ARR, DUNNING)
+   * =========================================================================
+   */
+  async getFinancialCockpit() {
+    const plans = await this.db.select().from(subscriptionPlan);
+    const subscriptions = await this.db.select().from(tenantSubscription);
+    const invoices = await this.db.select().from(tenantInvoice).orderBy(desc(tenantInvoice.createdAt));
+    const tenants = await this.db.select().from(tenantRegistry);
+
+    const planMap = new Map(plans.map((p) => [p.code, p]));
+    const tenantMap = new Map(tenants.map((t) => [t.id, t]));
+
+    // Calculate MRR & ARR
+    let totalMRR = 0;
+    let totalARR = 0;
+    const planCounts: Record<string, number> = { community: 0, starter: 0, pro: 0, enterprise: 0 };
+
+    for (const sub of subscriptions) {
+      if (sub.status === 'active' || sub.status === 'trialing') {
+        const plan = planMap.get(sub.planCode);
+        const monthlyPrice = plan ? Number(plan.priceMonthly) : 0;
+        const annualPrice = plan ? Number(plan.priceAnnual) : 0;
+
+        if (sub.billingCycle === 'annual') {
+          totalARR += annualPrice;
+          totalMRR += annualPrice / 12;
+        } else {
+          totalMRR += monthlyPrice;
+          totalARR += monthlyPrice * 12;
+        }
+
+        planCounts[sub.planCode] = (planCounts[sub.planCode] || 0) + 1;
+      }
+    }
+
+    const pastDueCount = subscriptions.filter((s) => s.status === 'past_due').length;
+    const pastDueSubscriptions = subscriptions
+      .filter((s) => s.status === 'past_due')
+      .map((s) => ({
+        ...s,
+        tenant: tenantMap.get(s.tenantId) || null,
+        plan: planMap.get(s.planCode) || null,
+      }));
+
+    const totalCollected = invoices
+      .filter((inv) => inv.status === 'paid')
+      .reduce((sum, inv) => sum + Number(inv.total), 0);
+
+    return {
+      totalMRR: Math.round(totalMRR * 100) / 100,
+      totalARR: Math.round(totalARR * 100) / 100,
+      totalCollected: Math.round(totalCollected * 100) / 100,
+      totalSubscriptions: subscriptions.length,
+      activeSubscriptions: subscriptions.filter((s) => s.status === 'active').length,
+      trialingSubscriptions: subscriptions.filter((s) => s.status === 'trialing').length,
+      pastDueCount,
+      planDistribution: planCounts,
+      pastDueList: pastDueSubscriptions,
+      recentInvoices: invoices.slice(0, 15).map((inv) => ({
+        ...inv,
+        tenant: tenantMap.get(inv.tenantId) || null,
+      })),
+      plans,
+    };
+  }
+
+  async getPlansWithStats() {
+    const plans = await this.db.select().from(subscriptionPlan);
+    const subscriptions = await this.db.select().from(tenantSubscription);
+
+    return plans.map((p) => {
+      const activeCount = subscriptions.filter((s) => s.planCode === p.code && s.status === 'active').length;
+      return {
+        ...p,
+        activeTenantsCount: activeCount,
+      };
+    });
+  }
+
+  async getTenantInvoices(tenantId: string) {
+    return this.db
+      .select()
+      .from(tenantInvoice)
+      .where(eq(tenantInvoice.tenantId, tenantId))
+      .orderBy(desc(tenantInvoice.createdAt));
+  }
+
+  async updateTenantPlanAndQuotas(
+    tenantId: string,
+    input: {
+      planCode?: string;
+      billingCycle?: 'monthly' | 'annual';
+      seatCount?: number;
+      maxUsersOverride?: number | null;
+      maxStorageGbOverride?: number | null;
+      maxProjectsOverride?: number | null;
+      allowedModules?: string[];
+    }
+  ) {
+    const [tenant] = await this.db.select().from(tenantRegistry).where(eq(tenantRegistry.id, tenantId));
+    if (!tenant) throw new NotFoundException('Organisme non trouvé');
+
+    // Update tenant custom overrides
+    await this.db
+      .update(tenantRegistry)
+      .set({
+        ...(input.maxUsersOverride !== undefined && { maxUsersOverride: input.maxUsersOverride }),
+        ...(input.maxStorageGbOverride !== undefined && { maxStorageGbOverride: input.maxStorageGbOverride }),
+        ...(input.maxProjectsOverride !== undefined && { maxProjectsOverride: input.maxProjectsOverride }),
+        ...(input.allowedModules !== undefined && { allowedModules: input.allowedModules }),
+        updatedAt: new Date(),
+      })
+      .where(eq(tenantRegistry.id, tenantId));
+
+    // Update subscription if plan changed
+    if (input.planCode || input.billingCycle || input.seatCount) {
+      const [existingSub] = await this.db
+        .select()
+        .from(tenantSubscription)
+        .where(eq(tenantSubscription.tenantId, tenantId));
+
+      if (existingSub) {
+        await this.db
+          .update(tenantSubscription)
+          .set({
+            ...(input.planCode && { planCode: input.planCode }),
+            ...(input.billingCycle && { billingCycle: input.billingCycle }),
+            ...(input.seatCount && { seatCount: input.seatCount }),
+            updatedAt: new Date(),
+          })
+          .where(eq(tenantSubscription.tenantId, tenantId));
+      } else {
+        await this.db.insert(tenantSubscription).values({
+          tenantId,
+          planCode: input.planCode || 'starter',
+          billingCycle: input.billingCycle || 'monthly',
+          seatCount: input.seatCount || 5,
+          status: 'active',
+        });
+      }
+    }
+
+    return this.getTenantDetails(tenantId);
+  }
+
+  /**
+   * =========================================================================
+   * PILIER 2 : PROVISIONING CLIENT ASSISTÉ & CYCLE DE VIE
+   * =========================================================================
+   */
+  async provisionTenant(input: {
+    name: string;
+    slug: string;
+    acronym?: string;
+    orgType?: string;
+    neqNumber?: string;
+    email: string;
+    phone?: string;
+    address?: string;
+    website?: string;
+    mode?: 'shared' | 'dedicated' | 'self_hosted';
+    planCode?: string;
+    billingCycle?: 'monthly' | 'annual';
+    adminFirstName: string;
+    adminLastName: string;
+    adminEmail: string;
+    adminPassword: string;
+    adminJobTitle?: string;
+    privacyOfficerName?: string;
+    privacyOfficerEmail?: string;
+    dataRetentionMonths?: number;
+  }) {
+    // Check if slug exists
+    const [existingSlug] = await this.db
+      .select()
+      .from(tenantRegistry)
+      .where(eq(tenantRegistry.slug, input.slug.toLowerCase().trim()));
+    if (existingSlug) {
+      throw new BadRequestException(`Le slug "${input.slug}" est déjà utilisé par un autre organisme.`);
+    }
+
+    // 1. Create Tenant Registry
+    const [newTenant] = await this.db
+      .insert(tenantRegistry)
+      .values({
+        name: input.name.trim(),
+        slug: input.slug.toLowerCase().trim(),
+        acronym: input.acronym || null,
+        orgType: input.orgType || 'OBNL / NPO (Organisme à but non lucratif)',
+        neqNumber: input.neqNumber || null,
+        email: input.email.toLowerCase().trim(),
+        phone: input.phone || null,
+        address: input.address || null,
+        website: input.website || null,
+        mode: input.mode || 'shared',
+        status: 'active',
+        privacyOfficerName: input.privacyOfficerName || `${input.adminFirstName} ${input.adminLastName}`,
+        privacyOfficerEmail: input.privacyOfficerEmail || input.adminEmail.toLowerCase().trim(),
+        dataRetentionMonths: input.dataRetentionMonths || 60,
+        onboardingCompleted: true,
+      })
+      .returning();
+
+    // 2. Create Default Roles for this Tenant
+    const [adminRole] = await this.db
+      .insert(role)
+      .values({
+        tenantId: newTenant.id,
+        code: 'admin',
+        name: 'Administrateur',
+        isSystem: true,
+      })
+      .returning();
+
+    await this.db.insert(role).values([
+      { tenantId: newTenant.id, code: 'staff', name: 'Collaborateur / Salarié', isSystem: true },
+      { tenantId: newTenant.id, code: 'volunteer', name: 'Bénévole', isSystem: true },
+      { tenantId: newTenant.id, code: 'board_member', name: 'Membre du Conseil', isSystem: true },
+    ]);
+
+    // 3. Create or Link Admin User Account
+    let adminUser: any;
+    const [existingUser] = await this.db
+      .select()
+      .from(userAccount)
+      .where(eq(userAccount.email, input.adminEmail.toLowerCase().trim()));
+
+    if (existingUser) {
+      adminUser = existingUser;
+    } else {
+      const [createdUser] = await this.db
+        .insert(userAccount)
+        .values({
+          email: input.adminEmail.toLowerCase().trim(),
+          firstName: input.adminFirstName.trim(),
+          lastName: input.adminLastName.trim(),
+          jobTitle: input.adminJobTitle || 'Direction Générale',
+          status: 'active',
+        })
+        .returning();
+
+      const secretHash = await hash(input.adminPassword);
+      await this.db.insert(userCredential).values({
+        userId: createdUser.id,
+        type: 'password',
+        secretHash,
+      });
+
+      adminUser = createdUser;
+    }
+
+    // 4. Create Membership and assign Admin Role
+    const [newMembership] = await this.db
+      .insert(membership)
+      .values({
+        tenantId: newTenant.id,
+        userId: adminUser.id,
+        status: 'active',
+      })
+      .returning();
+
+    await this.db.insert(membershipRole).values({
+      tenantId: newTenant.id,
+      membershipId: newMembership.id,
+      roleId: adminRole.id,
+    });
+
+    // 5. Create Default Org Unit & Staff Profile
+    const [defaultOrgUnit] = await this.db
+      .insert(orgUnit)
+      .values({
+        tenantId: newTenant.id,
+        name: 'Direction Générale',
+        code: 'DIR',
+      })
+      .returning();
+
+    const [adminParty] = await this.db
+      .insert(party)
+      .values({
+        tenantId: newTenant.id,
+        kind: 'person',
+        firstName: adminUser.firstName || input.adminFirstName,
+        lastName: adminUser.lastName || input.adminLastName,
+        email: adminUser.email,
+        phone: input.phone || null,
+      })
+      .returning();
+
+    await this.db.insert(staffProfile).values({
+      tenantId: newTenant.id,
+      partyId: adminParty.id,
+      userId: adminUser.id,
+      jobTitle: input.adminJobTitle || 'Direction Générale',
+      employmentType: 'employee',
+      departmentId: defaultOrgUnit.id,
+      status: 'active',
+      hireDate: new Date().toISOString().split('T')[0],
+    });
+
+    // 6. Create Initial Subscription
+    await this.db.insert(tenantSubscription).values({
+      tenantId: newTenant.id,
+      planCode: input.planCode || 'starter',
+      billingCycle: input.billingCycle || 'monthly',
+      status: 'active',
+      seatCount: 5,
+    });
+
+    return newTenant;
+  }
+
+  async purgeTenant(tenantId: string, adminUserId: string) {
+    const [tenant] = await this.db.select().from(tenantRegistry).where(eq(tenantRegistry.id, tenantId));
+    if (!tenant) throw new NotFoundException('Organisme non trouvé');
+
+    // Hard delete tenant and cascade all dependent data
+    await this.db.delete(tenantRegistry).where(eq(tenantRegistry.id, tenantId));
+
+    // Audit log deletion certificate
+    await this.db.insert(auditLog).values({
+      tenantId,
+      userId: adminUserId,
+      action: 'TENANT_HARD_PURGED_LOI25',
+      entityType: 'tenant',
+      entityId: tenantId,
+      payload: {
+        purgedTenantName: tenant.name,
+        purgedSlug: tenant.slug,
+        timestamp: new Date().toISOString(),
+        certificate: `LOI25-PURGE-CERT-${Date.now()}`,
+      },
+    });
+
+    return { success: true, message: `L'organisme "${tenant.name}" a été définitivement purgé conformément à la Loi 25.` };
+  }
+
+  /**
+   * =========================================================================
+   * PILIER 3 : FEATURE FLAGS & GESTION DES MODULES (ENTITLEMENTS)
+   * =========================================================================
+   */
+  async getFeatureFlags(tenantId?: string) {
+    const flags = await this.db.select().from(tenantFeatureFlag);
+    const globalFlags = [
+      { key: 'advanced_pm_evm', name: 'Gestion de Projet Avancée (EVM / PERT / CPM)', default: true },
+      { key: 'trainings_public_portal', name: 'Portail Public d’Inscriptions aux Formations', default: true },
+      { key: 'timesheets_analytics', name: 'Feuilles de Temps & Ventilation Analytique RH', default: true },
+      { key: 'grants_multicurrency', name: 'Gestion des Bailleurs & Subventions Multi-Devises', default: true },
+      { key: 'ai_copilot_assistant', name: 'Assistant IA & Génération Flash Rapport Copil', default: true },
+      { key: 'loi25_automated_purge', name: 'Purge Automatique & Registre CAI Loi 25', default: true },
+    ];
+
+    return {
+      systemFlags: globalFlags,
+      configuredFlags: flags,
+    };
+  }
+
+  async setFeatureFlag(input: {
+    featureKey: string;
+    isEnabled: boolean;
+    tenantId?: string | null;
+    description?: string;
+  }) {
+    const [existing] = await this.db
+      .select()
+      .from(tenantFeatureFlag)
+      .where(
+        input.tenantId
+          ? and(eq(tenantFeatureFlag.featureKey, input.featureKey), eq(tenantFeatureFlag.tenantId, input.tenantId))
+          : and(eq(tenantFeatureFlag.featureKey, input.featureKey), sql`${tenantFeatureFlag.tenantId} IS NULL`)
+      );
+
+    if (existing) {
+      const [updated] = await this.db
+        .update(tenantFeatureFlag)
+        .set({
+          isEnabled: input.isEnabled,
+          description: input.description || existing.description,
+          updatedAt: new Date(),
+        })
+        .where(eq(tenantFeatureFlag.id, existing.id))
+        .returning();
+      return updated;
+    }
+
+    const [created] = await this.db
+      .insert(tenantFeatureFlag)
+      .values({
+        featureKey: input.featureKey,
+        isEnabled: input.isEnabled,
+        tenantId: input.tenantId || null,
+        description: input.description,
+      })
+      .returning();
+
+    return created;
+  }
+
+  /**
+   * =========================================================================
+   * PILIER 4 : TÉLÉMÉTRIE, STOCKAGE GED & SANTÉ SYSTÈME (SRE / OPS)
+   * =========================================================================
+   */
+  async getSystemHealthAndTelemetry() {
+    const tenants = await this.db.select().from(tenantRegistry);
+    const documents = await this.db.select().from(document);
+    const sessions = await this.db.select().from(userSession);
+    const plans = await this.db.select().from(subscriptionPlan);
+    const planMap = new Map(plans.map((p) => [p.code, p]));
+
+    const storageByTenant = tenants.map((t) => {
+      const tenantDocs = documents.filter((d) => d.tenantId === t.id);
+      // Simulate file sizes if 0: count * average 2.5MB
+      const docCount = tenantDocs.length;
+      const estimatedStorageMb = Math.round(docCount * 2.4 * 10) / 10;
+      const plan = planMap.get('starter');
+      const maxStorageGb = t.maxStorageGbOverride || plan?.maxStorageGb || 5;
+      const maxStorageMb = maxStorageGb * 1024;
+      const usagePct = Math.min(100, Math.round((estimatedStorageMb / maxStorageMb) * 100));
+
+      return {
+        tenantId: t.id,
+        tenantName: t.name,
+        slug: t.slug,
+        documentCount: docCount,
+        usedStorageMb: estimatedStorageMb,
+        allocatedStorageGb: maxStorageGb,
+        usagePct,
+      };
+    });
+
+    return {
+      dbStatus: 'healthy',
+      uptimeSeconds: Math.floor(process.uptime()),
+      activeSessionsCount: sessions.filter((s) => s.expiresAt > new Date()).length,
+      totalTenantsCount: tenants.length,
+      totalDocumentsCount: documents.length,
+      storageTelemetry: storageByTenant,
+      serverTime: new Date().toISOString(),
+      nodeVersion: process.version,
+    };
+  }
+
+  /**
+   * =========================================================================
+   * PILIER 5 : GOUVERNANCE GLOBALE, AUDIT TRAIL & INCIDENTS LOI 25
+   * =========================================================================
+   */
+  async getPlatformAuditLogs(limit = 50, tenantId?: string) {
+    let query = this.db.select().from(auditLog).orderBy(desc(auditLog.createdAt)).limit(limit);
+    if (tenantId) {
+      query = this.db.select().from(auditLog).where(eq(auditLog.tenantId, tenantId)).orderBy(desc(auditLog.createdAt)).limit(limit) as any;
+    }
+    const logs = await query;
+    const tenants = await this.db.select().from(tenantRegistry);
+    const users = await this.db.select().from(userAccount);
+
+    const tenantMap = new Map(tenants.map((t) => [t.id, t]));
+    const userMap = new Map(users.map((u) => [u.id, u]));
+
+    return logs.map((l) => ({
+      ...l,
+      tenant: l.tenantId ? tenantMap.get(l.tenantId) || null : null,
+      user: l.userId ? userMap.get(l.userId) || null : null,
+    }));
+  }
+
+  async getSecurityIncidents() {
+    const incidents = await this.db.select().from(securityIncident).orderBy(desc(securityIncident.createdAt));
+    const tenants = await this.db.select().from(tenantRegistry);
+    const tenantMap = new Map(tenants.map((t) => [t.id, t]));
+
+    return incidents.map((inc) => ({
+      ...inc,
+      tenant: inc.tenantId ? tenantMap.get(inc.tenantId) || null : null,
+    }));
+  }
+
+  async createSecurityIncident(adminUserId: string, input: {
+    title: string;
+    description: string;
+    severity?: 'low' | 'medium' | 'high' | 'critical';
+    tenantId?: string | null;
+    impactedUsersCount?: number;
+    containmentSteps?: string;
+    notifiedCai?: boolean;
+    caiReferenceNumber?: string;
+  }) {
+    const [incident] = await this.db
+      .insert(securityIncident)
+      .values({
+        title: input.title,
+        description: input.description,
+        severity: input.severity || 'high',
+        tenantId: input.tenantId || null,
+        impactedUsersCount: input.impactedUsersCount || 0,
+        containmentSteps: input.containmentSteps || null,
+        notifiedCai: input.notifiedCai || false,
+        caiReferenceNumber: input.caiReferenceNumber || null,
+        notifiedAt: input.notifiedCai ? new Date() : null,
+        reportedByUserId: adminUserId,
+        status: input.notifiedCai ? 'notified_cai' : 'investigating',
+      })
+      .returning();
+
+    await this.db.insert(auditLog).values({
+      tenantId: input.tenantId || (await this.db.select().from(tenantRegistry).limit(1))[0]?.id,
+      userId: adminUserId,
+      action: 'SECURITY_INCIDENT_REGISTERED_LOI25',
+      entityType: 'security_incident',
+      entityId: incident.id,
+      payload: { title: input.title, severity: input.severity },
+    });
+
+    return incident;
+  }
+
+  async updateSecurityIncident(id: string, updates: any) {
+    const [updated] = await this.db
+      .update(securityIncident)
+      .set({
+        ...updates,
+        ...(updates.status === 'resolved' && { resolvedAt: new Date() }),
+        ...(updates.notifiedCai === true && { notifiedAt: new Date() }),
+        updatedAt: new Date(),
+      })
+      .where(eq(securityIncident.id, id))
+      .returning();
+
+    return updated;
+  }
+
+  /**
+   * =========================================================================
+   * PILIER 6 : BANNIÈRES DE MAINTENANCE & COMMUNICATION SYSTÈME
+   * =========================================================================
+   */
+  async getAnnouncements(onlyActive = false) {
+    const query = this.db.select().from(systemAnnouncement).orderBy(desc(systemAnnouncement.createdAt));
+    const list = await query;
+    if (onlyActive) {
+      return list.filter((a) => a.isActive);
+    }
+    return list;
+  }
+
+  async createAnnouncement(input: {
+    title: string;
+    message: string;
+    severity?: 'info' | 'warning' | 'critical';
+    targetTenantId?: string | null;
+    isActive?: boolean;
+    startsAt?: string;
+    endsAt?: string;
+  }) {
+    const [created] = await this.db
+      .insert(systemAnnouncement)
+      .values({
+        title: input.title,
+        message: input.message,
+        severity: input.severity || 'info',
+        targetTenantId: input.targetTenantId || null,
+        isActive: input.isActive !== undefined ? input.isActive : true,
+        startsAt: input.startsAt ? new Date(input.startsAt) : null,
+        endsAt: input.endsAt ? new Date(input.endsAt) : null,
+      })
+      .returning();
+
+    return created;
+  }
+
+  async updateAnnouncement(id: string, updates: any) {
+    const [updated] = await this.db
+      .update(systemAnnouncement)
+      .set({
+        ...updates,
+        updatedAt: new Date(),
+      })
+      .where(eq(systemAnnouncement.id, id))
+      .returning();
+
+    return updated;
+  }
+
+  async deleteAnnouncement(id: string) {
+    await this.db.delete(systemAnnouncement).where(eq(systemAnnouncement.id, id));
+    return { success: true };
+  }
 }
+

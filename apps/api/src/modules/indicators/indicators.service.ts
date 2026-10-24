@@ -8,6 +8,7 @@ import {
   serviceDelivery,
   enrollment,
   caseFile,
+  program,
   project,
   resultNode,
   CreateIndicatorInput,
@@ -35,18 +36,19 @@ export class IndicatorsService {
         .insert(indicator)
         .values({
           tenantId,
-          projectId: input.projectId,
-          resultNodeId: input.resultNodeId,
+          programId: input.programId || null,
+          projectId: input.projectId || null,
+          resultNodeId: input.resultNodeId || null,
           code: input.code,
           name: input.name,
-          description: input.description,
+          description: input.description || null,
           level: input.level,
           unit: input.unit || 'personnes',
           baselineValue: String(input.baselineValue || 0),
           targetValue: String(input.targetValue),
           actualValue: String(input.baselineValue || 0),
           frequency: input.frequency || 'quarterly',
-          meansOfVerification: input.meansOfVerification,
+          meansOfVerification: input.meansOfVerification || null,
           disaggregationDimensions: input.disaggregationDimensions || ['gender', 'ageGroup', 'immigrationStatus'],
           status: input.status || 'active',
         })
@@ -62,6 +64,8 @@ export class IndicatorsService {
       if (!existing) throw new NotFoundException('Indicateur introuvable');
 
       const updateData: any = { updatedAt: new Date() };
+      if (input.programId !== undefined) updateData.programId = input.programId;
+      if (input.projectId !== undefined) updateData.projectId = input.projectId;
       if (input.name !== undefined) updateData.name = input.name;
       if (input.description !== undefined) updateData.description = input.description;
       if (input.level !== undefined) updateData.level = input.level;
@@ -93,11 +97,14 @@ export class IndicatorsService {
     });
   }
 
-  async findAllIndicators(tenantId: string, filters?: { projectId?: string; level?: string; status?: string }) {
+  async findAllIndicators(tenantId: string, filters?: { projectId?: string; programId?: string; level?: string; status?: string }) {
     return withTenantContext(this.db, tenantId, async (tx) => {
       const list = await tx.select().from(indicator).orderBy(indicator.code);
       const projects = await tx.select().from(project);
       const projectMap = new Map<string, any>(projects.map((p: any) => [p.id, p]));
+
+      const programs = await tx.select().from(program);
+      const programMap = new Map<string, any>(programs.map((pr: any) => [pr.id, pr]));
 
       const nodes = await tx.select().from(resultNode);
       const nodeMap = new Map<string, any>(nodes.map((n: any) => [n.id, n]));
@@ -105,6 +112,9 @@ export class IndicatorsService {
       let filtered = list;
       if (filters?.projectId) {
         filtered = filtered.filter((i: any) => i.projectId === filters.projectId);
+      }
+      if (filters?.programId) {
+        filtered = filtered.filter((i: any) => i.programId === filters.programId);
       }
       if (filters?.level) {
         filtered = filtered.filter((i: any) => i.level === filters.level);
@@ -117,6 +127,7 @@ export class IndicatorsService {
         const actual = Number(ind.actualValue);
         const target = Number(ind.targetValue);
         const proj = ind.projectId ? projectMap.get(ind.projectId) : null;
+        const prog = ind.programId ? programMap.get(ind.programId) : null;
         const node = ind.resultNodeId ? nodeMap.get(ind.resultNodeId) : null;
         const { varianceValue, variancePct } = calculateIndicatorVariance(actual, target);
         const health = calculateIndicatorHealth(actual, target);
@@ -124,6 +135,7 @@ export class IndicatorsService {
         return {
           ...ind,
           projectName: proj ? proj.name : null,
+          programName: prog ? prog.name : null,
           resultNodeTitle: node ? node.title : null,
           progressPct: calculateIndicatorProgress(actual, target),
           varianceValue,
@@ -157,6 +169,12 @@ export class IndicatorsService {
         proj = p || null;
       }
 
+      let prog = null;
+      if (ind.programId) {
+        const [pr] = await tx.select().from(program).where(eq(program.id, ind.programId));
+        prog = pr || null;
+      }
+
       let node = null;
       if (ind.resultNodeId) {
         const [n] = await tx.select().from(resultNode).where(eq(resultNode.id, ind.resultNodeId));
@@ -166,6 +184,7 @@ export class IndicatorsService {
       return {
         ...ind,
         project: proj,
+        program: prog,
         resultNode: node,
         progressPct: calculateIndicatorProgress(actual, target),
         varianceValue,

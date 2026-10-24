@@ -4,13 +4,25 @@ export const CreateProgramSchema = z.object({
   code: z
     .string()
     .min(2, 'Le code doit comporter au moins 2 caractères')
-    .max(20, 'Le code ne peut dépasser 20 caractères')
+    .max(30, 'Le code ne peut dépasser 30 caractères')
     .regex(/^[A-Z0-9_-]+$/i, 'Le code doit contenir uniquement des lettres, chiffres, tirets ou soulignés'),
   name: z
     .string()
     .min(2, 'Le nom du programme doit comporter au moins 2 caractères')
-    .max(100),
-  description: z.string().optional(),
+    .max(150, 'Le nom du programme ne peut dépasser 150 caractères'),
+  thematicPillar: z.string().optional().nullable(),
+  leadManagerName: z.string().optional().nullable(),
+  leadManagerEmail: z.string().email('Email invalide').optional().nullable().or(z.literal('')),
+  description: z.string().optional().nullable(),
+  strategicObjectives: z.string().optional().nullable(),
+  startDate: z.string().optional().nullable(),
+  endDate: z.string().optional().nullable(),
+  targetBudget: z.number().nonnegative().optional().nullable(),
+  targetBeneficiariesCount: z.number().int().nonnegative().optional().nullable(),
+  primaryDonorName: z.string().optional().nullable(),
+  reviewCadence: z
+    .enum(['monthly', 'quarterly', 'biannual', 'annual'])
+    .default('quarterly'),
   status: z.enum(['planned', 'active', 'suspended', 'closed']).default('active'),
 });
 

@@ -17,6 +17,7 @@ import { ProjectService } from './project.service';
 import { AuthGuard } from '../../common/guards/auth.guard';
 import {
   CreateProgramSchema,
+  UpdateProgramSchema,
   AddProjectToProgramSchema,
   CreateProjectSchema,
   UpdateProjectSchema,
@@ -47,10 +48,26 @@ export class ProjectController {
     return this.projectService.findAllPrograms(req.tenantId);
   }
 
+  @Get('programs/:id')
+  async findOneProgram(@Req() req: any, @Param('id') id: string) {
+    return this.projectService.findOneProgram(req.tenantId, id);
+  }
+
   @Post('programs')
   async createProgram(@Req() req: any, @Body() body: any) {
     const parsed = CreateProgramSchema.parse(body);
     return this.projectService.createProgram(req.tenantId, parsed);
+  }
+
+  @Patch('programs/:id')
+  async updateProgram(@Req() req: any, @Param('id') id: string, @Body() body: any) {
+    const parsed = UpdateProgramSchema.parse(body);
+    return this.projectService.updateProgram(req.tenantId, id, parsed);
+  }
+
+  @Delete('programs/:id')
+  async deleteProgram(@Req() req: any, @Param('id') id: string) {
+    return this.projectService.deleteProgram(req.tenantId, id);
   }
 
   @Post('programs/:id/projects')

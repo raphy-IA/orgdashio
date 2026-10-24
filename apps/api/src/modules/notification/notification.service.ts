@@ -1,11 +1,16 @@
 import { Injectable, Inject } from '@nestjs/common';
 import { DRIZZLE_DB } from '../../common/database/database.module';
-import { DbClient, withTenantContext, notification, CreateNotificationInput } from '@orgdashio/shared';
-import { eq, and, desc } from 'drizzle-orm';
+import { DbClient, withTenantContext, notification, systemAnnouncement, CreateNotificationInput } from '@orgdashio/shared';
+import { eq, and, desc, sql } from 'drizzle-orm';
 
 @Injectable()
 export class NotificationService {
   constructor(@Inject(DRIZZLE_DB) private readonly db: DbClient) {}
+
+  async getActiveAnnouncements(tenantId?: string) {
+    const list = await this.db.select().from(systemAnnouncement).where(eq(systemAnnouncement.isActive, true));
+    return list.filter((a) => !a.targetTenantId || a.targetTenantId === tenantId);
+  }
 
   async create(tenantId: string, input: CreateNotificationInput) {
     return withTenantContext(this.db, tenantId, async (tx) => {
