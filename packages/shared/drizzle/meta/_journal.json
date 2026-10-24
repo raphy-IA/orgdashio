@@ -22,6 +22,13 @@
       "when": 1791517048747,
       "tag": "0002_lovely_king_bedlam",
       "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "7",
+      "when": 1792805449709,
+      "tag": "0003_certain_mercury",
+      "breakpoints": true
     }
   ]
 }
