@@ -1,0 +1,83 @@
+# OrgDashio — production (convention BSA : config à la racine du repo).
+# Le nginx de l'HÔTE (80/443 + Certbot) pointe sur 127.0.0.1:3040 -> conteneur web.
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: orgdashio-db
+    restart: always
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    cap_add:
+      - CHOWN
+      - DAC_OVERRIDE
+      - FOWNER
+      - SETGID
+      - SETUID
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-orgadmin}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Database password required}
+      POSTGRES_DB: ${POSTGRES_DB:-orgdashio}
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    networks:
+      - orgdashio-network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  api:
+    build:
+      context: .
+      dockerfile: apps/api/Dockerfile
+    image: orgdashio-api:latest
+    container_name: orgdashio-api
+    restart: always
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      NODE_ENV: production
+      PORT: 3000
+      DATABASE_URL: postgres://${POSTGRES_USER:-orgadmin}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-orgdashio}
+      FRONTEND_URL: https://orgdashio.bosssystemsai.com
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    networks:
+      - orgdashio-network
+
+  web:
+    build:
+      context: .
+      dockerfile: apps/web/Dockerfile
+    image: orgdashio-web:latest
+    container_name: orgdashio-web
+    restart: always
+    ports:
+      - "127.0.0.1:3040:80"
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    cap_add:
+      - NET_BIND_SERVICE
+      - CHOWN
+      - DAC_OVERRIDE
+      - SETGID
+      - SETUID
+    depends_on:
+      - api
+    networks:
+      - orgdashio-network
+
+volumes:
+  pgdata:
+
+networks:
+  orgdashio-network:
+    driver: bridge
