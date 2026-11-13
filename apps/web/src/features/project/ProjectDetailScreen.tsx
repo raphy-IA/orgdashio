@@ -53,6 +53,7 @@ import {
   Building2,
   HeartHandshake,
 } from 'lucide-react';
+import { calculateBeneficiaryDemographics } from '@orgdashio/shared';
 import { Navbar } from '../../components/Navbar';
 import { PertNetworkDiagram } from './components/PertNetworkDiagram';
 import { GanttChartInteractive } from './components/GanttChartInteractive';
@@ -1508,6 +1509,9 @@ export function ProjectDetailScreen() {
         : 0;
 
   const totalTasks = planItems.length;
+  const demographics = React.useMemo(() => {
+    return calculateBeneficiaryDemographics(serviceDeliveries);
+  }, [serviceDeliveries]);
   const completedTasks = planItems.filter((p: any) => p.status === 'completed' || (p.progressPct ?? 0) === 100).length;
   const inProgressTasks = planItems.filter((p: any) => (p.progressPct ?? 0) > 0 && (p.progressPct ?? 0) < 100).length;
   const blockedTasks = planItems.filter((p: any) => p.status === 'blocked').length;
@@ -1677,12 +1681,15 @@ export function ProjectDetailScreen() {
               <TrendingUp className="h-3.5 w-3.5 text-indigo-600" />
               <strong className="text-slate-700">{fmt(remaining)}</strong> solde budget
             </span>
-            <span className="flex items-center gap-1">
+            <span
+              className="flex items-center gap-1"
+              title={`${demographics.totalPersons} personne(s) touchée(s) au total (${demographics.totalEntities} dossiers/entités enregistrés)`}
+            >
               <Users className="h-3.5 w-3.5 text-rose-600" />
               <strong className="text-slate-700">
-                {new Set(serviceDeliveries.map((d: any) => d.partyId)).size}
+                {demographics.totalPersons}
               </strong>
-              {proj.targetBeneficiariesCount ? ` / ${proj.targetBeneficiariesCount}` : ''} bénéficiaires
+              {proj.targetBeneficiariesCount ? ` / ${proj.targetBeneficiariesCount}` : ''} pers. touchées
             </span>
           </div>
 

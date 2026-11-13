@@ -26,7 +26,7 @@ import {
   Download,
   Info,
 } from 'lucide-react';
-import { calculateEVM, EVMTaskInput, EVMExpenseInput } from '@orgdashio/shared';
+import { calculateEVM, EVMTaskInput, EVMExpenseInput, calculateBeneficiaryDemographics } from '@orgdashio/shared';
 
 export type ReportTemplate =
   | 'copil_executive'
@@ -110,55 +110,16 @@ export function ProjectReportsHub({
     });
   }, [serviceDeliveries, dateStart, dateEnd]);
 
-  const uniqueBeneficiaries = useMemo(() => {
-    const map = new Map<string, any>();
-    for (const d of filteredDeliveries) {
-      if (!map.has(d.partyId)) {
-        map.set(d.partyId, d);
-      }
-    }
-    return Array.from(map.values());
+  // Comprehensive Human Person-Level Demographics (ACS+ / GBA+)
+  const demographics = useMemo(() => {
+    return calculateBeneficiaryDemographics(filteredDeliveries);
   }, [filteredDeliveries]);
 
-  const totalBeneficiariesReached = uniqueBeneficiaries.length;
+  const totalBeneficiariesReached = demographics.totalPersons;
   const targetBeneficiaries = project?.targetBeneficiariesCount || 0;
   const reachPercentage = targetBeneficiaries > 0
     ? Math.min(100, Math.round((totalBeneficiariesReached / targetBeneficiaries) * 100))
     : 0;
-
-  // Age and Gender breakdown (ACS+)
-  const demographics = useMemo(() => {
-    let female = 0;
-    let male = 0;
-    let other = 0;
-    let youth = 0; // < 25
-    let adult = 0; // 25 - 60
-    let senior = 0; // > 60
-
-    const nowYear = new Date().getFullYear();
-
-    for (const b of uniqueBeneficiaries) {
-      const g = (b.genderCode || '').toLowerCase();
-      if (g === 'f' || g === 'female' || g === 'femme') female++;
-      else if (g === 'm' || g === 'male' || g === 'homme') male++;
-      else other++;
-
-      if (b.birthDate) {
-        const birthYear = new Date(b.birthDate).getFullYear();
-        const age = nowYear - birthYear;
-        if (age < 25) youth++;
-        else if (age <= 60) adult++;
-        else senior++;
-      }
-    }
-
-    const total = uniqueBeneficiaries.length;
-    const fPct = total > 0 ? Math.round((female / total) * 100) : 0;
-    const mPct = total > 0 ? Math.round((male / total) * 100) : 0;
-    const oPct = total > 0 ? Math.max(0, 100 - fPct - mPct) : 0;
-
-    return { female, male, other, fPct, mPct, oPct, youth, adult, senior, total };
-  }, [uniqueBeneficiaries]);
 
   // Financial filtering & metrics
   const filteredFundingSources = useMemo(() => {
@@ -852,87 +813,225 @@ export function ProjectReportsHub({
             <h2 className="text-sm font-black uppercase tracking-wider text-slate-900 border-b border-slate-200 pb-1.5 flex items-center justify-between">
               <span>3. Atteinte des Bénéficiaires & Ventilation Genre (ACS+)</span>
               <span className="font-mono text-xs font-normal text-slate-500">
-                {totalBeneficiariesReached} individu(s) certifié(s)
+                {demographics.totalPersons} personne(s) touchée(s) • {demographics.totalEntities} dossier(s) certifié(s)
               </span>
             </h2>
 
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
               {/* Gender parity card */}
-              <div className="rounded-xl border border-slate-200 p-4 bg-slate-50/50 space-y-2">
-                <span className="text-[11px] font-bold text-slate-700 uppercase tracking-wider block">
-                  Désagrégation par Genre
-                </span>
-                <div className="space-y-1.5 text-xs">
-                  <div className="flex justify-between items-center">
-                    <span className="flex items-center gap-1.5">
-                      <span className="h-2.5 w-2.5 rounded-full bg-rose-500" />
-                      Femmes
-                    </span>
-                    <strong className="font-mono text-slate-900">{demographics.female} ({demographics.fPct}%)</strong>
+              <div className="rounded-xl border border-slate-200 p-4 bg-slate-50/50 space-y-2.5">
+                <div className="flex items-center justify-between">
+                  <span className="text-[11px] font-bold text-slate-700 uppercase tracking-wider block">
+                    Désagrégation par Genre (ACS+)
+                  </span>
+                  <span className="text-[10px] font-bold text-slate-500 font-mono">
+                    {demographics.totalPersons} pers.
+                  </span>
+                </div>
+                <div className="space-y-2 text-xs">
+                  {/* Femmes & Filles */}
+                  <div className="space-y-1">
+                    <div className="flex justify-between items-center font-bold">
+                      <span className="flex items-center gap-1.5 text-rose-700">
+                        <span className="h-2.5 w-2.5 rounded-full bg-rose-500" />
+                        Femmes & Filles
+                      </span>
+                      <strong className="font-mono text-slate-900">
+                        {demographics.totalFemales} ({demographics.femalePct}%)
+                      </strong>
+                    </div>
+                    <div className="pl-4 text-[11px] text-slate-500 flex justify-between">
+                      <span>• Femmes adultes (≥ 18 ans)</span>
+                      <span className="font-mono font-semibold text-slate-700">{demographics.women}</span>
+                    </div>
+                    <div className="pl-4 text-[11px] text-slate-500 flex justify-between">
+                      <span>• Filles mineures (&lt; 18 ans)</span>
+                      <span className="font-mono font-semibold text-slate-700">{demographics.girls}</span>
+                    </div>
                   </div>
-                  <div className="flex justify-between items-center">
-                    <span className="flex items-center gap-1.5">
-                      <span className="h-2.5 w-2.5 rounded-full bg-blue-500" />
-                      Hommes
-                    </span>
-                    <strong className="font-mono text-slate-900">{demographics.male} ({demographics.mPct}%)</strong>
+
+                  {/* Hommes & Garçons */}
+                  <div className="space-y-1 pt-1.5 border-t border-slate-200/60">
+                    <div className="flex justify-between items-center font-bold">
+                      <span className="flex items-center gap-1.5 text-blue-700">
+                        <span className="h-2.5 w-2.5 rounded-full bg-blue-500" />
+                        Hommes & Garçons
+                      </span>
+                      <strong className="font-mono text-slate-900">
+                        {demographics.totalMales} ({demographics.malePct}%)
+                      </strong>
+                    </div>
+                    <div className="pl-4 text-[11px] text-slate-500 flex justify-between">
+                      <span>• Hommes adultes (≥ 18 ans)</span>
+                      <span className="font-mono font-semibold text-slate-700">{demographics.men}</span>
+                    </div>
+                    <div className="pl-4 text-[11px] text-slate-500 flex justify-between">
+                      <span>• Garçons mineurs (&lt; 18 ans)</span>
+                      <span className="font-mono font-semibold text-slate-700">{demographics.boys}</span>
+                    </div>
                   </div>
-                  <div className="flex justify-between items-center">
-                    <span className="flex items-center gap-1.5">
+
+                  {/* Autre / Non spécifié */}
+                  <div className="flex justify-between items-center pt-1.5 border-t border-slate-200/60">
+                    <span className="flex items-center gap-1.5 text-slate-600">
                       <span className="h-2.5 w-2.5 rounded-full bg-amber-400" />
-                      Non spécifié / Autre
+                      Autre / Non spécifié
                     </span>
-                    <strong className="font-mono text-slate-900">{demographics.other} ({demographics.oPct}%)</strong>
+                    <strong className="font-mono text-slate-900">
+                      {demographics.otherGender} ({demographics.otherPct}%)
+                    </strong>
                   </div>
                 </div>
               </div>
 
               {/* Age groups */}
-              <div className="rounded-xl border border-slate-200 p-4 bg-slate-50/50 space-y-2">
+              <div className="rounded-xl border border-slate-200 p-4 bg-slate-50/50 space-y-2.5">
                 <span className="text-[11px] font-bold text-slate-700 uppercase tracking-wider block">
                   Groupes d'Âge & Générations
                 </span>
-                <div className="space-y-1.5 text-xs">
+                <div className="space-y-2 text-xs">
                   <div className="flex justify-between items-center">
-                    <span>Jeunes (&lt; 25 ans)</span>
-                    <strong className="font-mono text-slate-900">{demographics.youth}</strong>
+                    <span className="text-slate-600">Enfants & Mineurs (&lt; 18 ans)</span>
+                    <strong className="font-mono text-slate-900">{demographics.children}</strong>
                   </div>
                   <div className="flex justify-between items-center">
-                    <span>Adultes (25 – 60 ans)</span>
-                    <strong className="font-mono text-slate-900">{demographics.adult}</strong>
+                    <span className="text-slate-600">Jeunes (18 – 24 ans)</span>
+                    <strong className="font-mono text-slate-900">
+                      {Math.max(0, demographics.youth - demographics.children)}
+                    </strong>
                   </div>
                   <div className="flex justify-between items-center">
-                    <span>Aînés (&gt; 60 ans)</span>
-                    <strong className="font-mono text-slate-900">{demographics.senior}</strong>
+                    <span className="text-slate-600">Adultes (25 – 60 ans)</span>
+                    <strong className="font-mono text-slate-900">{demographics.adults}</strong>
                   </div>
+                  <div className="flex justify-between items-center">
+                    <span className="text-slate-600">Aînés (&gt; 60 ans)</span>
+                    <strong className="font-mono text-slate-900">{demographics.seniors}</strong>
+                  </div>
+                  {demographics.unspecifiedCount > 0 && (
+                    <div className="flex justify-between items-center pt-1 border-t border-slate-200/60 text-[11px] text-slate-400">
+                      <span>Âge non renseigné</span>
+                      <span className="font-mono font-semibold">{demographics.unspecifiedCount}</span>
+                    </div>
+                  )}
                 </div>
               </div>
 
               {/* Cible & portance */}
-              <div className="rounded-xl border border-slate-200 p-4 bg-slate-50/50 space-y-2">
+              <div className="rounded-xl border border-slate-200 p-4 bg-slate-50/50 space-y-2.5">
                 <span className="text-[11px] font-bold text-slate-700 uppercase tracking-wider block">
-                  Portée & Efficacité Terrain
+                  Portée & Typologie Terrain
                 </span>
-                <div className="space-y-1.5 text-xs">
+                <div className="space-y-2 text-xs">
                   <div className="flex justify-between items-center">
-                    <span>Prestations délivrées</span>
-                    <strong className="font-mono text-slate-900">{filteredDeliveries.length}</strong>
+                    <span className="text-slate-600">Prestations délivrées</span>
+                    <strong className="font-mono text-slate-900">{filteredDeliveries.length} acte(s)</strong>
                   </div>
                   <div className="flex justify-between items-center">
-                    <span>Ratio moyen / bénéficiaire</span>
-                    <strong className="font-mono text-slate-900">
-                      {totalBeneficiariesReached > 0 ? (filteredDeliveries.length / totalBeneficiariesReached).toFixed(1) : 0} acte(s)
-                    </strong>
+                    <span className="text-slate-600">Individus accompagnés</span>
+                    <strong className="font-mono text-slate-900">{demographics.individualsCount}</strong>
                   </div>
                   <div className="flex justify-between items-center">
-                    <span>Cible contractuelle</span>
+                    <span className="text-slate-600">Ménages / Familles</span>
+                    <strong className="font-mono text-slate-900">{demographics.householdsCount}</strong>
+                  </div>
+                  <div className="flex justify-between items-center">
+                    <span className="text-slate-600">Communautés / Groupes</span>
+                    <strong className="font-mono text-slate-900">{demographics.communitiesCount + demographics.organizationsCount}</strong>
+                  </div>
+                  <div className="flex justify-between items-center pt-1 border-t border-slate-200/60">
+                    <span className="text-slate-600">Ratio moyen / personne</span>
                     <strong className="font-mono text-indigo-700">
-                      {targetBeneficiaries > 0 ? `${targetBeneficiaries} pers.` : 'N/D'}
+                      {demographics.totalPersons > 0 ? (filteredDeliveries.length / demographics.totalPersons).toFixed(1) : '0'} acte(s)
                     </strong>
                   </div>
                 </div>
               </div>
             </div>
+
+            {/* Table of individual & group deliveries */}
+            {filteredDeliveries.length > 0 && (
+              <div className="overflow-x-auto rounded-xl border border-slate-200 mt-2">
+                <table className="min-w-full divide-y divide-slate-200 text-left text-xs">
+                  <thead className="bg-slate-100 font-bold text-slate-800">
+                    <tr>
+                      <th className="px-3.5 py-2">Bénéficiaire & Structure</th>
+                      <th className="px-3.5 py-2">Catégorie</th>
+                      <th className="px-3.5 py-2 text-center">Personnes</th>
+                      <th className="px-3.5 py-2">Détail Genre & Âge (ACS+)</th>
+                      <th className="px-3.5 py-2">Prestation Délivrée</th>
+                      <th className="px-3.5 py-2 text-right">Date</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100 bg-white">
+                    {filteredDeliveries.map((d: any) => {
+                      const custom = (d.customFields as Record<string, any>) || {};
+                      const bType = custom.beneficiaryType || (d.partyKind === 'organization' ? 'community' : 'individual');
+                      const displayName = d.partyKind === 'organization'
+                        ? (d.lastName || d.firstName || 'Organisation')
+                        : `${d.firstName || ''} ${d.lastName || ''}`.trim() || 'Individu';
+
+                      const isIndiv = bType === 'individual';
+                      const mMen = Number(custom.menCount) || 0;
+                      const mWomen = Number(custom.womenCount) || 0;
+                      const mBoys = Number(custom.boysCount) || 0;
+                      const mGirls = Number(custom.girlsCount) || 0;
+                      const mKids = Number(custom.childCount) || (mBoys + mGirls);
+                      const mTotal = isIndiv ? 1 : (Number(custom.memberCount) || (mMen + mWomen + mBoys + mGirls) || 1);
+
+                      let demoDetail = '';
+                      if (isIndiv) {
+                        const g = (d.genderCode || '').toLowerCase();
+                        const gLabel = g === 'f' || g === 'female' || g === 'femme' ? 'Femme' : g === 'm' || g === 'male' || g === 'homme' ? 'Homme' : 'Non spécifié';
+                        let ageLabel = '';
+                        if (d.birthDate) {
+                          const age = new Date().getFullYear() - new Date(d.birthDate).getFullYear();
+                          ageLabel = `, ${age} ans`;
+                        }
+                        demoDetail = `${gLabel}${ageLabel}`;
+                      } else {
+                        const parts = [];
+                        if (mWomen > 0) parts.push(`${mWomen} F`);
+                        if (mGirls > 0) parts.push(`${mGirls} Filles`);
+                        if (mMen > 0) parts.push(`${mMen} H`);
+                        if (mBoys > 0) parts.push(`${mBoys} Garçons`);
+                        if (parts.length === 0 && mKids > 0) parts.push(`${mKids} Enfants`);
+                        demoDetail = parts.length > 0 ? parts.join(', ') : 'Détail non spécifié';
+                      }
+
+                      return (
+                        <tr key={d.id} className="hover:bg-slate-50/50">
+                          <td className="px-3.5 py-2 font-medium text-slate-900">
+                            {displayName}
+                            {custom.location && <span className="block text-[10px] text-slate-400">{custom.location}</span>}
+                          </td>
+                          <td className="px-3.5 py-2 uppercase text-[10px] font-bold text-slate-500">
+                            <span className={`px-2 py-0.5 rounded-full ${
+                              bType === 'individual' ? 'bg-slate-100 text-slate-700' : bType === 'household' ? 'bg-blue-100 text-blue-800' : 'bg-purple-100 text-purple-800'
+                            }`}>
+                              {bType === 'individual' ? 'Individu' : bType === 'household' ? 'Ménage' : 'Collectivité'}
+                            </span>
+                          </td>
+                          <td className="px-3.5 py-2 text-center font-mono font-bold text-slate-900">
+                            {mTotal}
+                          </td>
+                          <td className="px-3.5 py-2 text-xs text-slate-700">
+                            {demoDetail}
+                          </td>
+                          <td className="px-3.5 py-2 font-medium text-indigo-700">
+                            {d.serviceType || 'Service rattaché'}
+                            {d.notes && <span className="block text-[11px] text-slate-500 font-normal">{d.notes}</span>}
+                          </td>
+                          <td className="px-3.5 py-2 text-right font-mono text-slate-500 text-[11px]">
+                            {d.deliveredAt ? new Date(d.deliveredAt).toLocaleDateString('fr-CA') : '—'}
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            )}
           </div>
         )}
 

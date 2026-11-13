@@ -30,7 +30,7 @@ import {
   UserCheck,
   Users,
 } from 'lucide-react';
-import { calculateEVM, EVMTaskInput, EVMExpenseInput } from '@orgdashio/shared';
+import { calculateEVM, EVMTaskInput, EVMExpenseInput, calculateBeneficiaryDemographics } from '@orgdashio/shared';
 
 interface ProjectOverviewViewProps {
   project: any;
@@ -113,38 +113,16 @@ export function ProjectOverviewView({
   const phases = planItems.filter((p) => p.type === 'phase');
   const rootPlanItems = planItems.filter((p) => !p.parentId);
 
-  // Beneficiaries & Gender Metrics
-  const uniqueBeneficiaries = React.useMemo(() => {
-    const map = new Map<string, any>();
-    for (const d of serviceDeliveries) {
-      if (!map.has(d.partyId)) {
-        map.set(d.partyId, d);
-      }
-    }
-    return Array.from(map.values());
+  // Beneficiaries & Gender Metrics (Demographics on human person level)
+  const demographics = React.useMemo(() => {
+    return calculateBeneficiaryDemographics(serviceDeliveries);
   }, [serviceDeliveries]);
 
-  const totalBeneficiariesReached = uniqueBeneficiaries.length;
+  const totalBeneficiariesReached = demographics.totalPersons;
   const targetBeneficiaries = project?.targetBeneficiariesCount || 0;
   const reachPercentage = targetBeneficiaries > 0
     ? Math.min(100, Math.round((totalBeneficiariesReached / targetBeneficiaries) * 100))
     : 0;
-
-  const genderBreakdown = React.useMemo(() => {
-    let female = 0;
-    let male = 0;
-    let other = 0;
-    for (const b of uniqueBeneficiaries) {
-      const g = (b.genderCode || '').toLowerCase();
-      if (g === 'f' || g === 'female' || g === 'femme') female++;
-      else if (g === 'm' || g === 'male' || g === 'homme') male++;
-      else other++;
-    }
-    const fPct = totalBeneficiariesReached > 0 ? Math.round((female / totalBeneficiariesReached) * 100) : 0;
-    const mPct = totalBeneficiariesReached > 0 ? Math.round((male / totalBeneficiariesReached) * 100) : 0;
-    const oPct = totalBeneficiariesReached > 0 ? Math.max(0, 100 - fPct - mPct) : 0;
-    return { female, male, other, fPct, mPct, oPct };
-  }, [uniqueBeneficiaries, totalBeneficiariesReached]);
 
   const totalTasks = tasksOnly.length;
   const completedTasks = tasksOnly.filter((p) => p.status === 'completed' || (p.progressPct ?? 0) === 100).length;
@@ -346,20 +324,44 @@ export function ProjectOverviewView({
             </span>
           </div>
           <div className="flex items-baseline gap-2">
-            <p className="text-2xl font-black font-mono text-rose-950">{totalBeneficiariesReached}</p>
+            <p className="text-2xl font-black font-mono text-rose-950">{demographics.totalPersons}</p>
             <span className="text-xs text-slate-500 font-medium">
-              {targetBeneficiaries > 0 ? `/ ${targetBeneficiaries} cibles` : 'touché(s)'}
+              {targetBeneficiaries > 0
+                ? `/ ${targetBeneficiaries} cibles`
+                : demographics.totalPersons > 1 ? 'personnes touchées' : 'personne touchée'}
             </span>
           </div>
           <div className="h-1.5 w-full bg-slate-200 rounded-full overflow-hidden flex">
-            <div className="bg-rose-500 h-full" style={{ width: `${genderBreakdown.fPct}%` }} title={`Femmes: ${genderBreakdown.female}`} />
-            <div className="bg-blue-500 h-full" style={{ width: `${genderBreakdown.mPct}%` }} title={`Hommes: ${genderBreakdown.male}`} />
-            <div className="bg-amber-400 h-full" style={{ width: `${genderBreakdown.oPct}%` }} title={`Autre: ${genderBreakdown.other}`} />
+            <div
+              className="bg-rose-500 h-full transition-all"
+              style={{ width: `${demographics.femalePct}%` }}
+              title={`Femmes & Filles : ${demographics.totalFemales} (${demographics.women} Femmes, ${demographics.girls} Filles)`}
+            />
+            <div
+              className="bg-blue-500 h-full transition-all"
+              style={{ width: `${demographics.malePct}%` }}
+              title={`Hommes & Garçons : ${demographics.totalMales} (${demographics.men} Hommes, ${demographics.boys} Garçons)`}
+            />
+            {demographics.otherPct > 0 && (
+              <div
+                className="bg-amber-400 h-full transition-all"
+                style={{ width: `${demographics.otherPct}%` }}
+                title={`Autre / Non spécifié : ${demographics.otherGender}`}
+              />
+            )}
           </div>
           <div className="flex items-center justify-between text-[10px] text-slate-600">
-            <span>♀ <strong>{genderBreakdown.female}</strong> ({genderBreakdown.fPct}%)</span>
-            <span>♂ <strong>{genderBreakdown.male}</strong> ({genderBreakdown.mPct}%)</span>
-            {genderBreakdown.other > 0 && <span>⚥ <strong>{genderBreakdown.other}</strong></span>}
+            <span title={`${demographics.women} Femmes adultes, ${demographics.girls} Filles mineures`}>
+              ♀ <strong>{demographics.totalFemales}</strong> ({demographics.femalePct}%)
+            </span>
+            <span title={`${demographics.men} Hommes adultes, ${demographics.boys} Garçons mineurs`}>
+              ♂ <strong>{demographics.totalMales}</strong> ({demographics.malePct}%)
+            </span>
+            {demographics.otherGender > 0 && (
+              <span title="Autre ou non spécifié">
+                ⚥ <strong>{demographics.otherGender}</strong>
+              </span>
+            )}
           </div>
         </div>
 

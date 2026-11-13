@@ -55,6 +55,8 @@ import {
   calculateCPM,
   CPMTaskInput,
   CPMDependencyInput,
+  calculateBeneficiaryDemographics,
+  BeneficiaryDemographics,
 } from '@orgdashio/shared';
 import { eq, and, inArray, or } from 'drizzle-orm';
 import { detectDependencyCycle } from './utils/dependency-graph.util';
@@ -189,6 +191,38 @@ export class ProjectService {
         (acc: number, prj: any) => acc + (prj.metrics?.beneficiaries?.otherGenderCount || 0),
         0
       );
+      const childrenBeneficiaries = progProjects.reduce(
+        (acc: number, prj: any) => acc + (prj.metrics?.beneficiaries?.childrenCount || 0),
+        0
+      );
+      const youthBeneficiaries = progProjects.reduce(
+        (acc: number, prj: any) => acc + (prj.metrics?.beneficiaries?.youthCount || 0),
+        0
+      );
+      const adultBeneficiaries = progProjects.reduce(
+        (acc: number, prj: any) => acc + (prj.metrics?.beneficiaries?.adultCount || 0),
+        0
+      );
+      const seniorBeneficiaries = progProjects.reduce(
+        (acc: number, prj: any) => acc + (prj.metrics?.beneficiaries?.seniorCount || 0),
+        0
+      );
+      const womenBeneficiaries = progProjects.reduce(
+        (acc: number, prj: any) => acc + (prj.metrics?.beneficiaries?.womenCount || 0),
+        0
+      );
+      const girlsBeneficiaries = progProjects.reduce(
+        (acc: number, prj: any) => acc + (prj.metrics?.beneficiaries?.girlsCount || 0),
+        0
+      );
+      const menBeneficiaries = progProjects.reduce(
+        (acc: number, prj: any) => acc + (prj.metrics?.beneficiaries?.menCount || 0),
+        0
+      );
+      const boysBeneficiaries = progProjects.reduce(
+        (acc: number, prj: any) => acc + (prj.metrics?.beneficiaries?.boysCount || 0),
+        0
+      );
 
       return {
         ...prog,
@@ -214,6 +248,14 @@ export class ProjectService {
             femaleCount: femaleBeneficiaries,
             maleCount: maleBeneficiaries,
             otherGenderCount: otherGenderBeneficiaries,
+            childrenCount: childrenBeneficiaries,
+            youthCount: youthBeneficiaries,
+            adultCount: adultBeneficiaries,
+            seniorCount: seniorBeneficiaries,
+            womenCount: womenBeneficiaries,
+            girlsCount: girlsBeneficiaries,
+            menCount: menBeneficiaries,
+            boysCount: boysBeneficiaries,
           },
           healthScore,
           healthStatus,
@@ -307,6 +349,22 @@ export class ProjectService {
           (acc: number, prj: any) => acc + (prj.metrics?.beneficiaries?.otherGenderCount || 0),
           0
         );
+        const childrenBeneficiaries = progProjects.reduce(
+          (acc: number, prj: any) => acc + (prj.metrics?.beneficiaries?.childrenCount || 0),
+          0
+        );
+        const youthBeneficiaries = progProjects.reduce(
+          (acc: number, prj: any) => acc + (prj.metrics?.beneficiaries?.youthCount || 0),
+          0
+        );
+        const adultBeneficiaries = progProjects.reduce(
+          (acc: number, prj: any) => acc + (prj.metrics?.beneficiaries?.adultCount || 0),
+          0
+        );
+        const seniorBeneficiaries = progProjects.reduce(
+          (acc: number, prj: any) => acc + (prj.metrics?.beneficiaries?.seniorCount || 0),
+          0
+        );
 
         const totalBudget = progProjects.reduce((acc: number, prj: any) => acc + (prj.metrics?.totalBudget || 0), 0);
         const totalExpenses = progProjects.reduce((acc: number, prj: any) => acc + (prj.metrics?.totalExpenses || 0), 0);
@@ -349,6 +407,10 @@ export class ProjectService {
               femaleCount: femaleBeneficiaries,
               maleCount: maleBeneficiaries,
               otherGenderCount: otherGenderBeneficiaries,
+              childrenCount: childrenBeneficiaries,
+              youthCount: youthBeneficiaries,
+              adultCount: adultBeneficiaries,
+              seniorCount: seniorBeneficiaries,
             },
             healthScore,
             healthStatus,
@@ -375,9 +437,13 @@ export class ProjectService {
         .select({
           projectId: serviceDelivery.projectId,
           partyId: serviceDelivery.partyId,
+          partyKind: party.kind,
           genderCode: beneficiaryProfile.genderCode,
+          birthDate: beneficiaryProfile.birthDate,
+          customFields: beneficiaryProfile.customFields,
         })
         .from(serviceDelivery)
+        .leftJoin(party, eq(serviceDelivery.partyId, party.id))
         .leftJoin(beneficiaryProfile, eq(serviceDelivery.partyId, beneficiaryProfile.partyId))
         .where(eq(serviceDelivery.tenantId, tenantId));
 
@@ -394,24 +460,8 @@ export class ProjectService {
         const pProg = pLink ? allPrograms.find((pr: any) => pr.id === pLink.programId) : null;
         const pDeliveries = allDeliveries.filter((d: any) => d.projectId === p.id);
 
-        // Unique beneficiaries
-        const uniqueBeneficiaryIds = new Set(pDeliveries.map((d: any) => d.partyId));
-        const totalBeneficiariesReached = uniqueBeneficiaryIds.size;
-        
-        let femaleCount = 0;
-        let maleCount = 0;
-        let otherGenderCount = 0;
-        const countedBeneficiaryGenders = new Set<string>();
-
-        for (const d of pDeliveries) {
-          if (!countedBeneficiaryGenders.has(d.partyId)) {
-            countedBeneficiaryGenders.add(d.partyId);
-            const g = (d.genderCode || '').toLowerCase();
-            if (g === 'f' || g === 'female' || g === 'femme') femaleCount++;
-            else if (g === 'm' || g === 'male' || g === 'homme') maleCount++;
-            else otherGenderCount++;
-          }
-        }
+        // Person counts and demographic breakdown across individuals, households, and communities
+        const demo = calculateBeneficiaryDemographics(pDeliveries);
 
         const totalTasks = pPlanItems.length;
         const completedTasks = pPlanItems.filter((i: any) => (i.progressPct ?? 0) === 100 || i.status === 'completed').length;
@@ -454,10 +504,20 @@ export class ProjectService {
             risksCount: pRaid.filter((r: any) => r.type === 'risk').length,
             issuesCount: pRaid.filter((r: any) => r.type === 'issue').length,
             beneficiaries: {
-              totalReached: totalBeneficiariesReached,
-              femaleCount,
-              maleCount,
-              otherGenderCount,
+              totalReached: demo.totalPersons,
+              totalEntitiesCount: demo.totalEntities,
+              femaleCount: demo.totalFemales,
+              maleCount: demo.totalMales,
+              otherGenderCount: demo.otherGender,
+              youthCount: demo.youth,
+              adultCount: demo.adults,
+              seniorCount: demo.seniors,
+              childrenCount: demo.children,
+              womenCount: demo.women,
+              girlsCount: demo.girls,
+              menCount: demo.men,
+              boysCount: demo.boys,
+              demographics: demo,
             },
           },
         };
@@ -669,6 +729,8 @@ export class ProjectService {
         };
       });
 
+      const demo = calculateBeneficiaryDemographics(rawDeliveries);
+
       return {
         project: proj,
         fundingSources: funding,
@@ -684,6 +746,7 @@ export class ProjectService {
         updates,
         deliverables,
         serviceDeliveries: rawDeliveries,
+        beneficiariesSummary: demo,
       };
     });
   }

@@ -369,6 +369,9 @@ export function ProjectListScreen() {
     // Cumulated targets from programs
     let totalTargetBeneficiaries = 0;
     let totalTargetProgramBudget = 0;
+    const totalPersonsReached = projects.reduce((acc: number, p: any) => acc + (p.metrics?.beneficiaries?.totalReached || 0), 0);
+    const totalFemalesReached = projects.reduce((acc: number, p: any) => acc + (p.metrics?.beneficiaries?.femaleCount || 0), 0);
+    const totalMalesReached = projects.reduce((acc: number, p: any) => acc + (p.metrics?.beneficiaries?.maleCount || 0), 0);
     const healthCounts = { healthy: 0, warning: 0, critical: 0 };
     const pillarsMap = new Map<string, { count: number; budget: number; expenses: number; projectsCount: number }>();
 
@@ -410,6 +413,9 @@ export function ProjectListScreen() {
       completedTasks,
       blockedTasks,
       totalTargetBeneficiaries,
+      totalPersonsReached,
+      totalFemalesReached,
+      totalMalesReached,
       healthCounts,
       pillarsList,
       criticalProjects,
@@ -591,20 +597,25 @@ export function ProjectListScreen() {
                 </div>
               </div>
 
-              {/* Card 5: Cibles Bénéficiaires */}
+              {/* Card 5: Bénéficiaires & Genre */}
               <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-2xs space-y-2">
                 <div className="flex items-center justify-between">
-                  <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wider">Cible Bénéficiaires</span>
-                  <div className="p-1.5 rounded-lg bg-purple-50 text-purple-600">
+                  <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wider">Bénéficiaires & Genre</span>
+                  <div className="p-1.5 rounded-lg bg-rose-50 text-rose-600">
                     <Users className="h-4 w-4" />
                   </div>
                 </div>
                 <div>
-                  <div className="text-base font-bold text-purple-700 truncate">
-                    {dashboardKpis.totalTargetBeneficiaries > 0 ? `${dashboardKpis.totalTargetBeneficiaries.toLocaleString()}` : '0'}
+                  <div className="text-base font-bold text-rose-700 truncate">
+                    {dashboardKpis.totalPersonsReached.toLocaleString()}
+                    <span className="text-xs font-normal text-slate-500 ml-1">
+                      {dashboardKpis.totalTargetBeneficiaries > 0
+                        ? `/ ${dashboardKpis.totalTargetBeneficiaries.toLocaleString()} visées`
+                        : 'touchées'}
+                    </span>
                   </div>
-                  <span className="text-[11px] text-slate-500 block mt-0.5">
-                    personnes visées
+                  <span className="text-[11px] text-slate-500 block mt-0.5 font-mono">
+                    ♀ {dashboardKpis.totalFemalesReached.toLocaleString()} • ♂ {dashboardKpis.totalMalesReached.toLocaleString()}
                   </span>
                 </div>
               </div>
