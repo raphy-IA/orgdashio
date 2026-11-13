@@ -16,6 +16,7 @@ export async function withTenantContext<T>(
   return db.transaction(async (tx: any) => {
     // Set current tenant ID in PostgreSQL session variable (scoped to transaction)
     await tx.execute(sql`SELECT set_config('app.tenant_id', ${tenantId}, true)`);
+    await tx.execute(sql`SELECT set_config('app.current_tenant_id', ${tenantId}, true)`);
     return fn(tx);
   });
 }

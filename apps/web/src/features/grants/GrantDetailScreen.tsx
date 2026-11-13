@@ -103,13 +103,14 @@ export function GrantDetailScreen() {
 
   // Installment modal state
   const [showInstallmentModal, setShowInstallmentModal] = useState(false);
+  const [installmentError, setInstallmentError] = useState('');
   const [editingInstallmentId, setEditingInstallmentId] = useState<string | null>(null);
   const [instNumber, setInstNumber] = useState(1);
   const [instTitle, setInstTitle] = useState('');
   const [instAmount, setInstAmount] = useState(10000);
   const [instScheduledDate, setInstScheduledDate] = useState('');
   const [instReceivedDate, setInstReceivedDate] = useState('');
-  const [instStatus, setInstStatus] = useState<'scheduled' | 'invoiced' | 'received' | 'delayed'>('scheduled');
+  const [instStatus, setInstStatus] = useState<'scheduled' | 'received' | 'delayed' | 'cancelled'>('scheduled');
   const [instConditions, setInstConditions] = useState('');
   const [instPaymentRef, setInstPaymentRef] = useState('');
 
@@ -206,7 +207,7 @@ export function GrantDetailScreen() {
         body: JSON.stringify(payload),
       });
       if (!res.ok) {
-        const err = await res.json();
+        const err = await res.json().catch(() => ({}));
         throw new Error(err.message || 'Erreur lors de la création de la tranche');
       }
       return res.json();
@@ -215,6 +216,9 @@ export function GrantDetailScreen() {
       queryClient.invalidateQueries({ queryKey: ['grant', id] });
       setShowInstallmentModal(false);
       resetInstallmentForm();
+    },
+    onError: (err: any) => {
+      setInstallmentError(err.message || 'Une erreur est survenue lors de l\'enregistrement de la tranche');
     },
   });
 
@@ -226,7 +230,7 @@ export function GrantDetailScreen() {
         body: JSON.stringify(payload),
       });
       if (!res.ok) {
-        const err = await res.json();
+        const err = await res.json().catch(() => ({}));
         throw new Error(err.message || 'Erreur lors de la modification de la tranche');
       }
       return res.json();
@@ -235,6 +239,9 @@ export function GrantDetailScreen() {
       queryClient.invalidateQueries({ queryKey: ['grant', id] });
       setShowInstallmentModal(false);
       resetInstallmentForm();
+    },
+    onError: (err: any) => {
+      setInstallmentError(err.message || 'Une erreur est survenue lors de la mise à jour de la tranche');
     },
   });
 
@@ -313,6 +320,7 @@ export function GrantDetailScreen() {
 
   const resetInstallmentForm = () => {
     setEditingInstallmentId(null);
+    setInstallmentError('');
     setInstNumber(grant?.installments?.length ? grant.installments.length + 1 : 1);
     setInstTitle('');
     setInstAmount(10000);
@@ -330,12 +338,15 @@ export function GrantDetailScreen() {
 
   const openEditInstallment = (inst: any) => {
     setEditingInstallmentId(inst.id);
+    setInstallmentError('');
     setInstNumber(inst.installmentNumber);
     setInstTitle(inst.title || '');
-    setInstAmount(inst.amount);
-    setInstScheduledDate(inst.scheduledDate ? inst.scheduledDate.substring(0, 10) : '');
-    setInstReceivedDate(inst.receivedDate ? inst.receivedDate.substring(0, 10) : '');
-    setInstStatus(inst.status);
+    setInstAmount(Number(inst.amount) || 0);
+    const dateVal = inst.expectedDate || inst.scheduledDate || '';
+    setInstScheduledDate(dateVal ? dateVal.substring(0, 10) : '');
+    const recDate = inst.receivedAt || inst.receivedDate || '';
+    setInstReceivedDate(recDate ? recDate.substring(0, 10) : '');
+    setInstStatus(inst.status || 'scheduled');
     setInstConditions(inst.conditions || '');
     setInstPaymentRef(inst.paymentReference || '');
     setShowInstallmentModal(true);
@@ -413,15 +424,25 @@ export function GrantDetailScreen() {
 
   const handleSaveInstallment = (e: React.FormEvent) => {
     e.preventDefault();
+    setInstallmentError('');
+    const dateStr = instScheduledDate
+      ? instScheduledDate
+      : new Date().toISOString().substring(0, 10);
+
     const payload = {
       installmentNumber: Number(instNumber),
-      title: instTitle || `Tranche #${instNumber}`,
       amount: Number(instAmount),
-      scheduledDate: instScheduledDate ? new Date(instScheduledDate).toISOString() : new Date().toISOString(),
-      receivedDate: instReceivedDate ? new Date(instReceivedDate).toISOString() : null,
+      expectedDate: dateStr,
       status: instStatus,
-      conditions: instConditions || null,
-      paymentReference: instPaymentRef || null,
+      receivedAt: instStatus === 'received' && instReceivedDate ? instReceivedDate : undefined,
+      receivedAmount: instStatus === 'received' ? Number(instAmount) : undefined,
+      conditions: [
+        instTitle ? `[${instTitle}]` : '',
+        instConditions || '',
+        instPaymentRef ? `(Réf: ${instPaymentRef})` : '',
+      ]
+        .filter(Boolean)
+        .join(' - ') || undefined,
     };
 
     if (editingInstallmentId) {
@@ -487,7 +508,7 @@ export function GrantDetailScreen() {
   // Calculations
   const totalReceived = grant.installments
     ?.filter((i: any) => i.status === 'received')
-    .reduce((sum: number, i: any) => sum + i.amount, 0) || 0;
+    .reduce((sum: number, i: any) => sum + (Number(i.receivedAmount) || Number(i.amount) || 0), 0) || 0;
   const progressPercent = grant.awardedAmount > 0 ? Math.min(100, Math.round((totalReceived / grant.awardedAmount) * 100)) : 0;
   const pendingDeliverables = grant.deliverables?.filter((d: any) => d.status !== 'approved') || [];
 
@@ -879,24 +900,28 @@ export function GrantDetailScreen() {
                     <tbody className="divide-y divide-slate-200 dark:divide-slate-700">
                       {grant.installments
                         .sort((a: any, b: any) => a.installmentNumber - b.installmentNumber)
-                        .map((inst: any) => (
+                        .map((inst: any) => {
+                          const instAmt = Number(inst.amount) || 0;
+                          const scheduledDateStr = inst.expectedDate || inst.scheduledDate;
+                          const receivedDateStr = inst.receivedAt || inst.receivedDate;
+                          return (
                           <tr key={inst.id} className="hover:bg-slate-50/50 dark:hover:bg-slate-750/50 transition">
                             <td className="py-3 px-4 font-bold text-slate-400">
                               #{inst.installmentNumber}
                             </td>
                             <td className="py-3 px-4 font-semibold text-slate-900 dark:text-white">
-                              {inst.title}
+                              {inst.title || `Tranche #${inst.installmentNumber}`}
                             </td>
                             <td className="py-3 px-4 font-bold text-slate-900 dark:text-white">
-                              {inst.amount.toLocaleString('fr-CA')} $
+                              {instAmt.toLocaleString('fr-CA')} $
                             </td>
                             <td className="py-3 px-4 text-slate-600 dark:text-slate-300">
-                              {inst.scheduledDate ? new Date(inst.scheduledDate).toLocaleDateString('fr-CA') : '-'}
+                              {scheduledDateStr ? new Date(scheduledDateStr).toLocaleDateString('fr-CA') : '-'}
                             </td>
                             <td className="py-3 px-4 text-slate-600 dark:text-slate-300">
-                              {inst.receivedDate ? (
+                              {receivedDateStr ? (
                                 <span className="text-emerald-600 font-medium">
-                                  {new Date(inst.receivedDate).toLocaleDateString('fr-CA')}
+                                  {new Date(receivedDateStr).toLocaleDateString('fr-CA')}
                                 </span>
                               ) : (
                                 <span className="text-slate-400 italic">En attente</span>
@@ -907,13 +932,13 @@ export function GrantDetailScreen() {
                                 <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-semibold bg-emerald-100 text-emerald-800">
                                   <CheckCircle2 className="h-3 w-3 mr-1" /> Reçue
                                 </span>
-                              ) : inst.status === 'invoiced' ? (
-                                <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-semibold bg-blue-100 text-blue-800">
-                                  Facturée
-                                </span>
                               ) : inst.status === 'delayed' ? (
                                 <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-semibold bg-rose-100 text-rose-800">
                                   En retard
+                                </span>
+                              ) : inst.status === 'cancelled' ? (
+                                <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-semibold bg-gray-100 text-gray-800">
+                                  Annulée
                                 </span>
                               ) : (
                                 <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-semibold bg-slate-100 text-slate-700">
@@ -945,7 +970,8 @@ export function GrantDetailScreen() {
                               </button>
                             </td>
                           </tr>
-                        ))}
+                        );
+                      })}
                     </tbody>
                   </table>
                 </div>
@@ -1345,6 +1371,14 @@ export function GrantDetailScreen() {
             <h3 className="text-xl font-bold text-slate-900 dark:text-white mb-4">
               {editingInstallmentId ? 'Modifier la Tranche' : 'Nouvelle Tranche de Versement'}
             </h3>
+
+            {installmentError && (
+              <div className="mb-4 p-3 bg-red-50 dark:bg-red-950/40 border border-red-200 dark:border-red-800 text-red-700 dark:text-red-300 rounded-lg text-sm flex items-start gap-2">
+                <AlertTriangle className="h-4 w-4 mt-0.5 flex-shrink-0" />
+                <span>{installmentError}</span>
+              </div>
+            )}
+
             <form onSubmit={handleSaveInstallment} className="space-y-4">
               <div className="grid grid-cols-2 gap-4">
                 <div>
@@ -1404,9 +1438,9 @@ export function GrantDetailScreen() {
                     className="w-full h-10 px-3 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-sm"
                   >
                     <option value="scheduled">Planifiée</option>
-                    <option value="invoiced">Facturée / Réclamée</option>
                     <option value="received">Reçue / Encaissée</option>
                     <option value="delayed">En retard</option>
+                    <option value="cancelled">Annulée</option>
                   </select>
                 </div>
               </div>
@@ -1455,7 +1489,13 @@ export function GrantDetailScreen() {
                   type="submit"
                   disabled={createInstallmentMutation.isPending || updateInstallmentMutation.isPending}
                 >
-                  {editingInstallmentId ? 'Mettre à jour' : 'Ajouter la tranche'}
+                  {createInstallmentMutation.isPending || updateInstallmentMutation.isPending ? (
+                    'Enregistrement...'
+                  ) : editingInstallmentId ? (
+                    'Mettre à jour'
+                  ) : (
+                    'Ajouter la tranche'
+                  )}
                 </Button>
               </div>
             </form>
