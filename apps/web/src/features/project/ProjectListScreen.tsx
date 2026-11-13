@@ -139,6 +139,18 @@ export function ProjectListScreen() {
   const [activeTab, setActiveTab] = useState<'dashboard' | 'programs' | 'projects'>('dashboard');
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState<'all' | 'active' | 'archived'>('all');
+  const [expandedPrograms, setExpandedPrograms] = useState<Record<string, boolean>>({});
+
+  const toggleProgramExpanded = (progId: string) => {
+    setExpandedPrograms((prev) => ({
+      ...prev,
+      [progId]: prev[progId] === undefined ? false : !prev[progId],
+    }));
+  };
+
+  const isProgramExpanded = (progId: string) => {
+    return expandedPrograms[progId] !== false; // Déroulé par défaut
+  };
 
   // Helper: Status Badge
   const renderStatusBadge = (status: string) => {
@@ -439,19 +451,18 @@ export function ProjectListScreen() {
             </p>
           </div>
 
-          {/* Action buttons only in their relevant management tabs */}
           <div className="flex items-center space-x-3">
             {activeTab === 'programs' && (
-              <Button onClick={() => setShowProgramModal(true)} className="bg-amber-600 hover:bg-amber-700 text-white">
-                <Plus className="mr-2 h-4 w-4" />
+              <Button onClick={() => setShowProgramModal(true)} className="bg-amber-600 hover:bg-amber-700 text-white font-semibold text-xs shadow-xs">
+                <Plus className="mr-1.5 h-4 w-4" />
                 Nouveau Programme
               </Button>
             )}
 
             {activeTab === 'projects' && (
-              <Button onClick={() => setShowProjectModal(true)} className="bg-indigo-600 hover:bg-indigo-700 text-white">
-                <Plus className="mr-2 h-4 w-4" />
-                Nouveau Projet Autonome
+              <Button onClick={() => setShowProjectModal(true)} className="bg-indigo-600 hover:bg-indigo-700 text-white font-semibold text-xs shadow-xs">
+                <Plus className="mr-1.5 h-4 w-4" />
+                Nouveau Projet
               </Button>
             )}
           </div>
@@ -855,10 +866,6 @@ export function ProjectListScreen() {
                   Supervision transversale, consolidation budgétaire, gouvernance et impact multi-projets
                 </p>
               </div>
-              <Button onClick={() => setShowProgramModal(true)} className="bg-amber-600 hover:bg-amber-700 text-white shadow-sm">
-                <Plus className="mr-1.5 h-4 w-4" />
-                Nouveau Programme Stratégique
-              </Button>
             </div>
 
             {programs.length === 0 ? (
@@ -884,69 +891,103 @@ export function ProjectListScreen() {
                   const targetBeneficiaries = prog.targetBeneficiariesCount || prog.metrics?.targetBeneficiariesCount || 0;
 
                   return (
-                    <div key={prog.id} className="rounded-2xl border border-slate-200 bg-white shadow-xs overflow-hidden transition-all hover:shadow-md">
-                      {/* Program Header Banner */}
-                      <div className="bg-slate-900 text-white p-5 space-y-4">
-                        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-                          <div className="flex items-start space-x-3.5">
-                            <div className="rounded-xl bg-amber-500/20 p-3 text-amber-400 border border-amber-500/30 shrink-0">
-                              <Layers className="h-6 w-6" />
+                    <div key={prog.id} className="rounded-xl border border-slate-200/90 bg-white shadow-xs overflow-hidden transition-all hover:border-slate-300">
+                      {/* Program Header Banner - Distinct Soft Amber / Indigo Gradient Tint */}
+                      <div className="bg-gradient-to-r from-amber-500/10 via-amber-500/5 to-indigo-500/10 border-b border-amber-200/60 px-4 py-3 sm:px-5">
+                        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                          {/* Left: Expand toggle + Badge + Title + Meta tags */}
+                          <div className="flex items-center space-x-3 min-w-0">
+                            <button
+                              type="button"
+                              onClick={() => toggleProgramExpanded(prog.id)}
+                              className="p-1.5 rounded-lg text-slate-500 hover:text-amber-900 hover:bg-amber-100/70 transition-colors shrink-0"
+                              title={isProgramExpanded(prog.id) ? 'Enrouler le programme' : 'Dérouler le programme'}
+                            >
+                              {isProgramExpanded(prog.id) ? (
+                                <ChevronDown className="h-5 w-5 text-amber-700" />
+                              ) : (
+                                <ChevronRight className="h-5 w-5 text-slate-600" />
+                              )}
+                            </button>
+
+                            <div className="rounded-lg bg-amber-500/20 p-2 text-amber-800 border border-amber-500/30 shadow-2xs shrink-0">
+                              <Layers className="h-4 w-4" />
                             </div>
-                            <div className="space-y-1">
+
+                            <div className="min-w-0 space-y-0.5">
                               <div className="flex items-center flex-wrap gap-2">
-                                <span className="font-mono text-xs text-amber-400 bg-amber-400/15 px-2.5 py-0.5 rounded-md font-bold uppercase border border-amber-400/20">
+                                <span className="font-mono text-[11px] text-amber-900 bg-amber-200/70 px-2 py-0.5 rounded font-bold uppercase border border-amber-300">
                                   {prog.code}
                                 </span>
                                 {prog.thematicPillar && (
-                                  <span className="text-xs bg-indigo-500/20 text-indigo-200 px-2.5 py-0.5 rounded-md font-medium border border-indigo-500/30 flex items-center space-x-1">
-                                    <Target className="h-3 w-3 mr-1" />
+                                  <span className="text-[11px] bg-indigo-50 text-indigo-700 px-2 py-0.5 rounded font-medium border border-indigo-200/70 flex items-center">
+                                    <Target className="h-3 w-3 mr-1 text-indigo-500" />
                                     {prog.thematicPillar}
                                   </span>
                                 )}
                                 {prog.metrics?.healthStatus === 'healthy' && (
-                                  <span className="text-[11px] bg-emerald-500/20 text-emerald-300 px-2 py-0.5 rounded-md font-semibold border border-emerald-500/30">
+                                  <span className="text-[11px] bg-emerald-50 text-emerald-700 px-2 py-0.5 rounded font-medium border border-emerald-200">
                                     🟢 Santé Optimale ({prog.metrics.healthScore}/100)
                                   </span>
                                 )}
                                 {prog.metrics?.healthStatus === 'warning' && (
-                                  <span className="text-[11px] bg-amber-500/20 text-amber-300 px-2 py-0.5 rounded-md font-semibold border border-amber-500/30">
+                                  <span className="text-[11px] bg-amber-50 text-amber-700 px-2 py-0.5 rounded font-medium border border-amber-200">
                                     🟡 Risque Modéré ({prog.metrics?.healthScore || 65}/100)
                                   </span>
                                 )}
                                 {prog.metrics?.healthStatus === 'critical' && (
-                                  <span className="text-[11px] bg-red-500/20 text-red-300 px-2 py-0.5 rounded-md font-semibold border border-red-500/30">
+                                  <span className="text-[11px] bg-rose-50 text-rose-700 px-2 py-0.5 rounded font-medium border border-rose-200">
                                     🔴 Attention Requise ({prog.metrics?.healthScore || 40}/100)
                                   </span>
                                 )}
+                                <span className="text-[11px] bg-slate-100 text-slate-600 px-2 py-0.5 rounded font-medium border border-slate-200">
+                                  {prog.projects?.length || 0} projet(s)
+                                </span>
                               </div>
-                              <h2 className="font-bold text-lg text-white">{prog.name}</h2>
-                              {prog.description && (
-                                <p className="text-xs text-slate-300 line-clamp-2 max-w-3xl">{prog.description}</p>
-                              )}
+
+                              <div className="flex items-center space-x-2">
+                                <h3
+                                  onClick={() => toggleProgramExpanded(prog.id)}
+                                  className="font-semibold text-base text-slate-900 cursor-pointer hover:text-amber-800 truncate"
+                                >
+                                  {prog.name}
+                                </h3>
+                              </div>
                             </div>
                           </div>
 
-                          {/* Quick Actions */}
-                          <div className="flex items-center flex-wrap gap-2 justify-end">
+                          {/* Right: Quick actions & fast summary */}
+                          <div className="flex items-center flex-wrap gap-2 sm:justify-end shrink-0 pl-9 sm:pl-0">
+                            <div className="hidden lg:flex items-center space-x-4 mr-2 text-xs text-slate-500 border-r border-slate-200 pr-4">
+                              <div>
+                                <span className="text-slate-400">Avancement : </span>
+                                <span className="font-bold text-slate-800">{progressPct}%</span>
+                              </div>
+                              <div>
+                                <span className="text-slate-400">Budget : </span>
+                                <span className="font-bold text-slate-800">{formatCurrency(totalExpenses)}</span>
+                              </div>
+                            </div>
+
                             <Button
                               size="sm"
-                              variant="secondary"
+                              variant="outline"
                               onClick={() => {
                                 setActiveProgramForAttach(prog);
                                 setShowAttachModal(true);
                               }}
-                              className="text-xs shadow-xs font-semibold bg-white text-slate-900 hover:bg-slate-100"
+                              className="text-xs font-medium border-amber-200/80 bg-white hover:bg-amber-50/50 text-slate-700 h-8"
                             >
-                              <Plus className="mr-1 h-3.5 w-3.5" />
-                              Rattacher un projet
+                              <Plus className="mr-1 h-3.5 w-3.5 text-amber-600" />
+                              Rattacher
                             </Button>
                             <Button
                               size="sm"
                               variant="outline"
                               onClick={() => openEditProgram(prog)}
-                              className="text-xs text-slate-200 border-slate-700 hover:bg-slate-800 hover:text-white"
+                              className="text-xs font-medium border-slate-200 bg-white hover:bg-slate-50 text-slate-700 h-8"
                             >
-                              <Edit3 className="mr-1 h-3.5 w-3.5" />
+                              <Edit3 className="mr-1 h-3.5 w-3.5 text-slate-500" />
                               Modifier
                             </Button>
                             <Button
@@ -957,224 +998,236 @@ export function ProjectListScreen() {
                                   deleteProgramMutation.mutate(prog.id);
                                 }
                               }}
-                              className="text-xs text-red-400 hover:text-red-300 hover:bg-red-500/10"
+                              className="text-xs text-slate-400 hover:text-red-600 hover:bg-red-50 h-8 px-2"
                             >
                               <Trash2 className="h-3.5 w-3.5" />
                             </Button>
                           </div>
                         </div>
 
-                        {/* Program Metadata Bar */}
-                        <div className="pt-3 border-t border-slate-800/80 flex flex-wrap items-center gap-y-2 gap-x-6 text-xs text-slate-300">
-                          {prog.leadManagerName && (
-                            <div className="flex items-center space-x-1.5">
-                              <Users className="h-3.5 w-3.5 text-amber-400" />
-                              <span className="text-slate-400">Responsable :</span>
-                              <span className="font-semibold text-slate-200">
-                                {prog.leadManagerName}
-                                {prog.leadManagerEmail ? ` (${prog.leadManagerEmail})` : ''}
-                              </span>
-                            </div>
-                          )}
-                          {(prog.startDate || prog.endDate) && (
-                            <div className="flex items-center space-x-1.5">
-                              <Calendar className="h-3.5 w-3.5 text-amber-400" />
-                              <span className="text-slate-400">Période :</span>
-                              <span className="font-semibold text-slate-200">
-                                {prog.startDate ? new Date(prog.startDate).toLocaleDateString('fr-CA') : 'N/D'} → {prog.endDate ? new Date(prog.endDate).toLocaleDateString('fr-CA') : 'N/D'}
-                              </span>
-                            </div>
-                          )}
-                          {prog.reviewCadence && (
-                            <div className="flex items-center space-x-1.5">
-                              <Activity className="h-3.5 w-3.5 text-amber-400" />
-                              <span className="text-slate-400">Revue COPIL :</span>
-                              <span className="font-semibold text-slate-200 capitalize">
-                                {prog.reviewCadence === 'monthly' ? 'Mensuelle' : prog.reviewCadence === 'quarterly' ? 'Trimestrielle' : prog.reviewCadence === 'biannual' ? 'Semestrielle' : 'Annuelle'}
-                              </span>
-                            </div>
-                          )}
-                          {prog.primaryDonorName && (
-                            <div className="flex items-center space-x-1.5">
-                              <Briefcase className="h-3.5 w-3.5 text-amber-400" />
-                              <span className="text-slate-400">Bailleur principal :</span>
-                              <span className="font-semibold text-slate-200">{prog.primaryDonorName}</span>
-                            </div>
-                          )}
-                        </div>
+                        {/* Optional short description if collapsed or expanded */}
+                        {prog.description && (
+                          <p className="mt-1.5 ml-11 text-xs text-slate-600 line-clamp-1">
+                            {prog.description}
+                          </p>
+                        )}
                       </div>
 
-                      {/* Strategic Objectives Callout if present */}
-                      {prog.strategicObjectives && (
-                        <div className="bg-amber-50/70 border-b border-amber-100 px-6 py-2.5 flex items-start space-x-2.5 text-xs text-amber-950">
-                          <Compass className="h-4 w-4 text-amber-600 shrink-0 mt-0.5" />
-                          <div>
-                            <span className="font-bold">Théorie du Changement & Objectifs Stratégiques : </span>
-                            <span className="text-amber-900">{prog.strategicObjectives}</span>
-                          </div>
-                        </div>
-                      )}
-
-                      {/* 4 Program Control & Monitoring KPIs */}
-                      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 p-5 bg-slate-50 border-b border-slate-200">
-                        {/* KPI 1: Avancement Global */}
-                        <div className="rounded-xl border border-slate-200 bg-white p-3.5 shadow-2xs space-y-2">
-                          <div className="flex items-center justify-between text-xs text-slate-500 font-medium">
-                            <span className="flex items-center space-x-1">
-                              <TrendingUp className="h-3.5 w-3.5 text-indigo-600" />
-                              <span>Avancement WBS</span>
-                            </span>
-                            <span className="font-bold text-slate-900">{progressPct}%</span>
-                          </div>
-                          <div className="w-full bg-slate-100 rounded-full h-2">
-                            <div
-                              className="bg-indigo-600 h-2 rounded-full transition-all"
-                              style={{ width: `${progressPct}%` }}
-                            />
-                          </div>
-                          <div className="text-[11px] text-slate-500">
-                            Moyenne consolidée sur {prog.projectsCount || 0} projet(s)
-                          </div>
-                        </div>
-
-                        {/* KPI 2: Enveloppe & Exécution Budgétaire */}
-                        <div className="rounded-xl border border-slate-200 bg-white p-3.5 shadow-2xs space-y-1">
-                          <div className="flex items-center justify-between text-xs text-slate-500 font-medium">
-                            <span className="flex items-center space-x-1">
-                              <DollarSign className="h-3.5 w-3.5 text-emerald-600" />
-                              <span>Consommation Budget</span>
-                            </span>
-                            <span className="font-bold text-emerald-700">
-                              {prog.metrics?.budgetExecutionRate || 0}%
-                            </span>
-                          </div>
-                          <div className="font-bold text-slate-900 text-sm">
-                            {formatCurrency(totalExpenses)}
-                          </div>
-                          <div className="text-[11px] text-slate-500">
-                            Sur enveloppe de {formatCurrency(targetBudgetNum > 0 ? targetBudgetNum : allocatedBudget)}
-                          </div>
-                        </div>
-
-                        {/* KPI 3: Cible de Bénéficiaires / Impact */}
-                        <div className="rounded-xl border border-slate-200 bg-white p-3.5 shadow-2xs space-y-1">
-                          <div className="flex items-center justify-between text-xs text-slate-500 font-medium">
-                            <span className="flex items-center space-x-1">
-                              <Users className="h-3.5 w-3.5 text-purple-600" />
-                              <span>Cible Bénéficiaires</span>
-                            </span>
-                            <span className="font-semibold text-purple-700 text-xs">Portée macro</span>
-                          </div>
-                          <div className="font-bold text-slate-900 text-sm">
-                            {targetBeneficiaries > 0 ? `${targetBeneficiaries.toLocaleString()} personnes` : 'Non définie'}
-                          </div>
-                          <div className="text-[11px] text-slate-500">
-                            Population cible globale
-                          </div>
-                        </div>
-
-                        {/* KPI 4: Tâches & Alertes Opérationnelles */}
-                        <div className="rounded-xl border border-slate-200 bg-white p-3.5 shadow-2xs space-y-1">
-                          <div className="flex items-center justify-between text-xs text-slate-500 font-medium">
-                            <span className="flex items-center space-x-1">
-                              <CheckCircle2 className="h-3.5 w-3.5 text-sky-600" />
-                              <span>Tâches & Contrôle</span>
-                            </span>
-                            {prog.metrics?.blockedTasks > 0 ? (
-                              <span className="text-[11px] font-bold text-red-600 bg-red-50 px-1.5 py-0.5 rounded-sm">
-                                {prog.metrics.blockedTasks} blocage(s)
-                              </span>
-                            ) : (
-                              <span className="text-[11px] font-semibold text-emerald-600">Fluide</span>
+                      {/* Collapsible Content */}
+                      {isProgramExpanded(prog.id) && (
+                        <div>
+                          {/* Program Metadata Bar */}
+                          <div className="bg-slate-50/60 px-5 py-2.5 border-b border-slate-200/70 flex flex-wrap items-center gap-y-2 gap-x-6 text-xs text-slate-600">
+                            {prog.leadManagerName && (
+                              <div className="flex items-center space-x-1.5">
+                                <Users className="h-3.5 w-3.5 text-slate-500" />
+                                <span className="text-slate-400">Responsable :</span>
+                                <span className="font-medium text-slate-800">
+                                  {prog.leadManagerName}
+                                  {prog.leadManagerEmail ? ` (${prog.leadManagerEmail})` : ''}
+                                </span>
+                              </div>
+                            )}
+                            {(prog.startDate || prog.endDate) && (
+                              <div className="flex items-center space-x-1.5">
+                                <Calendar className="h-3.5 w-3.5 text-slate-500" />
+                                <span className="text-slate-400">Période :</span>
+                                <span className="font-medium text-slate-800">
+                                  {prog.startDate ? new Date(prog.startDate).toLocaleDateString('fr-CA') : 'N/D'} → {prog.endDate ? new Date(prog.endDate).toLocaleDateString('fr-CA') : 'N/D'}
+                                </span>
+                              </div>
+                            )}
+                            {prog.reviewCadence && (
+                              <div className="flex items-center space-x-1.5">
+                                <Activity className="h-3.5 w-3.5 text-slate-500" />
+                                <span className="text-slate-400">Revue COPIL :</span>
+                                <span className="font-medium text-slate-800 capitalize">
+                                  {prog.reviewCadence === 'monthly' ? 'Mensuelle' : prog.reviewCadence === 'quarterly' ? 'Trimestrielle' : prog.reviewCadence === 'biannual' ? 'Semestrielle' : 'Annuelle'}
+                                </span>
+                              </div>
+                            )}
+                            {prog.primaryDonorName && (
+                              <div className="flex items-center space-x-1.5">
+                                <Briefcase className="h-3.5 w-3.5 text-slate-500" />
+                                <span className="text-slate-400">Bailleur principal :</span>
+                                <span className="font-medium text-slate-800">{prog.primaryDonorName}</span>
+                              </div>
                             )}
                           </div>
-                          <div className="font-bold text-slate-900 text-sm">
-                            {prog.metrics?.completedTasks || 0} / {prog.metrics?.totalTasks || 0} tâches
-                          </div>
-                          <div className="text-[11px] text-slate-500">
-                            {prog.metrics?.activeProjectsCount || 0} projet(s) actif(s) en cours
-                          </div>
-                        </div>
-                      </div>
 
-                      {/* Associated Projects Table */}
-                      {!prog.projects || prog.projects.length === 0 ? (
-                        <div className="p-8 text-center text-xs text-slate-400 italic bg-white">
-                          Aucun projet rattaché à ce programme. Cliquez sur "Rattacher un projet" pour composer le portefeuille de ce programme.
-                        </div>
-                      ) : (
-                        <table className="w-full text-left text-sm text-slate-600 bg-white">
-                          <thead className="border-b bg-slate-50/70 text-xs font-semibold uppercase text-slate-500">
-                            <tr>
-                              <th className="px-6 py-3">Code Projet</th>
-                              <th className="px-6 py-3">Nom du Projet</th>
-                              <th className="px-6 py-3">Avancement WBS</th>
-                              <th className="px-6 py-3">Tâches (Finies/Total)</th>
-                              <th className="px-6 py-3">Dépenses / Budget</th>
-                              <th className="px-6 py-3 text-right">Actions</th>
-                            </tr>
-                          </thead>
-                          <tbody className="divide-y divide-slate-100">
-                            {prog.projects.map((p: any) => (
-                              <tr key={p.id} className="hover:bg-slate-50/80 transition-colors">
-                                <td
-                                  onClick={() => navigate(`/projects/${p.id}`)}
-                                  className="px-6 py-4 font-mono font-bold text-indigo-600 hover:underline cursor-pointer"
-                                >
-                                  {p.code}
-                                </td>
-                                <td
-                                  onClick={() => navigate(`/projects/${p.id}`)}
-                                  className="px-6 py-4 font-medium text-slate-900 cursor-pointer"
-                                >
-                                  {p.name}
-                                </td>
-                                <td className="px-6 py-4">
-                                  <div className="flex items-center space-x-2 w-32">
-                                    <div className="w-full bg-slate-200 rounded-full h-2 overflow-hidden">
-                                      <div
-                                        className={`h-2 rounded-full ${
-                                          (p.metrics?.overallProgress || 0) === 100 ? 'bg-emerald-500' : 'bg-indigo-600'
-                                        }`}
-                                        style={{ width: `${p.metrics?.overallProgress || 0}%` }}
-                                      />
-                                    </div>
-                                    <span className="text-xs font-semibold text-slate-700 min-w-[32px]">
-                                      {p.metrics?.overallProgress || 0}%
-                                    </span>
-                                  </div>
-                                </td>
-                                <td className="px-6 py-4 text-xs font-medium text-slate-700">
-                                  {p.metrics?.completedTasks || 0} / {p.metrics?.totalTasks || 0}
-                                  {p.metrics?.blockedTasks > 0 && (
-                                    <span className="ml-2 text-red-600 font-bold">({p.metrics.blockedTasks} bloquée(s))</span>
-                                  )}
-                                </td>
-                                <td className="px-6 py-4 text-xs">
-                                  <span className="font-semibold text-slate-800">
-                                    {formatCurrency(p.metrics?.totalExpenses || 0)}
+                          {/* Strategic Objectives Callout if present */}
+                          {prog.strategicObjectives && (
+                            <div className="bg-amber-50/50 border-b border-amber-100 px-5 py-2.5 flex items-start space-x-2.5 text-xs text-amber-950">
+                              <Compass className="h-4 w-4 text-amber-600 shrink-0 mt-0.5" />
+                              <div>
+                                <span className="font-semibold text-amber-900">Théorie du Changement & Objectifs Stratégiques : </span>
+                                <span className="text-amber-800">{prog.strategicObjectives}</span>
+                              </div>
+                            </div>
+                          )}
+
+                          {/* 4 Program Control & Monitoring KPIs */}
+                          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 p-5 bg-slate-50/40 border-b border-slate-200">
+                            {/* KPI 1: Avancement Global */}
+                            <div className="rounded-xl border border-slate-200 bg-white p-3.5 shadow-2xs space-y-2">
+                              <div className="flex items-center justify-between text-xs text-slate-500 font-medium">
+                                <span className="flex items-center space-x-1">
+                                  <TrendingUp className="h-3.5 w-3.5 text-indigo-600" />
+                                  <span>Avancement WBS</span>
+                                </span>
+                                <span className="font-bold text-slate-900">{progressPct}%</span>
+                              </div>
+                              <div className="w-full bg-slate-100 rounded-full h-2">
+                                <div
+                                  className="bg-indigo-600 h-2 rounded-full transition-all"
+                                  style={{ width: `${progressPct}%` }}
+                                />
+                              </div>
+                              <div className="text-[11px] text-slate-500">
+                                Moyenne consolidée sur {prog.projectsCount || 0} projet(s)
+                              </div>
+                            </div>
+
+                            {/* KPI 2: Enveloppe & Exécution Budgétaire */}
+                            <div className="rounded-xl border border-slate-200 bg-white p-3.5 shadow-2xs space-y-1">
+                              <div className="flex items-center justify-between text-xs text-slate-500 font-medium">
+                                <span className="flex items-center space-x-1">
+                                  <DollarSign className="h-3.5 w-3.5 text-emerald-600" />
+                                  <span>Consommation Budget</span>
+                                </span>
+                                <span className="font-bold text-emerald-700">
+                                  {prog.metrics?.budgetExecutionRate || 0}%
+                                </span>
+                              </div>
+                              <div className="font-bold text-slate-900 text-sm">
+                                {formatCurrency(totalExpenses)}
+                              </div>
+                              <div className="text-[11px] text-slate-500">
+                                Sur enveloppe de {formatCurrency(targetBudgetNum > 0 ? targetBudgetNum : allocatedBudget)}
+                              </div>
+                            </div>
+
+                            {/* KPI 3: Cible de Bénéficiaires / Impact */}
+                            <div className="rounded-xl border border-slate-200 bg-white p-3.5 shadow-2xs space-y-1">
+                              <div className="flex items-center justify-between text-xs text-slate-500 font-medium">
+                                <span className="flex items-center space-x-1">
+                                  <Users className="h-3.5 w-3.5 text-purple-600" />
+                                  <span>Cible Bénéficiaires</span>
+                                </span>
+                                <span className="font-semibold text-purple-700 text-xs">Portée macro</span>
+                              </div>
+                              <div className="font-bold text-slate-900 text-sm">
+                                {targetBeneficiaries > 0 ? `${targetBeneficiaries.toLocaleString()} personnes` : 'Non définie'}
+                              </div>
+                              <div className="text-[11px] text-slate-500">
+                                Population cible globale
+                              </div>
+                            </div>
+
+                            {/* KPI 4: Tâches & Alertes Opérationnelles */}
+                            <div className="rounded-xl border border-slate-200 bg-white p-3.5 shadow-2xs space-y-1">
+                              <div className="flex items-center justify-between text-xs text-slate-500 font-medium">
+                                <span className="flex items-center space-x-1">
+                                  <CheckCircle2 className="h-3.5 w-3.5 text-sky-600" />
+                                  <span>Tâches & Contrôle</span>
+                                </span>
+                                {prog.metrics?.blockedTasks > 0 ? (
+                                  <span className="text-[11px] font-bold text-red-600 bg-red-50 px-1.5 py-0.5 rounded-sm">
+                                    {prog.metrics.blockedTasks} blocage(s)
                                   </span>
-                                  <span className="text-slate-400"> / {formatCurrency(p.metrics?.totalBudget || 0)}</span>
-                                </td>
-                                <td className="px-6 py-4 text-right space-x-2">
-                                  <Button
-                                    size="sm"
-                                    variant="ghost"
-                                    onClick={() =>
-                                      removeProjectFromProgramMutation.mutate({
-                                        programId: prog.id,
-                                        projectId: p.id,
-                                      })
-                                    }
-                                    className="text-red-600 hover:text-red-700 hover:bg-red-50 text-xs"
-                                  >
-                                    <Trash2 className="h-3.5 w-3.5 mr-1" /> Détacher
-                                  </Button>
-                                </td>
-                              </tr>
-                            ))}
-                          </tbody>
-                        </table>
+                                ) : (
+                                  <span className="text-[11px] font-semibold text-emerald-600">Fluide</span>
+                                )}
+                              </div>
+                              <div className="font-bold text-slate-900 text-sm">
+                                {prog.metrics?.completedTasks || 0} / {prog.metrics?.totalTasks || 0} tâches
+                              </div>
+                              <div className="text-[11px] text-slate-500">
+                                {prog.metrics?.activeProjectsCount || 0} projet(s) actif(s) en cours
+                              </div>
+                            </div>
+                          </div>
+
+                          {/* Associated Projects Table */}
+                          {!prog.projects || prog.projects.length === 0 ? (
+                            <div className="p-8 text-center text-xs text-slate-400 italic bg-white">
+                              Aucun projet rattaché à ce programme. Cliquez sur "Rattacher" pour composer le portefeuille de ce programme.
+                            </div>
+                          ) : (
+                            <table className="w-full text-left text-sm text-slate-600 bg-white">
+                              <thead className="border-b bg-slate-50/70 text-xs font-semibold uppercase text-slate-500">
+                                <tr>
+                                  <th className="px-6 py-3">Code Projet</th>
+                                  <th className="px-6 py-3">Nom du Projet</th>
+                                  <th className="px-6 py-3">Avancement WBS</th>
+                                  <th className="px-6 py-3">Tâches (Finies/Total)</th>
+                                  <th className="px-6 py-3">Dépenses / Budget</th>
+                                  <th className="px-6 py-3 text-right">Actions</th>
+                                </tr>
+                              </thead>
+                              <tbody className="divide-y divide-slate-100">
+                                {prog.projects.map((p: any) => (
+                                  <tr key={p.id} className="hover:bg-slate-50/80 transition-colors">
+                                    <td
+                                      onClick={() => navigate(`/projects/${p.id}`)}
+                                      className="px-6 py-4 font-mono font-bold text-indigo-600 hover:underline cursor-pointer"
+                                    >
+                                      {p.code}
+                                    </td>
+                                    <td
+                                      onClick={() => navigate(`/projects/${p.id}`)}
+                                      className="px-6 py-4 font-medium text-slate-900 cursor-pointer"
+                                    >
+                                      {p.name}
+                                    </td>
+                                    <td className="px-6 py-4">
+                                      <div className="flex items-center space-x-2 w-32">
+                                        <div className="w-full bg-slate-200 rounded-full h-2 overflow-hidden">
+                                          <div
+                                            className={`h-2 rounded-full ${
+                                              (p.metrics?.overallProgress || 0) === 100 ? 'bg-emerald-500' : 'bg-indigo-600'
+                                            }`}
+                                            style={{ width: `${p.metrics?.overallProgress || 0}%` }}
+                                          />
+                                        </div>
+                                        <span className="text-xs font-semibold text-slate-700 min-w-[32px]">
+                                          {p.metrics?.overallProgress || 0}%
+                                        </span>
+                                      </div>
+                                    </td>
+                                    <td className="px-6 py-4 text-xs font-medium text-slate-700">
+                                      {p.metrics?.completedTasks || 0} / {p.metrics?.totalTasks || 0}
+                                      {p.metrics?.blockedTasks > 0 && (
+                                        <span className="ml-2 text-red-600 font-bold">({p.metrics.blockedTasks} bloquée(s))</span>
+                                      )}
+                                    </td>
+                                    <td className="px-6 py-4 text-xs">
+                                      <span className="font-semibold text-slate-800">
+                                        {formatCurrency(p.metrics?.totalExpenses || 0)}
+                                      </span>
+                                      <span className="text-slate-400"> / {formatCurrency(p.metrics?.totalBudget || 0)}</span>
+                                    </td>
+                                    <td className="px-6 py-4 text-right space-x-2">
+                                      <Button
+                                        size="sm"
+                                        variant="ghost"
+                                        onClick={() =>
+                                          removeProjectFromProgramMutation.mutate({
+                                            programId: prog.id,
+                                            projectId: p.id,
+                                          })
+                                        }
+                                        className="text-red-600 hover:text-red-700 hover:bg-red-50 text-xs"
+                                      >
+                                        <Trash2 className="h-3.5 w-3.5 mr-1" /> Détacher
+                                      </Button>
+                                    </td>
+                                  </tr>
+                                ))}
+                              </tbody>
+                            </table>
+                          )}
+                        </div>
                       )}
                     </div>
                   );
@@ -1227,11 +1280,6 @@ export function ProjectListScreen() {
                     Archivés
                   </button>
                 </div>
-
-                <Button onClick={() => setShowProjectModal(true)} size="sm">
-                  <Plus className="mr-1.5 h-3.5 w-3.5" />
-                  Nouveau Projet
-                </Button>
               </div>
             </div>
 
