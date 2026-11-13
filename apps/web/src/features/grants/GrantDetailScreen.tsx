@@ -505,11 +505,26 @@ export function GrantDetailScreen() {
     );
   }
 
+  // Format Currency Helper (Évite les zéros décimaux superflus comme 0.0000 $ ou 50000.0000 $)
+  const formatCurrency = (val: number | string | null | undefined, fallback = '0 $') => {
+    if (val === null || val === undefined) return fallback;
+    const num = Number(val);
+    if (isNaN(num)) return fallback;
+    return new Intl.NumberFormat('fr-CA', {
+      style: 'currency',
+      currency: 'CAD',
+      minimumFractionDigits: 0,
+      maximumFractionDigits: 2,
+    }).format(num);
+  };
+
   // Calculations
+  const numericAwarded = Number(grant.awardedAmount) || 0;
+  const numericRequested = Number(grant.requestedAmount) || 0;
   const totalReceived = grant.installments
     ?.filter((i: any) => i.status === 'received')
     .reduce((sum: number, i: any) => sum + (Number(i.receivedAmount) || Number(i.amount) || 0), 0) || 0;
-  const progressPercent = grant.awardedAmount > 0 ? Math.min(100, Math.round((totalReceived / grant.awardedAmount) * 100)) : 0;
+  const progressPercent = numericAwarded > 0 ? Math.min(100, Math.round((totalReceived / numericAwarded) * 100)) : 0;
   const pendingDeliverables = grant.deliverables?.filter((d: any) => d.status !== 'approved') || [];
 
   const getStatusBadge = (status: string) => {
@@ -643,15 +658,15 @@ export function GrantDetailScreen() {
             <div>
               <p className="text-xs font-medium text-slate-500 uppercase tracking-wider">Montant Octroyé</p>
               <p className="text-xl font-bold text-slate-900 dark:text-white mt-1">
-                {grant.awardedAmount ? `${grant.awardedAmount.toLocaleString('fr-CA')} $` : 'En attente'}
+                {numericAwarded > 0 ? formatCurrency(numericAwarded) : (grant.status === 'approved' ? formatCurrency(0) : 'En attente')}
               </p>
-              <p className="text-xs text-slate-400 mt-0.5">Demandé: {grant.requestedAmount.toLocaleString('fr-CA')} $</p>
+              <p className="text-xs text-slate-400 mt-0.5">Demandé: {formatCurrency(numericRequested)}</p>
             </div>
 
             <div>
               <p className="text-xs font-medium text-slate-500 uppercase tracking-wider">Fonds Encaissés</p>
               <p className="text-xl font-bold text-emerald-600 dark:text-emerald-400 mt-1">
-                {totalReceived.toLocaleString('fr-CA')} $
+                {formatCurrency(totalReceived)}
               </p>
               <div className="w-full bg-slate-100 dark:bg-slate-700 h-1.5 rounded-full mt-2 overflow-hidden">
                 <div
@@ -820,16 +835,16 @@ export function GrantDetailScreen() {
                 <div className="space-y-4">
                   <div>
                     <p className="text-xs text-primary-200">Montant Accordé</p>
-                    <p className="text-3xl font-extrabold">{grant.awardedAmount?.toLocaleString('fr-CA') || 0} $</p>
+                    <p className="text-3xl font-extrabold">{formatCurrency(numericAwarded)}</p>
                   </div>
                   <div className="pt-2 border-t border-primary-500/50 flex justify-between text-sm">
                     <span className="text-primary-200">Encaissé à ce jour :</span>
-                    <span className="font-semibold">{totalReceived.toLocaleString('fr-CA')} $</span>
+                    <span className="font-semibold">{formatCurrency(totalReceived)}</span>
                   </div>
                   <div className="flex justify-between text-sm">
                     <span className="text-primary-200">Reste à percevoir :</span>
                     <span className="font-semibold">
-                      {Math.max(0, (grant.awardedAmount || 0) - totalReceived).toLocaleString('fr-CA')} $
+                      {formatCurrency(Math.max(0, numericAwarded - totalReceived))}
                     </span>
                   </div>
                   <div className="w-full bg-primary-800/60 h-2 rounded-full overflow-hidden">
@@ -913,7 +928,7 @@ export function GrantDetailScreen() {
                               {inst.title || `Tranche #${inst.installmentNumber}`}
                             </td>
                             <td className="py-3 px-4 font-bold text-slate-900 dark:text-white">
-                              {instAmt.toLocaleString('fr-CA')} $
+                              {formatCurrency(instAmt)}
                             </td>
                             <td className="py-3 px-4 text-slate-600 dark:text-slate-300">
                               {scheduledDateStr ? new Date(scheduledDateStr).toLocaleDateString('fr-CA') : '-'}
