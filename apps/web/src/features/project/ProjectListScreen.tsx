@@ -1107,20 +1107,29 @@ export function ProjectListScreen() {
                               </div>
                             </div>
 
-                            {/* KPI 3: Cible de Bénéficiaires / Impact */}
-                            <div className="rounded-xl border border-slate-200 bg-white p-3.5 shadow-2xs space-y-1">
-                              <div className="flex items-center justify-between text-xs text-slate-500 font-medium">
+                            {/* KPI 3: Cible de Bénéficiaires & Genre */}
+                            <div className="rounded-xl border border-rose-200/80 bg-rose-50/20 p-3.5 shadow-2xs space-y-1">
+                              <div className="flex items-center justify-between text-xs text-rose-800 font-medium">
                                 <span className="flex items-center space-x-1">
-                                  <Users className="h-3.5 w-3.5 text-purple-600" />
-                                  <span>Cible Bénéficiaires</span>
+                                  <Users className="h-3.5 w-3.5 text-rose-600" />
+                                  <span>Bénéficiaires & Genre</span>
                                 </span>
-                                <span className="font-semibold text-purple-700 text-xs">Portée macro</span>
+                                <span className="font-semibold text-rose-700 text-xs">
+                                  {targetBeneficiaries > 0 && prog.metrics?.beneficiaries?.totalReached
+                                    ? `${Math.round((prog.metrics.beneficiaries.totalReached / targetBeneficiaries) * 100)}%`
+                                    : 'ACS+'}
+                                </span>
                               </div>
-                              <div className="font-bold text-slate-900 text-sm">
-                                {targetBeneficiaries > 0 ? `${targetBeneficiaries.toLocaleString()} personnes` : 'Non définie'}
+                              <div className="font-bold text-slate-900 text-sm flex items-baseline gap-1.5">
+                                <span>{prog.metrics?.beneficiaries?.totalReached || 0}</span>
+                                <span className="text-xs text-slate-400 font-normal">
+                                  {targetBeneficiaries > 0 ? `/ ${targetBeneficiaries.toLocaleString()} cibles` : 'touché(s)'}
+                                </span>
                               </div>
-                              <div className="text-[11px] text-slate-500">
-                                Population cible globale
+                              <div className="text-[10px] text-slate-600 flex items-center justify-between pt-0.5">
+                                <span>♀ <strong>{prog.metrics?.beneficiaries?.femaleCount || 0}</strong></span>
+                                <span>♂ <strong>{prog.metrics?.beneficiaries?.maleCount || 0}</strong></span>
+                                <span>⚥ <strong>{prog.metrics?.beneficiaries?.otherGenderCount || 0}</strong></span>
                               </div>
                             </div>
 

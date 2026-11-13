@@ -17,7 +17,7 @@ import { MilestonesDeliverablesView } from './MilestonesDeliverablesView';
 import { RaidHeatmapView } from './RaidHeatmapView';
 import { CopilFlashReportView } from './CopilFlashReportView';
 
-export type MonitoringSubTab = 'cockpit' | 'evm' | 'milestones' | 'raid' | 'report';
+export type MonitoringSubTab = 'cockpit' | 'evm' | 'milestones' | 'raid';
 
 interface ProjectMonitoringHubProps {
   project: any;
@@ -85,13 +85,6 @@ export function ProjectMonitoringHub({
       icon: AlertTriangle,
       badge: null,
       badgeCls: '',
-    },
-    {
-      key: 'report' as MonitoringSubTab,
-      label: 'Rapport COPIL',
-      icon: FileText,
-      badge: 'PDF',
-      badgeCls: 'bg-indigo-100 text-indigo-700 font-mono font-bold',
     },
   ];
 
@@ -173,19 +166,6 @@ export function ProjectMonitoringHub({
           onAddRaidItem={onAddRaidItem}
           onDeleteRaidItem={onDeleteRaidItem}
           onSelectTask={onSelectTask}
-        />
-      )}
-
-      {subTab === 'report' && (
-        <CopilFlashReportView
-          project={project}
-          planItems={planItems}
-          expenses={expenses}
-          members={members}
-          deliverables={deliverables}
-          updates={updates}
-          raidItems={raidItems}
-          fundingSources={fundingSources}
         />
       )}
     </div>

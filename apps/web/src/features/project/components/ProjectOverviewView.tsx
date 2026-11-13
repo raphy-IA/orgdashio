@@ -44,7 +44,8 @@ interface ProjectOverviewViewProps {
   resultNodes: any[];
   dependencies: any[];
   budget: any;
-  onNavigateTab: (tab: 'overview' | 'strategy' | 'planning' | 'execution' | 'monitoring', subTab?: string) => void;
+  serviceDeliveries?: any[];
+  onNavigateTab: (tab: 'overview' | 'strategy' | 'planning' | 'execution' | 'monitoring' | 'reports', subTab?: string) => void;
   onSelectTask?: (task: any) => void;
 }
 
@@ -60,6 +61,7 @@ export function ProjectOverviewView({
   resultNodes,
   dependencies,
   budget,
+  serviceDeliveries = [],
   onNavigateTab,
   onSelectTask,
 }: ProjectOverviewViewProps) {
@@ -110,6 +112,39 @@ export function ProjectOverviewView({
   const milestones = planItems.filter((p) => p.type === 'milestone');
   const phases = planItems.filter((p) => p.type === 'phase');
   const rootPlanItems = planItems.filter((p) => !p.parentId);
+
+  // Beneficiaries & Gender Metrics
+  const uniqueBeneficiaries = React.useMemo(() => {
+    const map = new Map<string, any>();
+    for (const d of serviceDeliveries) {
+      if (!map.has(d.partyId)) {
+        map.set(d.partyId, d);
+      }
+    }
+    return Array.from(map.values());
+  }, [serviceDeliveries]);
+
+  const totalBeneficiariesReached = uniqueBeneficiaries.length;
+  const targetBeneficiaries = project?.targetBeneficiariesCount || 0;
+  const reachPercentage = targetBeneficiaries > 0
+    ? Math.min(100, Math.round((totalBeneficiariesReached / targetBeneficiaries) * 100))
+    : 0;
+
+  const genderBreakdown = React.useMemo(() => {
+    let female = 0;
+    let male = 0;
+    let other = 0;
+    for (const b of uniqueBeneficiaries) {
+      const g = (b.genderCode || '').toLowerCase();
+      if (g === 'f' || g === 'female' || g === 'femme') female++;
+      else if (g === 'm' || g === 'male' || g === 'homme') male++;
+      else other++;
+    }
+    const fPct = totalBeneficiariesReached > 0 ? Math.round((female / totalBeneficiariesReached) * 100) : 0;
+    const mPct = totalBeneficiariesReached > 0 ? Math.round((male / totalBeneficiariesReached) * 100) : 0;
+    const oPct = totalBeneficiariesReached > 0 ? Math.max(0, 100 - fPct - mPct) : 0;
+    return { female, male, other, fPct, mPct, oPct };
+  }, [uniqueBeneficiaries, totalBeneficiariesReached]);
 
   const totalTasks = tasksOnly.length;
   const completedTasks = tasksOnly.filter((p) => p.status === 'completed' || (p.progressPct ?? 0) === 100).length;
@@ -215,11 +250,11 @@ export function ProjectOverviewView({
             <Button
               size="sm"
               variant="outline"
-              onClick={() => onNavigateTab('monitoring', 'report')}
+              onClick={() => onNavigateTab('reports')}
               className="border-slate-300 text-slate-700 hover:bg-slate-50 text-xs font-bold"
             >
               <FileText className="mr-1.5 h-3.5 w-3.5 text-indigo-600" />
-              Rapport COPIL
+              Rapports Officiels
             </Button>
           </div>
         </div>
@@ -261,8 +296,8 @@ export function ProjectOverviewView({
         </div>
       </div>
 
-      {/* ── 2. Top 4 High-Impact KPI Tiles ── */}
-      <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
+      {/* ── 2. Top 5 High-Impact KPI Tiles ── */}
+      <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-5">
         {/* 1. Global WBS Progress */}
         <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-2xs space-y-2">
           <div className="flex items-center justify-between">
@@ -302,7 +337,33 @@ export function ProjectOverviewView({
           <p className="text-[10px] text-slate-400">Solde restant : <strong>{fmt(remaining)}</strong></p>
         </div>
 
-        {/* 3. CPI & Cost Efficiency */}
+        {/* 3. Beneficiaries & Gender Parity Tile */}
+        <div className="rounded-2xl border border-rose-200/80 bg-rose-50/20 p-4 shadow-2xs space-y-2">
+          <div className="flex items-center justify-between">
+            <span className="text-xs font-bold text-rose-800 uppercase tracking-wider">Bénéficiaires & Genre</span>
+            <span className="p-1.5 rounded-lg bg-rose-100 text-rose-700">
+              <Users className="h-4 w-4" />
+            </span>
+          </div>
+          <div className="flex items-baseline gap-2">
+            <p className="text-2xl font-black font-mono text-rose-950">{totalBeneficiariesReached}</p>
+            <span className="text-xs text-slate-500 font-medium">
+              {targetBeneficiaries > 0 ? `/ ${targetBeneficiaries} cibles` : 'touché(s)'}
+            </span>
+          </div>
+          <div className="h-1.5 w-full bg-slate-200 rounded-full overflow-hidden flex">
+            <div className="bg-rose-500 h-full" style={{ width: `${genderBreakdown.fPct}%` }} title={`Femmes: ${genderBreakdown.female}`} />
+            <div className="bg-blue-500 h-full" style={{ width: `${genderBreakdown.mPct}%` }} title={`Hommes: ${genderBreakdown.male}`} />
+            <div className="bg-amber-400 h-full" style={{ width: `${genderBreakdown.oPct}%` }} title={`Autre: ${genderBreakdown.other}`} />
+          </div>
+          <div className="flex items-center justify-between text-[10px] text-slate-600">
+            <span>♀ <strong>{genderBreakdown.female}</strong> ({genderBreakdown.fPct}%)</span>
+            <span>♂ <strong>{genderBreakdown.male}</strong> ({genderBreakdown.mPct}%)</span>
+            {genderBreakdown.other > 0 && <span>⚥ <strong>{genderBreakdown.other}</strong></span>}
+          </div>
+        </div>
+
+        {/* 4. CPI & Cost Efficiency */}
         <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-2xs space-y-2">
           <div className="flex items-center justify-between">
             <span className="text-xs font-bold text-slate-500 uppercase tracking-wider">Efficience (CPI)</span>
@@ -321,7 +382,7 @@ export function ProjectOverviewView({
           </p>
         </div>
 
-        {/* 4. Quality & Deliverables */}
+        {/* 5. Quality & Deliverables */}
         <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-2xs space-y-2">
           <div className="flex items-center justify-between">
             <span className="text-xs font-bold text-slate-500 uppercase tracking-wider">Visas Qualité & RACI</span>
@@ -345,8 +406,8 @@ export function ProjectOverviewView({
         </div>
       </div>
 
-      {/* ── 3. The 4 Structural Pillars Navigation Cards ── */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+      {/* ── 3. The Structural Navigation Cards ── */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
         {/* Pilier 1 */}
         <div
           onClick={() => onNavigateTab('strategy')}
@@ -438,11 +499,36 @@ export function ProjectOverviewView({
               4. Suivi & Performance
             </h3>
             <p className="text-xs text-slate-500 mt-1">
-              Cockpit 360°, EVM & Courbe en S, Matrice RAID 5×5 ({raidItems.length}) et Rapport Flash COPIL.
+              Cockpit 360°, EVM & Courbe en S, Jalons & Visas et Matrice RAID 5×5 ({raidItems.length}).
             </p>
           </div>
           <div className="pt-2 border-t border-slate-100 flex items-center justify-between text-xs font-bold text-violet-600">
             <span>Piloter la performance</span>
+            <ArrowRight className="h-3.5 w-3.5 group-hover:translate-x-1 transition" />
+          </div>
+        </div>
+
+        {/* Pilier 5: Rapports & Bailleurs */}
+        <div
+          onClick={() => onNavigateTab('reports')}
+          className="group cursor-pointer rounded-2xl border border-slate-200 bg-white p-5 shadow-2xs hover:border-amber-500 hover:shadow-md transition space-y-3 flex flex-col justify-between"
+        >
+          <div>
+            <div className="flex items-center justify-between">
+              <span className="p-2 rounded-xl bg-amber-50 text-amber-600 group-hover:bg-amber-600 group-hover:text-white transition">
+                <FileText className="h-5 w-5" />
+              </span>
+              <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Édition</span>
+            </div>
+            <h3 className="font-bold text-slate-900 text-sm mt-3 group-hover:text-amber-600 transition">
+              5. Rapports & Bailleurs
+            </h3>
+            <p className="text-xs text-slate-500 mt-1">
+              Édition 1-clic : Rapport Flash COPIL, Bénéficiaires & Genre (ACS+), et Reddition Financière.
+            </p>
+          </div>
+          <div className="pt-2 border-t border-slate-100 flex items-center justify-between text-xs font-bold text-amber-600">
+            <span>Consulter les rapports</span>
             <ArrowRight className="h-3.5 w-3.5 group-hover:translate-x-1 transition" />
           </div>
         </div>

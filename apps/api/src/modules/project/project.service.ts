@@ -172,6 +172,23 @@ export class ProjectService {
 
       const healthStatus = healthScore >= 80 ? 'healthy' : healthScore >= 50 ? 'warning' : 'critical';
 
+      const totalBeneficiariesReached = progProjects.reduce(
+        (acc: number, prj: any) => acc + (prj.metrics?.beneficiaries?.totalReached || 0),
+        0
+      );
+      const femaleBeneficiaries = progProjects.reduce(
+        (acc: number, prj: any) => acc + (prj.metrics?.beneficiaries?.femaleCount || 0),
+        0
+      );
+      const maleBeneficiaries = progProjects.reduce(
+        (acc: number, prj: any) => acc + (prj.metrics?.beneficiaries?.maleCount || 0),
+        0
+      );
+      const otherGenderBeneficiaries = progProjects.reduce(
+        (acc: number, prj: any) => acc + (prj.metrics?.beneficiaries?.otherGenderCount || 0),
+        0
+      );
+
       return {
         ...prog,
         projects: progProjects,
@@ -191,6 +208,12 @@ export class ProjectService {
           blockedTasks,
           activeProjectsCount: progProjects.filter((p: any) => p.status === 'active').length,
           targetBeneficiariesCount: prog.targetBeneficiariesCount || 0,
+          beneficiaries: {
+            totalReached: totalBeneficiariesReached,
+            femaleCount: femaleBeneficiaries,
+            maleCount: maleBeneficiaries,
+            otherGenderCount: otherGenderBeneficiaries,
+          },
           healthScore,
           healthStatus,
         },
@@ -267,6 +290,23 @@ export class ProjectService {
         const linkedProjectIds = new Set(progLinks.map((l: any) => l.projectId));
         const progProjects = allProjects.filter((prj: any) => linkedProjectIds.has(prj.id));
 
+        const totalBeneficiariesReached = progProjects.reduce(
+          (acc: number, prj: any) => acc + (prj.metrics?.beneficiaries?.totalReached || 0),
+          0
+        );
+        const femaleBeneficiaries = progProjects.reduce(
+          (acc: number, prj: any) => acc + (prj.metrics?.beneficiaries?.femaleCount || 0),
+          0
+        );
+        const maleBeneficiaries = progProjects.reduce(
+          (acc: number, prj: any) => acc + (prj.metrics?.beneficiaries?.maleCount || 0),
+          0
+        );
+        const otherGenderBeneficiaries = progProjects.reduce(
+          (acc: number, prj: any) => acc + (prj.metrics?.beneficiaries?.otherGenderCount || 0),
+          0
+        );
+
         const totalBudget = progProjects.reduce((acc: number, prj: any) => acc + (prj.metrics?.totalBudget || 0), 0);
         const totalExpenses = progProjects.reduce((acc: number, prj: any) => acc + (prj.metrics?.totalExpenses || 0), 0);
         const overallProgress = progProjects.length > 0
@@ -303,6 +343,12 @@ export class ProjectService {
             blockedTasks,
             activeProjectsCount: progProjects.filter((p: any) => p.status === 'active').length,
             targetBeneficiariesCount: prog.targetBeneficiariesCount || 0,
+            beneficiaries: {
+              totalReached: totalBeneficiariesReached,
+              femaleCount: femaleBeneficiaries,
+              maleCount: maleBeneficiaries,
+              otherGenderCount: otherGenderBeneficiaries,
+            },
             healthScore,
             healthStatus,
           },
@@ -324,6 +370,15 @@ export class ProjectService {
       const allRaid: any[] = await tx.select().from(raidItem).where(eq(raidItem.tenantId, tenantId));
       const allPrograms: any[] = await tx.select().from(program).where(eq(program.tenantId, tenantId));
       const allLinks: any[] = await tx.select().from(programProject).where(eq(programProject.tenantId, tenantId));
+      const allDeliveries: any[] = await tx
+        .select({
+          projectId: serviceDelivery.projectId,
+          partyId: serviceDelivery.partyId,
+          genderCode: beneficiaryProfile.genderCode,
+        })
+        .from(serviceDelivery)
+        .leftJoin(beneficiaryProfile, eq(serviceDelivery.partyId, beneficiaryProfile.partyId))
+        .where(eq(serviceDelivery.tenantId, tenantId));
 
       return projectsList.map((p: any) => {
         const pPlanItems = allPlanItems.filter((i: any) => i.projectId === p.id);
@@ -336,6 +391,26 @@ export class ProjectService {
         const pRaid = allRaid.filter((r: any) => r.projectId === p.id);
         const pLink = allLinks.find((l: any) => l.projectId === p.id);
         const pProg = pLink ? allPrograms.find((pr: any) => pr.id === pLink.programId) : null;
+        const pDeliveries = allDeliveries.filter((d: any) => d.projectId === p.id);
+
+        // Unique beneficiaries
+        const uniqueBeneficiaryIds = new Set(pDeliveries.map((d: any) => d.partyId));
+        const totalBeneficiariesReached = uniqueBeneficiaryIds.size;
+        
+        let femaleCount = 0;
+        let maleCount = 0;
+        let otherGenderCount = 0;
+        const countedBeneficiaryGenders = new Set<string>();
+
+        for (const d of pDeliveries) {
+          if (!countedBeneficiaryGenders.has(d.partyId)) {
+            countedBeneficiaryGenders.add(d.partyId);
+            const g = (d.genderCode || '').toLowerCase();
+            if (g === 'f' || g === 'female' || g === 'femme') femaleCount++;
+            else if (g === 'm' || g === 'male' || g === 'homme') maleCount++;
+            else otherGenderCount++;
+          }
+        }
 
         const totalTasks = pPlanItems.length;
         const completedTasks = pPlanItems.filter((i: any) => (i.progressPct ?? 0) === 100 || i.status === 'completed').length;
@@ -377,6 +452,12 @@ export class ProjectService {
             membersCount: pMembers.length,
             risksCount: pRaid.filter((r: any) => r.type === 'risk').length,
             issuesCount: pRaid.filter((r: any) => r.type === 'issue').length,
+            beneficiaries: {
+              totalReached: totalBeneficiariesReached,
+              femaleCount,
+              maleCount,
+              otherGenderCount,
+            },
           },
         };
       });
@@ -555,6 +636,8 @@ export class ProjectService {
           partyKind: party.kind,
           email: party.email,
           phone: party.phone,
+          genderCode: beneficiaryProfile.genderCode,
+          birthDate: beneficiaryProfile.birthDate,
           customFields: beneficiaryProfile.customFields,
         })
         .from(serviceDelivery)

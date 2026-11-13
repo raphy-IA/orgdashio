@@ -62,9 +62,10 @@ import { TaskExecutionHub } from './components/TaskExecutionHub';
 import { ProjectMonitoringHub } from './components/ProjectMonitoringHub';
 import { ProjectOverviewView } from './components/ProjectOverviewView';
 import { ProjectStrategicHub, StrategySubTab } from './components/strategy/ProjectStrategicHub';
+import { ProjectReportsHub } from './components/ProjectReportsHub';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
-type TabKey = 'overview' | 'strategy' | 'planning' | 'execution' | 'monitoring';
+type TabKey = 'overview' | 'strategy' | 'planning' | 'execution' | 'monitoring' | 'reports';
 
 interface ProjectMember {
   id: string;
@@ -1584,6 +1585,7 @@ export function ProjectDetailScreen() {
     { key: 'planning' as TabKey, label: "2. Planification", icon: ListTodo },
     { key: 'execution' as TabKey, label: "3. Exécution & Opérations", icon: CheckCircle2 },
     { key: 'monitoring' as TabKey, label: "4. Suivi & Performance", icon: BarChart3 },
+    { key: 'reports' as TabKey, label: "5. Rapports & Bailleurs", icon: FileSpreadsheet },
   ];
 
   const PROJECT_STATUS_LABELS: Record<string, string> = {
@@ -1674,6 +1676,13 @@ export function ProjectDetailScreen() {
               <TrendingUp className="h-3.5 w-3.5 text-indigo-600" />
               <strong className="text-slate-700">{fmt(remaining)}</strong> solde budget
             </span>
+            <span className="flex items-center gap-1">
+              <Users className="h-3.5 w-3.5 text-rose-600" />
+              <strong className="text-slate-700">
+                {new Set(serviceDeliveries.map((d: any) => d.partyId)).size}
+              </strong>
+              {proj.targetBeneficiariesCount ? ` / ${proj.targetBeneficiariesCount}` : ''} bénéficiaires
+            </span>
           </div>
 
           {/* Tab navigation */}
@@ -1718,6 +1727,7 @@ export function ProjectDetailScreen() {
             resultNodes={resultNodes}
             dependencies={dependencies}
             budget={projBudget}
+            serviceDeliveries={serviceDeliveries}
             onNavigateTab={(tab, subTab) => {
               setActiveTab(tab);
               if (subTab) {
@@ -2564,6 +2574,25 @@ export function ProjectDetailScreen() {
             onDeleteRaidItem={async (itemId) => {
               await deleteRaidItem.mutateAsync(itemId);
             }}
+          />
+        )}
+
+        {/* ═══════════════════════════════════════════════════════════════ */}
+        {/* ONGLET DÉDIÉ: RAPPORTS OFFICIELS & BAILLEURS                    */}
+        {/* ═══════════════════════════════════════════════════════════════ */}
+        {activeTab === 'reports' && (
+          <ProjectReportsHub
+            project={proj}
+            planItems={planItems}
+            expenses={expenses}
+            members={members}
+            deliverables={deliverables}
+            updates={updates}
+            raidItems={raidItems}
+            fundingSources={fundingSources}
+            serviceDeliveries={serviceDeliveries}
+            resultNodes={resultNodes}
+            budget={projBudget}
           />
         )}
       </main>
