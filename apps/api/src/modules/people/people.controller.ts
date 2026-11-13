@@ -3,6 +3,7 @@ import { PeopleService } from './people.service';
 import { AuthGuard } from '../../common/guards/auth.guard';
 import {
   CreatePersonSchema,
+  UpdatePersonSchema,
   CreateStaffSchema,
   UpdateStaffSchema,
   CreateStaffAccountSchema,
@@ -81,6 +82,17 @@ export class PeopleController {
   async createPerson(@Req() req: any, @Body() body: any) {
     const parsed = CreatePersonSchema.parse(body);
     return this.peopleService.createPerson(req.tenantId, parsed);
+  }
+
+  @Patch(':id')
+  async updatePerson(@Req() req: any, @Param('id') id: string, @Body() body: any) {
+    const parsed = UpdatePersonSchema.parse(body);
+    return this.peopleService.updatePerson(req.tenantId, id, parsed);
+  }
+
+  @Delete(':id')
+  async deleteBeneficiary(@Req() req: any, @Param('id') id: string) {
+    return this.peopleService.deleteBeneficiary(req.tenantId, id);
   }
 
   @Post(':id/consents')

@@ -19,6 +19,7 @@ import {
   AlertTriangle,
   Trash2,
   Pencil,
+  Edit3,
   KeyRound,
   CheckCircle2,
   X,
@@ -100,6 +101,7 @@ export function PeopleListScreen() {
 
   // Beneficiary Modal State
   const [showBeneficiaryModal, setShowBeneficiaryModal] = useState(false);
+  const [editingBeneficiary, setEditingBeneficiary] = useState<any>(null);
   const [benType, setBenType] = useState<'individual' | 'household' | 'community' | 'organization' | 'institution'>('individual');
   const [benFirstName, setBenFirstName] = useState('');
   const [benLastName, setBenLastName] = useState('');
@@ -310,31 +312,112 @@ export function PeopleListScreen() {
         setBenWarnings(data.warnings);
       } else {
         setShowBeneficiaryModal(false);
-        setBenType('individual');
-        setBenFirstName('');
-        setBenLastName('');
-        setBenEntityName('');
-        setBenEmail('');
-        setBenPhone('');
-        setBenBirthDate('');
-        setBenGender('');
-        setBenMemberCount('');
-        setBenChildCount('');
-        setBenMenCount('');
-        setBenWomenCount('');
-        setBenOtherCount('');
-        setBenBoysCount('');
-        setBenGirlsCount('');
-        setBenOtherChildrenCount('');
-        setBenLocation('');
-        setBenContactPerson('');
-        setBenSubCategory('');
+        setEditingBeneficiary(null);
+        resetBeneficiaryForm();
       }
     },
     onError: (err: any) => {
       setError(err.message);
     },
   });
+
+  // Update Beneficiary Mutation
+  const updateBeneficiaryMutation = useMutation({
+    mutationFn: async ({ id, data }: { id: string; data: any }) => {
+      const res = await fetch(`/api/v1/people/${id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(data),
+      });
+      if (!res.ok) {
+        const errData = await res.json();
+        throw new Error(errData.message || 'Erreur mise à jour bénéficiaire');
+      }
+      return res.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['people'] });
+      setShowBeneficiaryModal(false);
+      setEditingBeneficiary(null);
+      resetBeneficiaryForm();
+    },
+    onError: (err: any) => {
+      setError(err.message);
+    },
+  });
+
+  // Delete Beneficiary Mutation
+  const deleteBeneficiaryMutation = useMutation({
+    mutationFn: async (id: string) => {
+      const res = await fetch(`/api/v1/people/${id}`, {
+        method: 'DELETE',
+      });
+      if (!res.ok) {
+        const errData = await res.json();
+        throw new Error(errData.message || 'Erreur suppression bénéficiaire');
+      }
+      return res.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['people'] });
+    },
+    onError: (err: any) => {
+      alert(err.message);
+    },
+  });
+
+  const resetBeneficiaryForm = () => {
+    setEditingBeneficiary(null);
+    setBenType('individual');
+    setBenFirstName('');
+    setBenLastName('');
+    setBenEntityName('');
+    setBenEmail('');
+    setBenPhone('');
+    setBenBirthDate('');
+    setBenGender('');
+    setBenMemberCount('');
+    setBenChildCount('');
+    setBenMenCount('');
+    setBenWomenCount('');
+    setBenOtherCount('');
+    setBenBoysCount('');
+    setBenGirlsCount('');
+    setBenOtherChildrenCount('');
+    setBenLocation('');
+    setBenContactPerson('');
+    setBenSubCategory('');
+    setBenWarnings([]);
+    setError('');
+  };
+
+  const openEditBeneficiaryModal = (p: any) => {
+    setEditingBeneficiary(p);
+    const custom = p.profile?.customFields || {};
+    const bType = custom.beneficiaryType || (p.kind === 'organization' ? 'community' : 'individual');
+    setBenType(bType);
+    setBenFirstName(p.firstName || '');
+    setBenLastName(p.lastName || '');
+    setBenEntityName(p.kind === 'organization' ? (p.lastName || p.firstName || '') : (custom.name || ''));
+    setBenEmail(p.email || '');
+    setBenPhone(p.phone || '');
+    setBenBirthDate(p.profile?.birthDate ? p.profile.birthDate.split('T')[0] : '');
+    setBenGender(p.profile?.genderCode || '');
+    setBenMemberCount(custom.memberCount !== undefined && custom.memberCount !== null ? String(custom.memberCount) : '');
+    setBenChildCount(custom.childCount !== undefined && custom.childCount !== null ? String(custom.childCount) : '');
+    setBenMenCount(custom.menCount !== undefined && custom.menCount !== null ? String(custom.menCount) : '');
+    setBenWomenCount(custom.womenCount !== undefined && custom.womenCount !== null ? String(custom.womenCount) : '');
+    setBenOtherCount(custom.otherCount !== undefined && custom.otherCount !== null ? String(custom.otherCount) : '');
+    setBenBoysCount(custom.boysCount !== undefined && custom.boysCount !== null ? String(custom.boysCount) : '');
+    setBenGirlsCount(custom.girlsCount !== undefined && custom.girlsCount !== null ? String(custom.girlsCount) : '');
+    setBenOtherChildrenCount(custom.otherChildrenCount !== undefined && custom.otherChildrenCount !== null ? String(custom.otherChildrenCount) : '');
+    setBenLocation(custom.location || '');
+    setBenContactPerson(custom.contactPerson || '');
+    setBenSubCategory(custom.subCategory || '');
+    setBenWarnings([]);
+    setError('');
+    setShowBeneficiaryModal(true);
+  };
 
   const resetStaffForm = (mode: 'staff' | 'volunteer' = 'staff') => {
     setEditingStaff(null);
@@ -432,7 +515,7 @@ export function PeopleListScreen() {
     if (benContactPerson) customFields.contactPerson = benContactPerson;
     if (benSubCategory) customFields.subCategory = benSubCategory;
 
-    createBeneficiaryMutation.mutate({
+    const payload = {
       kind: isIndiv ? 'person' : 'organization',
       beneficiaryType: benType,
       firstName: isIndiv ? benFirstName : undefined,
@@ -443,7 +526,16 @@ export function PeopleListScreen() {
       birthDate: isIndiv && benBirthDate ? benBirthDate : undefined,
       genderCode: isIndiv && benGender ? benGender : undefined,
       customFields,
-    });
+    };
+
+    if (editingBeneficiary) {
+      updateBeneficiaryMutation.mutate({
+        id: editingBeneficiary.id,
+        data: payload,
+      });
+    } else {
+      createBeneficiaryMutation.mutate(payload);
+    }
   };
 
   // Filtered lists
@@ -656,7 +748,7 @@ export function PeopleListScreen() {
               </Button>
             )}
             {activeTab === 'beneficiaries' && (
-              <Button onClick={() => { setBenWarnings([]); setShowBeneficiaryModal(true); }}>
+              <Button onClick={() => { resetBeneficiaryForm(); setShowBeneficiaryModal(true); }}>
                 <UserPlus className="mr-2 h-4 w-4" />
                 {t('people.modals.newBeneficiary')}
               </Button>
@@ -1594,10 +1686,22 @@ export function PeopleListScreen() {
                                         )}
                                       </td>
                                       <td className="px-6 py-4 text-right">
-                                        <Button variant="ghost" size="sm" onClick={() => navigate(`/people/${p.id}`)}>
-                                          Voir fiche
-                                          <ArrowRight className="ml-1 h-3 w-3" />
-                                        </Button>
+                                        <div className="flex items-center justify-end gap-1">
+                                          <Button
+                                            variant="ghost"
+                                            size="sm"
+                                            className="text-xs text-indigo-600 hover:text-indigo-800 hover:bg-indigo-50"
+                                            onClick={() => openEditBeneficiaryModal(p)}
+                                            title="Modifier les informations de ce bénéficiaire"
+                                          >
+                                            <Edit3 className="h-3.5 w-3.5 mr-1" />
+                                            Modifier
+                                          </Button>
+                                          <Button variant="ghost" size="sm" onClick={() => navigate(`/people/${p.id}`)}>
+                                            Fiche
+                                            <ArrowRight className="ml-1 h-3 w-3" />
+                                          </Button>
+                                        </div>
                                       </td>
                                     </tr>
                                   );
@@ -1636,10 +1740,21 @@ export function PeopleListScreen() {
                                         {custom?.location ? `Zone: ${custom.location}` : '—'}
                                       </td>
                                       <td className="px-6 py-3 text-right">
-                                        <Button variant="ghost" size="sm" onClick={() => navigate(`/people/${p.id}`)}>
-                                          Voir fiche
-                                          <ArrowRight className="ml-1 h-3 w-3" />
-                                        </Button>
+                                        <div className="flex items-center justify-end gap-1">
+                                          <Button
+                                            variant="ghost"
+                                            size="sm"
+                                            className="text-xs text-amber-800 hover:text-amber-950 hover:bg-amber-200/50"
+                                            onClick={() => openEditBeneficiaryModal(p)}
+                                          >
+                                            <Edit3 className="h-3.5 w-3.5 mr-1" />
+                                            Modifier
+                                          </Button>
+                                          <Button variant="ghost" size="sm" onClick={() => navigate(`/people/${p.id}`)}>
+                                            Fiche
+                                            <ArrowRight className="ml-1 h-3 w-3" />
+                                          </Button>
+                                        </div>
                                       </td>
                                     </tr>
                                   );
@@ -1770,10 +1885,35 @@ export function PeopleListScreen() {
                               {p.phone && <div className="text-[11px] text-slate-400">{p.phone}</div>}
                             </td>
                             <td className="px-6 py-4 text-right">
-                              <Button variant="ghost" size="sm" onClick={() => navigate(`/people/${p.id}`)}>
-                                {t('common.viewProfile')}
-                                <ArrowRight className="ml-1 h-3 w-3" />
-                              </Button>
+                              <div className="flex items-center justify-end gap-1">
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  className="text-xs text-indigo-600 hover:text-indigo-800 hover:bg-indigo-50"
+                                  onClick={() => openEditBeneficiaryModal(p)}
+                                  title="Modifier les informations"
+                                >
+                                  <Edit3 className="h-3.5 w-3.5 mr-1" />
+                                  Modifier
+                                </Button>
+                                <Button variant="ghost" size="sm" onClick={() => navigate(`/people/${p.id}`)}>
+                                  {t('common.viewProfile')}
+                                  <ArrowRight className="ml-1 h-3 w-3" />
+                                </Button>
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  className="text-slate-400 hover:text-red-600 hover:bg-red-50 p-1.5"
+                                  title="Supprimer ce bénéficiaire"
+                                  onClick={() => {
+                                    if (confirm(`Êtes-vous sûr de vouloir supprimer le bénéficiaire ${displayName} ?`)) {
+                                      deleteBeneficiaryMutation.mutate(p.id);
+                                    }
+                                  }}
+                                >
+                                  <Trash2 className="h-3.5 w-3.5" />
+                                </Button>
+                              </div>
                             </td>
                           </tr>
                         );
@@ -2125,7 +2265,7 @@ export function PeopleListScreen() {
         )}
 
         {/* ═════════════════════════════════════════════════════════════════ */}
-        {/* MODAL: AJOUTER UN BÉNÉFICIAIRE                                   */}
+        {/* MODAL: AJOUTER / MODIFIER UN BÉNÉFICIAIRE                         */}
         {/* ═════════════════════════════════════════════════════════════════ */}
         {showBeneficiaryModal && (
           <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
@@ -2133,7 +2273,7 @@ export function PeopleListScreen() {
               <div className="flex items-center justify-between border-b pb-3">
                 <h2 className="text-lg font-bold text-slate-800 flex items-center gap-2">
                   <UserPlus className="h-5 w-5 text-indigo-600" />
-                  {t('people.modals.newBeneficiary')}
+                  {editingBeneficiary ? 'Modifier le bénéficiaire' : t('people.modals.newBeneficiary')}
                 </h2>
                 <Button variant="ghost" size="sm" onClick={() => setShowBeneficiaryModal(false)}>
                   <X className="h-4 w-4" />
@@ -2689,11 +2829,18 @@ export function PeopleListScreen() {
                     type="submit"
                     disabled={
                       createBeneficiaryMutation.isPending ||
+                      updateBeneficiaryMutation.isPending ||
                       (benType === 'individual' && (!benFirstName.trim() || !benLastName.trim())) ||
                       (benType !== 'individual' && !benEntityName.trim())
                     }
                   >
-                    {benWarnings.length > 0 ? t('common.confirm') : t('common.create')}
+                    {createBeneficiaryMutation.isPending || updateBeneficiaryMutation.isPending
+                      ? t('common.saving')
+                      : benWarnings.length > 0
+                      ? t('common.confirm')
+                      : editingBeneficiary
+                      ? t('common.save')
+                      : t('common.create')}
                   </Button>
                 </div>
               </form>

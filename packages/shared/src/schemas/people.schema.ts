@@ -27,6 +27,23 @@ export const CreatePersonSchema = z.object({
 
 export type CreatePersonInput = z.infer<typeof CreatePersonSchema>;
 
+export const UpdatePersonSchema = z.object({
+  kind: z.enum(['person', 'organization']).optional(),
+  beneficiaryType: z.enum(['individual', 'household', 'community', 'organization', 'institution']).optional(),
+  firstName: z.string().optional().nullable(),
+  lastName: z.string().optional(),
+  name: z.string().optional(),
+  email: z.string().email('Courriel invalide').optional().nullable().or(z.literal('')),
+  phone: z.string().optional().nullable(),
+  birthDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Format YYYY-MM-DD').optional().nullable(),
+  genderCode: z.string().optional().nullable(),
+  preferredLang: z.enum(['fr', 'en']).optional(),
+  status: z.enum(['active', 'inactive', 'archived']).optional(),
+  customFields: z.record(z.any()).optional(),
+});
+
+export type UpdatePersonInput = z.infer<typeof UpdatePersonSchema>;
+
 export const RecordConsentSchema = z.object({
   purposeCode: z.string().default('loi_25_general'),
   version: z.string().default('1.0'),

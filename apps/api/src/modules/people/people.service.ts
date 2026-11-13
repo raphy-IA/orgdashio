@@ -17,6 +17,7 @@ import {
   serviceDelivery,
   project,
   CreatePersonInput,
+  UpdatePersonInput,
   CreateStaffInput,
   UpdateStaffInput,
   CreateStaffAccountInput,
@@ -725,6 +726,119 @@ export class PeopleService {
         profile,
         warnings: duplicates.map((d: any) => d.party),
       };
+    });
+  }
+
+  async updatePerson(tenantId: string, partyId: string, input: UpdatePersonInput) {
+    return withTenantContext(this.db, tenantId, async (tx) => {
+      const [existingParty] = await tx
+        .select()
+        .from(party)
+        .where(and(eq(party.id, partyId), eq(party.tenantId, tenantId)));
+
+      if (!existingParty) {
+        throw new NotFoundException('Bénéficiaire non trouvé');
+      }
+
+      const [existingProfile] = await tx
+        .select()
+        .from(beneficiaryProfile)
+        .where(and(eq(beneficiaryProfile.partyId, partyId), eq(beneficiaryProfile.tenantId, tenantId)));
+
+      const isCollective = input.beneficiaryType ? (input.beneficiaryType !== 'individual') : (existingParty.kind === 'organization');
+      const partyUpdates: Record<string, any> = {};
+
+      if (input.beneficiaryType !== undefined) {
+        partyUpdates.kind = isCollective ? 'organization' : 'person';
+      }
+      if (input.firstName !== undefined) {
+        partyUpdates.firstName = isCollective ? null : input.firstName;
+      }
+      if (input.lastName !== undefined || input.name !== undefined) {
+        partyUpdates.lastName = isCollective ? (input.name || input.lastName || existingParty.lastName) : (input.lastName || existingParty.lastName);
+      }
+      if (input.email !== undefined) {
+        partyUpdates.email = input.email ? input.email.toLowerCase().trim() : null;
+      }
+      if (input.phone !== undefined) {
+        partyUpdates.phone = input.phone || null;
+      }
+
+      let updatedParty = existingParty;
+      if (Object.keys(partyUpdates).length > 0) {
+        const [p] = await tx
+          .update(party)
+          .set(partyUpdates)
+          .where(and(eq(party.id, partyId), eq(party.tenantId, tenantId)))
+          .returning();
+        updatedParty = p;
+      }
+
+      const currentCustom = (existingProfile?.customFields as Record<string, any>) || {};
+      const mergedCustom = {
+        ...currentCustom,
+        ...(input.beneficiaryType ? { beneficiaryType: input.beneficiaryType } : {}),
+        ...(input.customFields || {}),
+      };
+
+      const profileUpdates: Record<string, any> = {
+        customFields: mergedCustom,
+      };
+      if (input.birthDate !== undefined) profileUpdates.birthDate = input.birthDate || null;
+      if (input.genderCode !== undefined) profileUpdates.genderCode = input.genderCode || null;
+      if (input.preferredLang !== undefined) profileUpdates.preferredLang = input.preferredLang;
+      if (input.status !== undefined) profileUpdates.status = input.status;
+
+      let updatedProfile = existingProfile;
+      if (existingProfile) {
+        const [prof] = await tx
+          .update(beneficiaryProfile)
+          .set(profileUpdates)
+          .where(and(eq(beneficiaryProfile.partyId, partyId), eq(beneficiaryProfile.tenantId, tenantId)))
+          .returning();
+        updatedProfile = prof;
+      } else {
+        const [prof] = await tx
+          .insert(beneficiaryProfile)
+          .values({
+            tenantId,
+            partyId,
+            birthDate: input.birthDate || null,
+            genderCode: input.genderCode || null,
+            preferredLang: input.preferredLang || 'fr',
+            status: input.status || 'active',
+            customFields: mergedCustom,
+          })
+          .returning();
+        updatedProfile = prof;
+      }
+
+      return {
+        party: updatedParty,
+        profile: updatedProfile,
+      };
+    });
+  }
+
+  async deleteBeneficiary(tenantId: string, partyId: string) {
+    return withTenantContext(this.db, tenantId, async (tx) => {
+      await tx
+        .delete(beneficiaryProfile)
+        .where(and(eq(beneficiaryProfile.partyId, partyId), eq(beneficiaryProfile.tenantId, tenantId)));
+
+      // If no staff profile exists, delete party record
+      const [hasStaff] = await tx
+        .select()
+        .from(staffProfile)
+        .where(and(eq(staffProfile.partyId, partyId), eq(staffProfile.tenantId, tenantId)));
+
+      if (!hasStaff) {
+        await tx
+          .delete(party)
+          .where(and(eq(party.id, partyId), eq(party.tenantId, tenantId)));
+      }
+
+      return { success: true };
     });
   }
 
