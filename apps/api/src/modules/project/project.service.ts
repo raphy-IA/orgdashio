@@ -31,6 +31,7 @@ import {
   beneficiaryProfile,
   membership,
   indicator,
+  indicatorObservation,
   serviceDelivery,
   CreateProgramInput,
   UpdateProgramInput,
@@ -645,10 +646,34 @@ export class ProjectService {
         .leftJoin(beneficiaryProfile, eq(serviceDelivery.partyId, beneficiaryProfile.partyId))
         .where(eq(serviceDelivery.projectId, projectId));
 
+      // Fetch linked indicators with their latest observations
+      const projectIndicators = await tx
+        .select()
+        .from(indicator)
+        .where(eq(indicator.projectId, projectId));
+
+      const indicatorIds = projectIndicators.map((i: any) => i.id);
+      const observations = indicatorIds.length > 0
+        ? await tx
+            .select()
+            .from(indicatorObservation)
+            .where(eq(indicatorObservation.tenantId, tenantId))
+        : [];
+      
+      const enrichedIndicators = projectIndicators.map((ind: any) => {
+        const indObs = observations.filter((o: any) => o.indicatorId === ind.id);
+        return {
+          ...ind,
+          observations: indObs,
+          latestObservation: indObs.sort((a: any, b: any) => new Date(b.recordedAt).getTime() - new Date(a.recordedAt).getTime())[0] || null,
+        };
+      });
+
       return {
         project: proj,
         fundingSources: funding,
         resultNodes: nodes,
+        indicators: enrichedIndicators,
         planItems: items,
         dependencies: deps,
         budget: projBudget ? { ...projBudget, lines } : null,

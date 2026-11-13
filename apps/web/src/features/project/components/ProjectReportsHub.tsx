@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import { Button } from '@orgdashio/ui';
 import {
   FileText,
@@ -14,10 +14,25 @@ import {
   Calendar,
   CheckCircle2,
   TrendingUp,
+  AlertTriangle,
+  Clock,
+  Filter,
+  SlidersHorizontal,
+  ChevronDown,
+  Building2,
+  FileCheck,
+  Award,
+  PenTool,
+  Download,
+  Info,
 } from 'lucide-react';
-import { CopilFlashReportView } from './CopilFlashReportView';
+import { calculateEVM, EVMTaskInput, EVMExpenseInput } from '@orgdashio/shared';
 
-export type ProjectReportType = 'copil' | 'beneficiaries' | 'financial';
+export type ReportTemplate =
+  | 'copil_executive'
+  | 'funder_donor'
+  | 'impact_beneficiaries'
+  | 'logframe_results';
 
 interface ProjectReportsHubProps {
   project: any;
@@ -30,6 +45,7 @@ interface ProjectReportsHubProps {
   fundingSources: any[];
   serviceDeliveries?: any[];
   resultNodes?: any[];
+  indicators?: any[];
   budget?: any;
 }
 
@@ -44,412 +60,1076 @@ export function ProjectReportsHub({
   fundingSources,
   serviceDeliveries = [],
   resultNodes = [],
+  indicators = [],
   budget,
 }: ProjectReportsHubProps) {
-  const [selectedReport, setSelectedReport] = useState<ProjectReportType>('copil');
+  // ── Report Customization & Adjustment State ──
+  const [template, setTemplate] = useState<ReportTemplate>('copil_executive');
+  const [periodPreset, setPeriodPreset] = useState<'all' | 'q1' | 'q2' | 'q3' | 'q4' | 'ytd' | 'custom'>('all');
+  const [dateStart, setDateStart] = useState<string>('');
+  const [dateEnd, setDateEnd] = useState<string>('');
+  const [selectedFunder, setSelectedFunder] = useState<string>('all');
+  const [selectedPillar, setSelectedPillar] = useState<string>('all');
+  
+  // Custom narrative inputs for the report
+  const [executiveSummary, setExecutiveSummary] = useState<string>(
+    project.description ||
+      "Durant cette période d'intervention, les activités opérationnelles se sont poursuivies conformément aux objectifs contractuels. Les jalons critiques ont été franchis avec un taux de satisfaction élevé des parties prenantes et des bénéficiaires."
+  );
+  const [highlightKeyAchievements, setHighlightKeyAchievements] = useState<string>(
+    '• Déploiement des ateliers thématiques auprès des cohortes cibles.\n• Mobilisation réussie des bénévoles et partenaires communautaires.\n• Respect des engagements financiers et reddition des comptes.'
+  );
+  const [decisionsRequired, setDecisionsRequired] = useState<string>(
+    '• Approbation du calendrier d’extension pour la phase suivante.\n• Arbitrage sur l’allocation des reliquats budgétaires non engagés.\n• Validation officielle du procès-verbal de revue intermédiaire.'
+  );
 
-  // Compute beneficiary metrics
-  const uniqueBeneficiaries = React.useMemo(() => {
+  // Sections toggle display
+  const [showExecutiveSummary, setShowExecutiveSummary] = useState(true);
+  const [showEvmSection, setShowEvmSection] = useState(true);
+  const [showWbsSection, setShowWbsSection] = useState(true);
+  const [showLogframeSection, setShowLogframeSection] = useState(true);
+  const [showBeneficiariesSection, setShowBeneficiariesSection] = useState(true);
+  const [showFinancialSection, setShowFinancialSection] = useState(true);
+  const [showRisksSection, setShowRisksSection] = useState(true);
+  const [showSignatures, setShowSignatures] = useState(true);
+
+  // Signatory details
+  const [preparedBy, setPreparedBy] = useState<string>('Coordonnateur(trice) de Projet');
+  const [reviewedBy, setReviewedBy] = useState<string>('Direction Générale / Directoire');
+  const [funderRepresentative, setFunderRepresentative] = useState<string>(
+    fundingSources[0]?.donorName || 'Représentant du Bailleur de Fonds'
+  );
+
+  // ── Filtered Datasets ──
+  const filteredDeliveries = useMemo(() => {
+    return serviceDeliveries.filter((d) => {
+      if (!d.deliveredAt) return true;
+      if (dateStart && d.deliveredAt < dateStart) return false;
+      if (dateEnd && d.deliveredAt > dateEnd) return false;
+      return true;
+    });
+  }, [serviceDeliveries, dateStart, dateEnd]);
+
+  const uniqueBeneficiaries = useMemo(() => {
     const map = new Map<string, any>();
-    for (const d of serviceDeliveries) {
+    for (const d of filteredDeliveries) {
       if (!map.has(d.partyId)) {
         map.set(d.partyId, d);
       }
     }
     return Array.from(map.values());
-  }, [serviceDeliveries]);
+  }, [filteredDeliveries]);
 
-  const totalReached = uniqueBeneficiaries.length;
-  const targetCount = project?.targetBeneficiariesCount || 0;
-  const reachPercentage = targetCount > 0 ? Math.min(100, Math.round((totalReached / targetCount) * 100)) : 0;
+  const totalBeneficiariesReached = uniqueBeneficiaries.length;
+  const targetBeneficiaries = project?.targetBeneficiariesCount || 0;
+  const reachPercentage = targetBeneficiaries > 0
+    ? Math.min(100, Math.round((totalBeneficiariesReached / targetBeneficiaries) * 100))
+    : 0;
 
-  const genderStats = React.useMemo(() => {
+  // Age and Gender breakdown (ACS+)
+  const demographics = useMemo(() => {
     let female = 0;
     let male = 0;
     let other = 0;
+    let youth = 0; // < 25
+    let adult = 0; // 25 - 60
+    let senior = 0; // > 60
+
+    const nowYear = new Date().getFullYear();
+
     for (const b of uniqueBeneficiaries) {
       const g = (b.genderCode || '').toLowerCase();
       if (g === 'f' || g === 'female' || g === 'femme') female++;
       else if (g === 'm' || g === 'male' || g === 'homme') male++;
       else other++;
-    }
-    const fPct = totalReached > 0 ? Math.round((female / totalReached) * 100) : 0;
-    const mPct = totalReached > 0 ? Math.round((male / totalReached) * 100) : 0;
-    const oPct = totalReached > 0 ? Math.max(0, 100 - fPct - mPct) : 0;
-    return { female, male, other, fPct, mPct, oPct };
-  }, [uniqueBeneficiaries, totalReached]);
 
-  // Financial metrics
-  const totalBudget = (budget?.lines || []).reduce((s: number, l: any) => s + parseFloat(l.amount || '0'), 0) || parseFloat(project.budgetTotal || '0') || 0;
-  const totalExpensesApproved = expenses
+      if (b.birthDate) {
+        const birthYear = new Date(b.birthDate).getFullYear();
+        const age = nowYear - birthYear;
+        if (age < 25) youth++;
+        else if (age <= 60) adult++;
+        else senior++;
+      }
+    }
+
+    const total = uniqueBeneficiaries.length;
+    const fPct = total > 0 ? Math.round((female / total) * 100) : 0;
+    const mPct = total > 0 ? Math.round((male / total) * 100) : 0;
+    const oPct = total > 0 ? Math.max(0, 100 - fPct - mPct) : 0;
+
+    return { female, male, other, fPct, mPct, oPct, youth, adult, senior, total };
+  }, [uniqueBeneficiaries]);
+
+  // Financial filtering & metrics
+  const filteredFundingSources = useMemo(() => {
+    if (selectedFunder === 'all') return fundingSources;
+    return fundingSources.filter((f) => f.donorName === selectedFunder);
+  }, [fundingSources, selectedFunder]);
+
+  const totalBudgetContract = (budget?.lines || []).reduce((s: number, l: any) => s + parseFloat(l.amount || '0'), 0) || parseFloat(project.budgetTotal || '0') || 0;
+  const totalFundingAllocated = filteredFundingSources.reduce((s, f) => s + parseFloat(f.amount || '0'), 0);
+  
+  const filteredExpenses = useMemo(() => {
+    return expenses.filter((e) => {
+      if (!e.date) return true;
+      if (dateStart && e.date < dateStart) return false;
+      if (dateEnd && e.date > dateEnd) return false;
+      return true;
+    });
+  }, [expenses, dateStart, dateEnd]);
+
+  const totalApprovedExpenses = filteredExpenses
     .filter((e) => e.status === 'approved' || e.status === 'paid')
     .reduce((s, e) => s + parseFloat(e.amount || '0'), 0);
-  const totalFunding = fundingSources.reduce((s, f) => s + parseFloat(f.amount || '0'), 0);
+
+  const budgetExecutionRate = totalBudgetContract > 0
+    ? Math.round((totalApprovedExpenses / totalBudgetContract) * 100)
+    : 0;
+
+  // EVM
+  const evmData = useMemo(() => {
+    const evmTasks: EVMTaskInput[] = planItems.map((t) => ({
+      id: t.id,
+      wbs: t.wbs,
+      title: t.title,
+      startDate: t.startDate,
+      endDate: t.endDate,
+      durationDays: t.durationDays,
+      progressPct: t.progressPct,
+      estimatedCost: t.estimatedCost,
+      status: t.status,
+    }));
+
+    const evmExpenses: EVMExpenseInput[] = filteredExpenses.map((e) => ({
+      id: e.id,
+      date: e.date,
+      amount: e.amount,
+      status: e.status,
+    }));
+
+    return calculateEVM(evmTasks, evmExpenses, totalBudgetContract);
+  }, [planItems, filteredExpenses, totalBudgetContract]);
+
+  // Tasks and WBS
+  const tasksOnly = planItems.filter((p) => p.type === 'task' || !p.type);
+  const phases = planItems.filter((p) => p.type === 'phase');
+  const milestones = planItems.filter((p) => p.type === 'milestone');
+  const completedTasks = tasksOnly.filter((t) => t.status === 'completed' || (t.progressPct ?? 0) === 100);
+  const blockedTasks = tasksOnly.filter((t) => t.status === 'blocked');
+  const inProgressTasks = tasksOnly.filter((t) => (t.progressPct ?? 0) > 0 && (t.progressPct ?? 0) < 100);
+
+  const overallProgress = phases.length > 0
+    ? Math.round(phases.reduce((acc, p) => acc + (p.progressPct || 0), 0) / phases.length)
+    : (tasksOnly.length > 0 ? Math.round(tasksOnly.reduce((acc, t) => acc + (t.progressPct || 0), 0) / tasksOnly.length) : 0);
+
+  // Budget Breakdown by Category (CBS)
+  const cbsBreakdown = useMemo(() => {
+    const catMap: Record<string, { budget: number; actual: number }> = {
+      personnel: { budget: 0, actual: 0 },
+      material: { budget: 0, actual: 0 },
+      direct_aid: { budget: 0, actual: 0 },
+      training: { budget: 0, actual: 0 },
+      transport: { budget: 0, actual: 0 },
+      administrative: { budget: 0, actual: 0 },
+      subcontracting: { budget: 0, actual: 0 },
+      other: { budget: 0, actual: 0 },
+    };
+
+    (budget?.lines || []).forEach((bl: any) => {
+      const cat = bl.category || 'other';
+      if (!catMap[cat]) catMap[cat] = { budget: 0, actual: 0 };
+      catMap[cat].budget += parseFloat(bl.amount || '0');
+    });
+
+    filteredExpenses.forEach((exp: any) => {
+      if (exp.status === 'approved' || exp.status === 'paid') {
+        const cat = exp.category || 'other';
+        if (!catMap[cat]) catMap[cat] = { budget: 0, actual: 0 };
+        catMap[cat].actual += parseFloat(exp.amount || '0');
+      }
+    });
+
+    return catMap;
+  }, [budget, filteredExpenses]);
+
+  const CATEGORY_NAMES: Record<string, string> = {
+    personnel: 'Personnel & Ressources Humaines',
+    material: 'Équipements, Matériel & Fournitures',
+    direct_aid: 'Aide Directe & Dons aux Bénéficiaires',
+    training: 'Formations, Pédagogie & Ateliers',
+    transport: 'Déplacements & Logistique Terrain',
+    administrative: 'Frais de Gestion & Administratifs',
+    subcontracting: 'Prestations & Sous-traitance',
+    other: 'Autres Charges Directes',
+  };
 
   const fmt = (val: number) =>
     new Intl.NumberFormat('fr-CA', { style: 'currency', currency: 'CAD', maximumFractionDigits: 0 }).format(val);
 
   return (
     <div className="space-y-6">
-      {/* ── Report Selector Header Strip ── */}
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 border-b border-slate-200 pb-4">
-        <div>
-          <h2 className="text-lg font-bold text-slate-900 flex items-center gap-2">
-            <FileText className="h-5 w-5 text-indigo-600" />
-            Centre d'Édition & Rapports Officiels
-          </h2>
-          <p className="text-xs text-slate-500 mt-0.5">
-            Générez, prévisualisez et exportez les rapports réglementaires et de gouvernance du projet
-          </p>
-        </div>
-
-        {/* Action button */}
-        <div className="flex items-center gap-2">
-          <Button
-            size="sm"
-            onClick={() => window.print()}
-            className="text-xs font-bold bg-indigo-600 hover:bg-indigo-700 text-white shadow-xs"
-          >
-            <Printer className="mr-1.5 h-3.5 w-3.5" />
-            Imprimer / Exporter PDF
-          </Button>
-        </div>
-      </div>
-
-      {/* ── Report Type Switcher Tabs ── */}
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-        <button
-          type="button"
-          onClick={() => setSelectedReport('copil')}
-          className={`flex items-start gap-3 p-4 rounded-xl border text-left transition-all ${
-            selectedReport === 'copil'
-              ? 'bg-indigo-50/80 border-indigo-400 shadow-xs ring-1 ring-indigo-400'
-              : 'bg-white border-slate-200 hover:border-slate-300'
-          }`}
-        >
-          <div className={`p-2.5 rounded-lg shrink-0 ${selectedReport === 'copil' ? 'bg-indigo-600 text-white' : 'bg-slate-100 text-slate-600'}`}>
-            <BarChart3 className="h-5 w-5" />
-          </div>
-          <div>
-            <div className="flex items-center gap-2">
-              <span className="font-bold text-sm text-slate-900">Rapport Flash COPIL</span>
-              <span className="text-[10px] font-mono font-bold bg-indigo-100 text-indigo-700 px-1.5 py-0.2 rounded">
-                1-Page
-              </span>
-            </div>
-            <p className="text-xs text-slate-500 mt-1">
-              Synthèse exécutive pour comité de pilotage : santé, EVM, jalons & arbitrage des risques.
-            </p>
-          </div>
-        </button>
-
-        <button
-          type="button"
-          onClick={() => setSelectedReport('beneficiaries')}
-          className={`flex items-start gap-3 p-4 rounded-xl border text-left transition-all ${
-            selectedReport === 'beneficiaries'
-              ? 'bg-indigo-50/80 border-indigo-400 shadow-xs ring-1 ring-indigo-400'
-              : 'bg-white border-slate-200 hover:border-slate-300'
-          }`}
-        >
-          <div className={`p-2.5 rounded-lg shrink-0 ${selectedReport === 'beneficiaries' ? 'bg-indigo-600 text-white' : 'bg-slate-100 text-slate-600'}`}>
-            <HeartHandshake className="h-5 w-5" />
-          </div>
-          <div>
-            <div className="flex items-center gap-2">
-              <span className="font-bold text-sm text-slate-900">Bénéficiaires & Genre (ACS+)</span>
-              <span className="text-[10px] font-mono font-bold bg-rose-100 text-rose-700 px-1.5 py-0.2 rounded">
-                Impact
-              </span>
-            </div>
-            <p className="text-xs text-slate-500 mt-1">
-              Désagrégation par genre, volume de personnes touchées et traçabilité des services délivrés.
-            </p>
-          </div>
-        </button>
-
-        <button
-          type="button"
-          onClick={() => setSelectedReport('financial')}
-          className={`flex items-start gap-3 p-4 rounded-xl border text-left transition-all ${
-            selectedReport === 'financial'
-              ? 'bg-indigo-50/80 border-indigo-400 shadow-xs ring-1 ring-indigo-400'
-              : 'bg-white border-slate-200 hover:border-slate-300'
-          }`}
-        >
-          <div className={`p-2.5 rounded-lg shrink-0 ${selectedReport === 'financial' ? 'bg-indigo-600 text-white' : 'bg-slate-100 text-slate-600'}`}>
-            <DollarSign className="h-5 w-5" />
-          </div>
-          <div>
-            <div className="flex items-center gap-2">
-              <span className="font-bold text-sm text-slate-900">Rapport Financier & Bailleurs</span>
-              <span className="text-[10px] font-mono font-bold bg-emerald-100 text-emerald-700 px-1.5 py-0.2 rounded">
-                Audit
-              </span>
-            </div>
-            <p className="text-xs text-slate-500 mt-1">
-              Justification des dépenses par ligne budgétaire vs subventions et solde contractuel.
-            </p>
-          </div>
-        </button>
-      </div>
-
-      {/* ── Active Report View ── */}
-      {selectedReport === 'copil' && (
-        <CopilFlashReportView
-          project={project}
-          planItems={planItems}
-          expenses={expenses}
-          members={members}
-          deliverables={deliverables}
-          updates={updates}
-          raidItems={raidItems}
-          fundingSources={fundingSources}
-        />
-      )}
-
-      {selectedReport === 'beneficiaries' && (
-        <div className="rounded-2xl border border-slate-200 bg-white p-8 shadow-xs space-y-6">
-          {/* Header Document */}
-          <div className="border-b border-slate-200 pb-5 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+      {/* ═════════════════════════════════════════════════════════════════════ */}
+      {/* TOOLBAR DE PARAMÉTRAGE ET DE FILTRAGE (CACHÉE À L'IMPRESSION)        */}
+      {/* ═════════════════════════════════════════════════════════════════════ */}
+      <div className="print:hidden space-y-4">
+        {/* Header Action Bar */}
+        <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-xs">
+          <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4 border-b border-slate-100 pb-4">
             <div>
-              <span className="text-[10px] font-bold text-indigo-600 uppercase tracking-wider font-mono">
-                {project.code} • RAPPORT D'IMPACT SOCIAL & ANALYSE DE GENRE
-              </span>
-              <h2 className="text-2xl font-black text-slate-900 mt-1">{project.name}</h2>
-              <p className="text-xs text-slate-500 mt-1">
-                Conformité aux exigences de reddition de comptes et analyse comparative entre les sexes (ACS+ / GBA+)
+              <h2 className="text-lg font-bold text-slate-900 flex items-center gap-2">
+                <FileText className="h-5 w-5 text-indigo-600" />
+                Générateur de Rapports Professionnels & Bailleurs
+              </h2>
+              <p className="text-xs text-slate-500 mt-0.5">
+                Ajustez les paramètres, périodes, filtres et sections narratives avant d'exporter en PDF officiel
               </p>
             </div>
-            <div className="text-right">
-              <span className="text-xs font-mono font-bold text-slate-500">Date d'édition :</span>
-              <p className="text-xs font-bold text-slate-800">
-                {new Date().toLocaleDateString('fr-CA', { year: 'numeric', month: 'long', day: 'numeric' })}
-              </p>
+
+            <div className="flex items-center gap-2">
+              <Button
+                size="sm"
+                onClick={() => window.print()}
+                className="bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs shadow-xs"
+              >
+                <Printer className="mr-1.5 h-3.5 w-3.5" />
+                Imprimer / Exporter PDF Officiel
+              </Button>
             </div>
           </div>
 
-          {/* Key KPI Tiles */}
-          <div className="grid grid-cols-1 sm:grid-cols-4 gap-4">
-            <div className="p-4 rounded-xl bg-purple-50/60 border border-purple-200">
-              <span className="text-[11px] font-bold text-purple-700 uppercase tracking-wider block">Bénéficiaires Touchés</span>
-              <p className="text-3xl font-black text-purple-950 mt-1 font-mono">{totalReached}</p>
-              <p className="text-[11px] text-purple-700 mt-1">Personnes uniques distinctes</p>
-            </div>
+          {/* Template Selection Tabs */}
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-2 pt-4">
+            <button
+              type="button"
+              onClick={() => {
+                setTemplate('copil_executive');
+                setShowEvmSection(true);
+                setShowWbsSection(true);
+                setShowLogframeSection(true);
+                setShowBeneficiariesSection(true);
+                setShowFinancialSection(true);
+                setShowRisksSection(true);
+              }}
+              className={`p-3 rounded-xl border text-left transition-all ${
+                template === 'copil_executive'
+                  ? 'bg-indigo-50 border-indigo-500 text-indigo-900 shadow-2xs font-bold'
+                  : 'bg-slate-50/60 border-slate-200 text-slate-700 hover:bg-white'
+              }`}
+            >
+              <div className="flex items-center justify-between text-xs">
+                <span>Rapport Flash COPIL</span>
+                <span className="font-mono text-[10px] bg-indigo-200/80 px-1.5 py-0.2 rounded text-indigo-900">
+                  Comité
+                </span>
+              </div>
+              <p className="text-[11px] font-normal text-slate-500 mt-1 line-clamp-1">
+                Santé 360°, EVM, Jalons & Arbitrages
+              </p>
+            </button>
 
-            <div className="p-4 rounded-xl bg-indigo-50/60 border border-indigo-200">
-              <span className="text-[11px] font-bold text-indigo-700 uppercase tracking-wider block">Cible Contractuelle</span>
-              <p className="text-3xl font-black text-indigo-950 mt-1 font-mono">{targetCount || '—'}</p>
-              <p className="text-[11px] text-indigo-700 mt-1">
-                {targetCount > 0 ? `Taux d'atteinte : ${reachPercentage}%` : 'Aucune cible quantifiée'}
+            <button
+              type="button"
+              onClick={() => {
+                setTemplate('funder_donor');
+                setShowEvmSection(false);
+                setShowWbsSection(true);
+                setShowLogframeSection(true);
+                setShowBeneficiariesSection(true);
+                setShowFinancialSection(true);
+                setShowRisksSection(false);
+              }}
+              className={`p-3 rounded-xl border text-left transition-all ${
+                template === 'funder_donor'
+                  ? 'bg-indigo-50 border-indigo-500 text-indigo-900 shadow-2xs font-bold'
+                  : 'bg-slate-50/60 border-slate-200 text-slate-700 hover:bg-white'
+              }`}
+            >
+              <div className="flex items-center justify-between text-xs">
+                <span>Rapport Bailleur & Financier</span>
+                <span className="font-mono text-[10px] bg-emerald-200/80 px-1.5 py-0.2 rounded text-emerald-900">
+                  Audit
+                </span>
+              </div>
+              <p className="text-[11px] font-normal text-slate-500 mt-1 line-clamp-1">
+                Lignes CBS, Subventions & Dépenses
               </p>
-            </div>
+            </button>
 
-            <div className="p-4 rounded-xl bg-rose-50/60 border border-rose-200">
-              <span className="text-[11px] font-bold text-rose-700 uppercase tracking-wider block">Femmes (ACS+)</span>
-              <p className="text-3xl font-black text-rose-950 mt-1 font-mono">
-                {genderStats.female} <span className="text-base font-semibold text-rose-700">({genderStats.fPct}%)</span>
+            <button
+              type="button"
+              onClick={() => {
+                setTemplate('impact_beneficiaries');
+                setShowEvmSection(false);
+                setShowWbsSection(false);
+                setShowLogframeSection(true);
+                setShowBeneficiariesSection(true);
+                setShowFinancialSection(false);
+                setShowRisksSection(false);
+              }}
+              className={`p-3 rounded-xl border text-left transition-all ${
+                template === 'impact_beneficiaries'
+                  ? 'bg-indigo-50 border-indigo-500 text-indigo-900 shadow-2xs font-bold'
+                  : 'bg-slate-50/60 border-slate-200 text-slate-700 hover:bg-white'
+              }`}
+            >
+              <div className="flex items-center justify-between text-xs">
+                <span>Impact & Analyse Genre (ACS+)</span>
+                <span className="font-mono text-[10px] bg-rose-200/80 px-1.5 py-0.2 rounded text-rose-900">
+                  GBA+
+                </span>
+              </div>
+              <p className="text-[11px] font-normal text-slate-500 mt-1 line-clamp-1">
+                Démographie, Ratios & Services rendus
               </p>
-              <p className="text-[11px] text-rose-700 mt-1">Participation féminine certifiée</p>
-            </div>
+            </button>
 
-            <div className="p-4 rounded-xl bg-blue-50/60 border border-blue-200">
-              <span className="text-[11px] font-bold text-blue-700 uppercase tracking-wider block">Hommes & Autres</span>
-              <p className="text-3xl font-black text-blue-950 mt-1 font-mono">
-                {genderStats.male} <span className="text-base font-semibold text-blue-700">({genderStats.mPct}%)</span>
+            <button
+              type="button"
+              onClick={() => {
+                setTemplate('logframe_results');
+                setShowEvmSection(false);
+                setShowWbsSection(true);
+                setShowLogframeSection(true);
+                setShowBeneficiariesSection(true);
+                setShowFinancialSection(false);
+                setShowRisksSection(false);
+              }}
+              className={`p-3 rounded-xl border text-left transition-all ${
+                template === 'logframe_results'
+                  ? 'bg-indigo-50 border-indigo-500 text-indigo-900 shadow-2xs font-bold'
+                  : 'bg-slate-50/60 border-slate-200 text-slate-700 hover:bg-white'
+              }`}
+            >
+              <div className="flex items-center justify-between text-xs">
+                <span>Cadre Logique & Résultats</span>
+                <span className="font-mono text-[10px] bg-purple-200/80 px-1.5 py-0.2 rounded text-purple-900">
+                  GAR
+                </span>
+              </div>
+              <p className="text-[11px] font-normal text-slate-500 mt-1 line-clamp-1">
+                Impacts, Outcomes, Outputs & IOV
               </p>
-              <p className="text-[11px] text-blue-700 mt-1">
-                Autre / Non spécifié : {genderStats.other} ({genderStats.oPct}%)
-              </p>
-            </div>
+            </button>
           </div>
+        </div>
 
-          {/* Visual Parity Bar */}
-          <div className="rounded-xl border border-slate-200 bg-slate-50 p-4 space-y-2">
-            <div className="flex items-center justify-between text-xs font-bold text-slate-700">
-              <span>Répartition par Genre (ACS+)</span>
-              <span>{totalReached} participant(s) au total</span>
-            </div>
-            <div className="h-3 w-full rounded-full bg-slate-200 overflow-hidden flex">
-              <div
-                className="bg-rose-500 h-full transition-all"
-                style={{ width: `${genderStats.fPct}%` }}
-                title={`Femmes: ${genderStats.female} (${genderStats.fPct}%)`}
-              />
-              <div
-                className="bg-blue-500 h-full transition-all"
-                style={{ width: `${genderStats.mPct}%` }}
-                title={`Hommes: ${genderStats.male} (${genderStats.mPct}%)`}
-              />
-              <div
-                className="bg-amber-400 h-full transition-all"
-                style={{ width: `${genderStats.oPct}%` }}
-                title={`Autre / Non binaire: ${genderStats.other} (${genderStats.oPct}%)`}
-              />
-            </div>
-            <div className="flex items-center gap-6 text-[11px] text-slate-600 pt-1">
-              <span className="flex items-center gap-1.5">
-                <span className="h-2.5 w-2.5 rounded-full bg-rose-500 inline-block" />
-                Femmes : <strong>{genderStats.female}</strong> ({genderStats.fPct}%)
-              </span>
-              <span className="flex items-center gap-1.5">
-                <span className="h-2.5 w-2.5 rounded-full bg-blue-500 inline-block" />
-                Hommes : <strong>{genderStats.male}</strong> ({genderStats.mPct}%)
-              </span>
-              <span className="flex items-center gap-1.5">
-                <span className="h-2.5 w-2.5 rounded-full bg-amber-400 inline-block" />
-                Non spécifié / Autre : <strong>{genderStats.other}</strong> ({genderStats.oPct}%)
-              </span>
-            </div>
-          </div>
-
-          {/* Detailed Service Deliveries Table */}
-          <div className="space-y-3">
-            <h3 className="font-bold text-slate-900 text-sm flex items-center gap-2">
-              <CheckCircle2 className="h-4 w-4 text-emerald-600" />
-              Registre des Prestations et Services Enregistrés ({serviceDeliveries.length})
+        {/* Filters and Parameter Controls */}
+        <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-xs space-y-4">
+          <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+            <h3 className="font-bold text-xs uppercase tracking-wider text-slate-700 flex items-center gap-1.5">
+              <SlidersHorizontal className="h-4 w-4 text-indigo-600" />
+              Paramètres du Document & Filtres Temporels
             </h3>
-            {serviceDeliveries.length === 0 ? (
-              <p className="text-xs text-slate-400 py-6 text-center border rounded-xl bg-slate-50">
-                Aucune prestation ou remise de service n'a encore été enregistrée pour ce projet.
+            <span className="text-[11px] text-slate-400">Personnalisez avant génération</span>
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-4 gap-4 text-xs">
+            <div>
+              <label className="block font-bold text-slate-700 mb-1">Période d'évaluation</label>
+              <select
+                value={periodPreset}
+                onChange={(e) => {
+                  const val = e.target.value as any;
+                  setPeriodPreset(val);
+                  const currentYear = new Date().getFullYear();
+                  if (val === 'all') {
+                    setDateStart('');
+                    setDateEnd('');
+                  } else if (val === 'q1') {
+                    setDateStart(`${currentYear}-01-01`);
+                    setDateEnd(`${currentYear}-03-31`);
+                  } else if (val === 'q2') {
+                    setDateStart(`${currentYear}-04-01`);
+                    setDateEnd(`${currentYear}-06-30`);
+                  } else if (val === 'q3') {
+                    setDateStart(`${currentYear}-07-01`);
+                    setDateEnd(`${currentYear}-09-30`);
+                  } else if (val === 'q4') {
+                    setDateStart(`${currentYear}-10-01`);
+                    setDateEnd(`${currentYear}-12-31`);
+                  } else if (val === 'ytd') {
+                    setDateStart(`${currentYear}-01-01`);
+                    setDateEnd(new Date().toISOString().split('T')[0]);
+                  }
+                }}
+                className="w-full rounded-lg border border-slate-300 p-2 text-xs bg-white"
+              >
+                <option value="all">Tout le projet (Cumulatif)</option>
+                <option value="ytd">Année en cours (YTD)</option>
+                <option value="q1">Trimestre 1 (Q1)</option>
+                <option value="q2">Trimestre 2 (Q2)</option>
+                <option value="q3">Trimestre 3 (Q3)</option>
+                <option value="q4">Trimestre 4 (Q4)</option>
+                <option value="custom">Plage personnalisée</option>
+              </select>
+            </div>
+
+            <div>
+              <label className="block font-bold text-slate-700 mb-1">Date de début</label>
+              <input
+                type="date"
+                value={dateStart}
+                onChange={(e) => {
+                  setDateStart(e.target.value);
+                  setPeriodPreset('custom');
+                }}
+                className="w-full rounded-lg border border-slate-300 p-2 text-xs bg-white"
+              />
+            </div>
+
+            <div>
+              <label className="block font-bold text-slate-700 mb-1">Date de fin</label>
+              <input
+                type="date"
+                value={dateEnd}
+                onChange={(e) => {
+                  setDateEnd(e.target.value);
+                  setPeriodPreset('custom');
+                }}
+                className="w-full rounded-lg border border-slate-300 p-2 text-xs bg-white"
+              />
+            </div>
+
+            <div>
+              <label className="block font-bold text-slate-700 mb-1">Bailleur ciblé</label>
+              <select
+                value={selectedFunder}
+                onChange={(e) => setSelectedFunder(e.target.value)}
+                className="w-full rounded-lg border border-slate-300 p-2 text-xs bg-white"
+              >
+                <option value="all">Tous les bailleurs consolidés</option>
+                {fundingSources.map((f) => (
+                  <option key={f.id} value={f.donorName}>
+                    {f.donorName} ({fmt(parseFloat(f.amount || '0'))})
+                  </option>
+                ))}
+              </select>
+            </div>
+          </div>
+
+          {/* Section Visibility Toggles */}
+          <div className="pt-2 border-t border-slate-100">
+            <span className="block font-bold text-slate-700 text-xs mb-2">Sections à inclure dans le rapport :</span>
+            <div className="flex flex-wrap items-center gap-4 text-xs text-slate-600">
+              <label className="flex items-center gap-1.5 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={showExecutiveSummary}
+                  onChange={(e) => setShowExecutiveSummary(e.target.checked)}
+                  className="rounded text-indigo-600"
+                />
+                Synthèse & Faits saillants
+              </label>
+              <label className="flex items-center gap-1.5 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={showEvmSection}
+                  onChange={(e) => setShowEvmSection(e.target.checked)}
+                  className="rounded text-indigo-600"
+                />
+                Métriques EVM & Rendement
+              </label>
+              <label className="flex items-center gap-1.5 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={showLogframeSection}
+                  onChange={(e) => setShowLogframeSection(e.target.checked)}
+                  className="rounded text-indigo-600"
+                />
+                Indicateurs Cadre Logique (GAR)
+              </label>
+              <label className="flex items-center gap-1.5 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={showBeneficiariesSection}
+                  onChange={(e) => setShowBeneficiariesSection(e.target.checked)}
+                  className="rounded text-indigo-600"
+                />
+                Bénéficiaires & Démographie (ACS+)
+              </label>
+              <label className="flex items-center gap-1.5 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={showWbsSection}
+                  onChange={(e) => setShowWbsSection(e.target.checked)}
+                  className="rounded text-indigo-600"
+                />
+                Avancement des Phases WBS
+              </label>
+              <label className="flex items-center gap-1.5 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={showFinancialSection}
+                  onChange={(e) => setShowFinancialSection(e.target.checked)}
+                  className="rounded text-indigo-600"
+                />
+                Ventilation Financière CBS
+              </label>
+              <label className="flex items-center gap-1.5 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={showRisksSection}
+                  onChange={(e) => setShowRisksSection(e.target.checked)}
+                  className="rounded text-indigo-600"
+                />
+                Risques & Décisions requises
+              </label>
+              <label className="flex items-center gap-1.5 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={showSignatures}
+                  onChange={(e) => setShowSignatures(e.target.checked)}
+                  className="rounded text-indigo-600"
+                />
+                Bloc Signatures & Visas
+              </label>
+            </div>
+          </div>
+
+          {/* Narrative Text Customizer Accordion */}
+          <details className="rounded-xl border border-indigo-100 bg-indigo-50/30 p-3.5 text-xs">
+            <summary className="font-bold text-indigo-900 cursor-pointer flex items-center justify-between">
+              <span className="flex items-center gap-1.5">
+                <PenTool className="h-4 w-4 text-indigo-600" />
+                Personnaliser les textes narratifs et les signataires
+              </span>
+              <span className="text-[10px] text-indigo-600">Cliquer pour déplier</span>
+            </summary>
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-3 pt-3">
+              <div>
+                <label className="block font-bold text-slate-700 mb-1">Synthèse Exécutive</label>
+                <textarea
+                  rows={3}
+                  value={executiveSummary}
+                  onChange={(e) => setExecutiveSummary(e.target.value)}
+                  className="w-full rounded border border-slate-300 p-2 text-xs bg-white"
+                />
+              </div>
+              <div>
+                <label className="block font-bold text-slate-700 mb-1">Faits Marquants & Réalisations</label>
+                <textarea
+                  rows={3}
+                  value={highlightKeyAchievements}
+                  onChange={(e) => setHighlightKeyAchievements(e.target.value)}
+                  className="w-full rounded border border-slate-300 p-2 text-xs bg-white"
+                />
+              </div>
+              <div>
+                <label className="block font-bold text-slate-700 mb-1">Décisions & Arbitrages Requis</label>
+                <textarea
+                  rows={3}
+                  value={decisionsRequired}
+                  onChange={(e) => setDecisionsRequired(e.target.value)}
+                  className="w-full rounded border border-slate-300 p-2 text-xs bg-white"
+                />
+              </div>
+            </div>
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 pt-2">
+              <div>
+                <label className="block font-bold text-slate-700 mb-1">Signataire 1 (Rédacteur)</label>
+                <input
+                  type="text"
+                  value={preparedBy}
+                  onChange={(e) => setPreparedBy(e.target.value)}
+                  className="w-full rounded border border-slate-300 p-1.5 text-xs bg-white"
+                />
+              </div>
+              <div>
+                <label className="block font-bold text-slate-700 mb-1">Signataire 2 (Validation)</label>
+                <input
+                  type="text"
+                  value={reviewedBy}
+                  onChange={(e) => setReviewedBy(e.target.value)}
+                  className="w-full rounded border border-slate-300 p-1.5 text-xs bg-white"
+                />
+              </div>
+              <div>
+                <label className="block font-bold text-slate-700 mb-1">Signataire 3 (Approbateur Bailleur/COPIL)</label>
+                <input
+                  type="text"
+                  value={funderRepresentative}
+                  onChange={(e) => setFunderRepresentative(e.target.value)}
+                  className="w-full rounded border border-slate-300 p-1.5 text-xs bg-white"
+                />
+              </div>
+            </div>
+          </details>
+        </div>
+      </div>
+
+      {/* ═════════════════════════════════════════════════════════════════════ */}
+      {/* DOCUMENT OFFICIEL DESTINÉ À L'IMPRESSION ET À L'EXPORT PDF          */}
+      {/* (Stylisé aux normes de reddition de comptes gouvernementales/bailleurs)*/}
+      {/* ═════════════════════════════════════════════════════════════════════ */}
+      <div className="rounded-2xl border border-slate-300 bg-white p-8 sm:p-12 shadow-sm space-y-8 print:p-0 print:border-none print:shadow-none text-slate-900">
+        {/* Document Official Header */}
+        <div className="border-b-2 border-slate-900 pb-5">
+          <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-4">
+            <div>
+              <div className="flex items-center gap-2">
+                <span className="font-mono text-xs font-black uppercase tracking-wider bg-slate-900 text-white px-2 py-0.5 rounded">
+                  {project.code}
+                </span>
+                <span className="text-xs font-bold text-slate-500 uppercase tracking-wider">
+                  RAPPORT OFFICIEL DE GOUVERNANCE & PERFORMANCE
+                </span>
+              </div>
+              <h1 className="text-2xl sm:text-3xl font-black text-slate-950 mt-2 tracking-tight">
+                {project.name}
+              </h1>
+              <p className="text-xs text-slate-600 mt-1">
+                Type de rapport :{' '}
+                <strong className="text-slate-900 uppercase font-mono">
+                  {template === 'copil_executive'
+                    ? 'Synthèse Périodique de Performance (Comité de Pilotage)'
+                    : template === 'funder_donor'
+                    ? 'Rapport de Justification Financière & Subventions'
+                    : template === 'impact_beneficiaries'
+                    ? 'Bilan d’Impact Social & Analyse Comparative de Genre (ACS+)'
+                    : 'Rapport d’Atteinte des Résultats du Cadre Logique (GAR)'}
+                </strong>
+              </p>
+            </div>
+
+            <div className="sm:text-right shrink-0 font-mono text-xs text-slate-600 space-y-1">
+              <div>
+                <span className="text-slate-400">Date d'édition : </span>
+                <strong className="text-slate-900">
+                  {new Date().toLocaleDateString('fr-CA', { year: 'numeric', month: 'long', day: 'numeric' })}
+                </strong>
+              </div>
+              <div>
+                <span className="text-slate-400">Période couverte : </span>
+                <strong className="text-indigo-700">
+                  {dateStart || dateEnd ? `${dateStart || 'Début'} → ${dateEnd || 'Aujourd’hui'}` : 'Cumul complet du projet'}
+                </strong>
+              </div>
+              <div>
+                <span className="text-slate-400">Statut Projet : </span>
+                <strong className="text-emerald-700 uppercase font-bold">{project.status}</strong>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* ── Top Key Metric Grid (Format Bailleurs) ── */}
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 border border-slate-200 rounded-xl p-4 bg-slate-50/70">
+          <div>
+            <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block">Avancement Physique</span>
+            <p className="text-2xl font-black font-mono text-indigo-700 mt-0.5">{overallProgress}%</p>
+            <span className="text-[11px] text-slate-500">{completedTasks.length} / {tasksOnly.length} tâches closes</span>
+          </div>
+
+          <div>
+            <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block">Budget Total Approuvé</span>
+            <p className="text-2xl font-black font-mono text-slate-900 mt-0.5">{fmt(totalBudgetContract)}</p>
+            <span className="text-[11px] text-slate-500">{fundingSources.length} source(s) de fonds</span>
+          </div>
+
+          <div>
+            <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block">Dépenses Acquittées</span>
+            <p className="text-2xl font-black font-mono text-violet-800 mt-0.5">{fmt(totalApprovedExpenses)}</p>
+            <span className="text-[11px] text-slate-500">Taux d'exécution : {budgetExecutionRate}%</span>
+          </div>
+
+          <div>
+            <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block">Bénéficiaires Touchés</span>
+            <p className="text-2xl font-black font-mono text-rose-700 mt-0.5">{totalBeneficiariesReached}</p>
+            <span className="text-[11px] text-slate-500">
+              {targetBeneficiaries > 0 ? `${reachPercentage}% de la cible (${targetBeneficiaries})` : 'Personnes distinctes'}
+            </span>
+          </div>
+        </div>
+
+        {/* ── SECTION 1 : SYNTHÈSE EXÉCUTIVE & FAITS SAILLANTS ── */}
+        {showExecutiveSummary && (
+          <div className="space-y-3">
+            <h2 className="text-sm font-black uppercase tracking-wider text-slate-900 border-b border-slate-200 pb-1.5 flex items-center gap-2">
+              <span>1.</span> Note de Synthèse Exécutive & Faits Saillants
+            </h2>
+            <div className="rounded-xl border border-slate-200 p-4 bg-white text-xs leading-relaxed space-y-3">
+              <p className="text-slate-800 whitespace-pre-line">{executiveSummary}</p>
+              {highlightKeyAchievements && (
+                <div className="pt-2 border-t border-slate-100">
+                  <span className="font-bold text-slate-900 block mb-1">Faits marquants de la période :</span>
+                  <p className="text-slate-700 whitespace-pre-line">{highlightKeyAchievements}</p>
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+
+        {/* ── SECTION 2 : CADRE LOGIQUE & GESTION AXÉE SUR LES RÉSULTATS (GAR) ── */}
+        {showLogframeSection && (
+          <div className="space-y-3">
+            <h2 className="text-sm font-black uppercase tracking-wider text-slate-900 border-b border-slate-200 pb-1.5 flex items-center justify-between">
+              <span>2. Chaîne de Résultats & Indicateurs de Performance (GAR)</span>
+              <span className="font-mono text-xs font-normal text-slate-500">
+                {resultNodes.length} niveau(x) • {indicators.length} indicateur(s)
+              </span>
+            </h2>
+
+            {indicators.length === 0 && resultNodes.length === 0 ? (
+              <p className="text-xs text-slate-400 italic py-2">
+                Aucun indicateur formel ni chaîne de résultats rattachée au projet.
               </p>
             ) : (
               <div className="overflow-x-auto rounded-xl border border-slate-200">
                 <table className="min-w-full divide-y divide-slate-200 text-left text-xs">
-                  <thead className="bg-slate-50 font-bold text-slate-700">
+                  <thead className="bg-slate-100 font-bold text-slate-800">
                     <tr>
-                      <th className="px-4 py-2.5">Date</th>
-                      <th className="px-4 py-2.5">Bénéficiaire</th>
-                      <th className="px-4 py-2.5">Genre</th>
-                      <th className="px-4 py-2.5">Type de Service</th>
-                      <th className="px-4 py-2.5">Notes & Preuves</th>
+                      <th className="px-3.5 py-2">Code</th>
+                      <th className="px-3.5 py-2">Niveau</th>
+                      <th className="px-3.5 py-2">Intitulé de l'Indicateur / Résultat</th>
+                      <th className="px-3.5 py-2 text-right">Référence</th>
+                      <th className="px-3.5 py-2 text-right">Cible</th>
+                      <th className="px-3.5 py-2 text-right">Réalisé</th>
+                      <th className="px-3.5 py-2 text-center">Progression</th>
+                      <th className="px-3.5 py-2">Moyen de Vérification</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-100 bg-white">
-                    {serviceDeliveries.map((d: any) => {
-                      const g = (d.genderCode || '').toLowerCase();
-                      const isF = g === 'f' || g === 'female' || g === 'femme';
-                      const isM = g === 'm' || g === 'male' || g === 'homme';
+                    {/* Display indicators */}
+                    {indicators.map((ind: any) => {
+                      const base = Number(ind.baselineValue || 0);
+                      const target = Number(ind.targetValue || 1);
+                      const actual = ind.latestObservation ? Number(ind.latestObservation.recordedValue) : Number(ind.actualValue || 0);
+                      const pct = Math.min(100, Math.round((actual / target) * 100));
+
                       return (
-                        <tr key={d.id} className="hover:bg-slate-50/70">
-                          <td className="px-4 py-2 font-mono text-slate-600 whitespace-nowrap">
-                            {d.deliveredAt || '—'}
+                        <tr key={ind.id} className="hover:bg-slate-50/50">
+                          <td className="px-3.5 py-2 font-mono font-bold text-indigo-700 whitespace-nowrap">
+                            {ind.code}
                           </td>
-                          <td className="px-4 py-2 font-bold text-slate-900">
-                            {d.firstName} {d.lastName}
+                          <td className="px-3.5 py-2 uppercase text-[10px] font-bold text-slate-500">
+                            {ind.level}
                           </td>
-                          <td className="px-4 py-2">
-                            <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${
-                              isF ? 'bg-rose-100 text-rose-800' : isM ? 'bg-blue-100 text-blue-800' : 'bg-slate-100 text-slate-700'
+                          <td className="px-3.5 py-2 font-medium text-slate-900">
+                            {ind.name}
+                            {ind.description && (
+                              <span className="block text-[11px] text-slate-500 mt-0.5">{ind.description}</span>
+                            )}
+                          </td>
+                          <td className="px-3.5 py-2 font-mono text-slate-600 text-right">{base}</td>
+                          <td className="px-3.5 py-2 font-mono font-bold text-slate-800 text-right">{target}</td>
+                          <td className="px-3.5 py-2 font-mono font-bold text-indigo-700 text-right">{actual}</td>
+                          <td className="px-3.5 py-2 text-center">
+                            <span className={`inline-block px-2 py-0.5 rounded-full text-[10px] font-bold ${
+                              pct >= 100 ? 'bg-emerald-100 text-emerald-800' : pct >= 50 ? 'bg-indigo-100 text-indigo-800' : 'bg-amber-100 text-amber-800'
                             }`}>
-                              {isF ? '♀ Femme' : isM ? '♂ Homme' : '⚥ Autre'}
+                              {pct}%
                             </span>
                           </td>
-                          <td className="px-4 py-2 text-indigo-700 font-medium">
-                            {d.serviceType}
-                          </td>
-                          <td className="px-4 py-2 text-slate-500">
-                            {d.notes || '—'}
+                          <td className="px-3.5 py-2 text-slate-500 text-[11px]">
+                            {ind.meansOfVerification || 'Rapports terrain'}
                           </td>
                         </tr>
                       );
                     })}
+
+                    {/* Result nodes if no indicators */}
+                    {indicators.length === 0 &&
+                      resultNodes.map((rn: any) => (
+                        <tr key={rn.id}>
+                          <td className="px-3.5 py-2 font-mono font-bold text-purple-700">GAR</td>
+                          <td className="px-3.5 py-2 uppercase text-[10px] font-bold text-purple-700">{rn.level}</td>
+                          <td colSpan={6} className="px-3.5 py-2 font-medium text-slate-800">
+                            {rn.title}
+                            {rn.description && <span className="block text-[11px] text-slate-500">{rn.description}</span>}
+                          </td>
+                        </tr>
+                      ))}
                   </tbody>
                 </table>
               </div>
             )}
           </div>
-        </div>
-      )}
+        )}
 
-      {selectedReport === 'financial' && (
-        <div className="rounded-2xl border border-slate-200 bg-white p-8 shadow-xs space-y-6">
-          {/* Header */}
-          <div className="border-b border-slate-200 pb-5 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-            <div>
-              <span className="text-[10px] font-bold text-emerald-600 uppercase tracking-wider font-mono">
-                {project.code} • RAPPORT FINANCIER & REDDITION DE COMPTES
+        {/* ── SECTION 3 : BÉNÉFICIAIRES & ANALYSE DE GENRE (ACS+ / GBA+) ── */}
+        {showBeneficiariesSection && (
+          <div className="space-y-4">
+            <h2 className="text-sm font-black uppercase tracking-wider text-slate-900 border-b border-slate-200 pb-1.5 flex items-center justify-between">
+              <span>3. Atteinte des Bénéficiaires & Ventilation Genre (ACS+)</span>
+              <span className="font-mono text-xs font-normal text-slate-500">
+                {totalBeneficiariesReached} individu(s) certifié(s)
               </span>
-              <h2 className="text-2xl font-black text-slate-900 mt-1">{project.name}</h2>
-              <p className="text-xs text-slate-500 mt-1">
-                État certifié des engagements, dépenses acquittées et réconciliation des financements
-              </p>
-            </div>
-            <div className="text-right">
-              <span className="text-xs font-mono font-bold text-slate-500">Date d'édition :</span>
-              <p className="text-xs font-bold text-slate-800">
-                {new Date().toLocaleDateString('fr-CA', { year: 'numeric', month: 'long', day: 'numeric' })}
-              </p>
+            </h2>
+
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+              {/* Gender parity card */}
+              <div className="rounded-xl border border-slate-200 p-4 bg-slate-50/50 space-y-2">
+                <span className="text-[11px] font-bold text-slate-700 uppercase tracking-wider block">
+                  Désagrégation par Genre
+                </span>
+                <div className="space-y-1.5 text-xs">
+                  <div className="flex justify-between items-center">
+                    <span className="flex items-center gap-1.5">
+                      <span className="h-2.5 w-2.5 rounded-full bg-rose-500" />
+                      Femmes
+                    </span>
+                    <strong className="font-mono text-slate-900">{demographics.female} ({demographics.fPct}%)</strong>
+                  </div>
+                  <div className="flex justify-between items-center">
+                    <span className="flex items-center gap-1.5">
+                      <span className="h-2.5 w-2.5 rounded-full bg-blue-500" />
+                      Hommes
+                    </span>
+                    <strong className="font-mono text-slate-900">{demographics.male} ({demographics.mPct}%)</strong>
+                  </div>
+                  <div className="flex justify-between items-center">
+                    <span className="flex items-center gap-1.5">
+                      <span className="h-2.5 w-2.5 rounded-full bg-amber-400" />
+                      Non spécifié / Autre
+                    </span>
+                    <strong className="font-mono text-slate-900">{demographics.other} ({demographics.oPct}%)</strong>
+                  </div>
+                </div>
+              </div>
+
+              {/* Age groups */}
+              <div className="rounded-xl border border-slate-200 p-4 bg-slate-50/50 space-y-2">
+                <span className="text-[11px] font-bold text-slate-700 uppercase tracking-wider block">
+                  Groupes d'Âge & Générations
+                </span>
+                <div className="space-y-1.5 text-xs">
+                  <div className="flex justify-between items-center">
+                    <span>Jeunes (&lt; 25 ans)</span>
+                    <strong className="font-mono text-slate-900">{demographics.youth}</strong>
+                  </div>
+                  <div className="flex justify-between items-center">
+                    <span>Adultes (25 – 60 ans)</span>
+                    <strong className="font-mono text-slate-900">{demographics.adult}</strong>
+                  </div>
+                  <div className="flex justify-between items-center">
+                    <span>Aînés (&gt; 60 ans)</span>
+                    <strong className="font-mono text-slate-900">{demographics.senior}</strong>
+                  </div>
+                </div>
+              </div>
+
+              {/* Cible & portance */}
+              <div className="rounded-xl border border-slate-200 p-4 bg-slate-50/50 space-y-2">
+                <span className="text-[11px] font-bold text-slate-700 uppercase tracking-wider block">
+                  Portée & Efficacité Terrain
+                </span>
+                <div className="space-y-1.5 text-xs">
+                  <div className="flex justify-between items-center">
+                    <span>Prestations délivrées</span>
+                    <strong className="font-mono text-slate-900">{filteredDeliveries.length}</strong>
+                  </div>
+                  <div className="flex justify-between items-center">
+                    <span>Ratio moyen / bénéficiaire</span>
+                    <strong className="font-mono text-slate-900">
+                      {totalBeneficiariesReached > 0 ? (filteredDeliveries.length / totalBeneficiariesReached).toFixed(1) : 0} acte(s)
+                    </strong>
+                  </div>
+                  <div className="flex justify-between items-center">
+                    <span>Cible contractuelle</span>
+                    <strong className="font-mono text-indigo-700">
+                      {targetBeneficiaries > 0 ? `${targetBeneficiaries} pers.` : 'N/D'}
+                    </strong>
+                  </div>
+                </div>
+              </div>
             </div>
           </div>
+        )}
 
-          {/* Financial Summary Strip */}
-          <div className="grid grid-cols-1 sm:grid-cols-4 gap-4">
-            <div className="p-4 rounded-xl bg-slate-50 border border-slate-200">
-              <span className="text-[11px] font-bold text-slate-600 uppercase tracking-wider block">Budget Total Contractuel</span>
-              <p className="text-2xl font-black text-slate-900 mt-1 font-mono">{fmt(totalBudget)}</p>
-              <p className="text-[11px] text-slate-500 mt-1">Enveloppe approuvée</p>
-            </div>
-
-            <div className="p-4 rounded-xl bg-emerald-50/60 border border-emerald-200">
-              <span className="text-[11px] font-bold text-emerald-700 uppercase tracking-wider block">Subventions Allouées</span>
-              <p className="text-2xl font-black text-emerald-950 mt-1 font-mono">{fmt(totalFunding)}</p>
-              <p className="text-[11px] text-emerald-700 mt-1">{fundingSources.length} bailleur(s) contributeur(s)</p>
-            </div>
-
-            <div className="p-4 rounded-xl bg-violet-50/60 border border-violet-200">
-              <span className="text-[11px] font-bold text-violet-700 uppercase tracking-wider block">Dépenses Acquittées</span>
-              <p className="text-2xl font-black text-violet-950 mt-1 font-mono">{fmt(totalExpensesApproved)}</p>
-              <p className="text-[11px] text-violet-700 mt-1">
-                Taux d'absorption : {totalBudget > 0 ? Math.round((totalExpensesApproved / totalBudget) * 100) : 0}%
-              </p>
-            </div>
-
-            <div className="p-4 rounded-xl bg-indigo-50/60 border border-indigo-200">
-              <span className="text-[11px] font-bold text-indigo-700 uppercase tracking-wider block">Solde Restant</span>
-              <p className="text-2xl font-black text-indigo-950 mt-1 font-mono">{fmt(totalBudget - totalExpensesApproved)}</p>
-              <p className="text-[11px] text-indigo-700 mt-1">Reliquat budgétaire disponible</p>
-            </div>
-          </div>
-
-          {/* Funding Sources Table */}
+        {/* ── SECTION 4 : GOUVERNANCE FINANCIÈRE & LIGNES BUDGÉTAIRES (CBS) ── */}
+        {showFinancialSection && (
           <div className="space-y-3">
-            <h3 className="font-bold text-slate-900 text-sm">Financements & Subventions Alloués</h3>
+            <h2 className="text-sm font-black uppercase tracking-wider text-slate-900 border-b border-slate-200 pb-1.5 flex items-center justify-between">
+              <span>4. Exécution Budgétaire & Ventilation par Catégorie (CBS)</span>
+              <span className="font-mono text-xs font-normal text-slate-500">
+                Solde : {fmt(totalBudgetContract - totalApprovedExpenses)}
+              </span>
+            </h2>
+
             <div className="overflow-x-auto rounded-xl border border-slate-200">
               <table className="min-w-full divide-y divide-slate-200 text-left text-xs">
-                <thead className="bg-slate-50 font-bold text-slate-700">
+                <thead className="bg-slate-100 font-bold text-slate-800">
                   <tr>
-                    <th className="px-4 py-2.5">Bailleur / Source</th>
-                    <th className="px-4 py-2.5">Type de Fonds</th>
-                    <th className="px-4 py-2.5 text-right">Montant</th>
-                    <th className="px-4 py-2.5">Date limite de reddition</th>
+                    <th className="px-3.5 py-2">Catégorie Budgétaire (CBS)</th>
+                    <th className="px-3.5 py-2 text-right">Budget Alloué</th>
+                    <th className="px-3.5 py-2 text-right">Dépenses Acquittées</th>
+                    <th className="px-3.5 py-2 text-right">Solde Disponible</th>
+                    <th className="px-3.5 py-2 text-center">Taux d'Absorption</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100 bg-white">
-                  {fundingSources.length === 0 ? (
-                    <tr>
-                      <td colSpan={4} className="px-4 py-3 text-center text-slate-400">
-                        Aucune source de financement externe renseignée.
-                      </td>
-                    </tr>
-                  ) : (
-                    fundingSources.map((f: any) => (
-                      <tr key={f.id}>
-                        <td className="px-4 py-2 font-bold text-slate-900">{f.donorName}</td>
-                        <td className="px-4 py-2 text-slate-600 capitalize">{f.fundingType}</td>
-                        <td className="px-4 py-2 font-mono font-bold text-emerald-700 text-right">
-                          {fmt(parseFloat(f.amount || '0'))}
-                        </td>
-                        <td className="px-4 py-2 text-slate-500 font-mono">{f.reportDueAt || 'Non spécifiée'}</td>
-                      </tr>
-                    ))
-                  )}
+                  {Object.entries(cbsBreakdown)
+                    .filter(([_, data]) => data.budget > 0 || data.actual > 0)
+                    .map(([catKey, data]) => {
+                      const balance = data.budget - data.actual;
+                      const rate = data.budget > 0 ? Math.round((data.actual / data.budget) * 100) : 0;
+                      return (
+                        <tr key={catKey}>
+                          <td className="px-3.5 py-2 font-bold text-slate-900">
+                            {CATEGORY_NAMES[catKey] || catKey}
+                          </td>
+                          <td className="px-3.5 py-2 font-mono text-slate-700 text-right">{fmt(data.budget)}</td>
+                          <td className="px-3.5 py-2 font-mono font-bold text-violet-900 text-right">{fmt(data.actual)}</td>
+                          <td className={`px-3.5 py-2 font-mono text-right font-bold ${balance < 0 ? 'text-red-600' : 'text-slate-800'}`}>
+                            {fmt(balance)}
+                          </td>
+                          <td className="px-3.5 py-2 text-center">
+                            <span className={`inline-block px-2 py-0.5 rounded-full text-[10px] font-bold ${
+                              rate > 100 ? 'bg-red-100 text-red-800' : rate >= 70 ? 'bg-indigo-100 text-indigo-800' : 'bg-slate-100 text-slate-700'
+                            }`}>
+                              {rate}%
+                            </span>
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  {/* Totals Row */}
+                  <tr className="bg-slate-50 font-bold border-t-2 border-slate-300">
+                    <td className="px-3.5 py-2.5 uppercase text-slate-900">Total Général Consolidé</td>
+                    <td className="px-3.5 py-2.5 font-mono text-slate-900 text-right">{fmt(totalBudgetContract)}</td>
+                    <td className="px-3.5 py-2.5 font-mono text-violet-900 text-right">{fmt(totalApprovedExpenses)}</td>
+                    <td className="px-3.5 py-2.5 font-mono text-slate-900 text-right">{fmt(totalBudgetContract - totalApprovedExpenses)}</td>
+                    <td className="px-3.5 py-2.5 text-center font-mono text-indigo-900">{budgetExecutionRate}%</td>
+                  </tr>
                 </tbody>
               </table>
             </div>
           </div>
-        </div>
-      )}
+        )}
+
+        {/* ── SECTION 5 : AVANCEMENT WBS & JALONS ── */}
+        {showWbsSection && (
+          <div className="space-y-3">
+            <h2 className="text-sm font-black uppercase tracking-wider text-slate-900 border-b border-slate-200 pb-1.5 flex items-center justify-between">
+              <span>5. Exécution du Plan de Travail (WBS) & Jalons Clés</span>
+              <span className="font-mono text-xs font-normal text-slate-500">
+                {phases.length} phase(s) • {milestones.length} jalon(s)
+              </span>
+            </h2>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
+              {phases.map((ph) => (
+                <div key={ph.id} className="rounded-xl border border-slate-200 p-3 bg-slate-50/60 space-y-1.5">
+                  <div className="flex justify-between items-center">
+                    <span className="font-bold text-slate-900 truncate">
+                      <span className="font-mono text-indigo-700 mr-1.5">[{ph.wbs}]</span>
+                      {ph.title}
+                    </span>
+                    <span className="font-mono font-bold text-indigo-700">{ph.progressPct || 0}%</span>
+                  </div>
+                  <div className="h-1.5 w-full bg-slate-200 rounded-full overflow-hidden">
+                    <div
+                      className="h-full bg-indigo-600 rounded-full"
+                      style={{ width: `${ph.progressPct || 0}%` }}
+                    />
+                  </div>
+                  <div className="flex justify-between text-[11px] text-slate-500">
+                    <span>
+                      {ph.startDate ? new Date(ph.startDate).toLocaleDateString('fr-CA') : '—'} au{' '}
+                      {ph.endDate ? new Date(ph.endDate).toLocaleDateString('fr-CA') : '—'}
+                    </span>
+                    <span>{planItems.filter((i) => i.parentId === ph.id).length} tâche(s)</span>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* ── SECTION 6 : ARBITRAGES, RISQUES MAJEURS & DÉCISIONS COPIL ── */}
+        {showRisksSection && (
+          <div className="space-y-3">
+            <h2 className="text-sm font-black uppercase tracking-wider text-slate-900 border-b border-slate-200 pb-1.5 flex items-center justify-between">
+              <span>6. Vigilance Opérationnelle & Décisions Soumises au Comité</span>
+              <span className="font-mono text-xs font-normal text-slate-500">
+                {raidItems.length} élément(s) RAID
+              </span>
+            </h2>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-xs">
+              {/* Top risks */}
+              <div className="rounded-xl border border-slate-200 p-4 bg-white space-y-2">
+                <span className="font-bold text-slate-900 uppercase text-[11px] block">
+                  Risques Prioritaires (Impact × Probabilité)
+                </span>
+                {raidItems.filter((r) => r.type === 'risk').length === 0 ? (
+                  <p className="text-slate-400 italic">Aucun risque critique à signaler.</p>
+                ) : (
+                  <div className="space-y-1.5">
+                    {raidItems
+                      .filter((r) => r.type === 'risk')
+                      .slice(0, 3)
+                      .map((r) => (
+                        <div key={r.id} className="p-2 rounded bg-amber-50/60 border border-amber-200 flex justify-between items-center">
+                          <span className="font-medium text-amber-950 truncate max-w-[200px]">{r.title}</span>
+                          <span className="font-mono font-bold text-red-700 bg-red-100 px-1.5 py-0.2 rounded text-[10px]">
+                            {(r.probability || 1) * (r.impact || 1)}/25
+                          </span>
+                        </div>
+                      ))}
+                  </div>
+                )}
+              </div>
+
+              {/* Decisions required */}
+              <div className="rounded-xl border border-slate-200 p-4 bg-white space-y-2">
+                <span className="font-bold text-slate-900 uppercase text-[11px] block">
+                  Décisions & Arbitrages Requis (COPIL)
+                </span>
+                <p className="text-slate-700 whitespace-pre-line leading-relaxed">
+                  {decisionsRequired}
+                </p>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* ── SECTION 7 : CADRE OFFICIEL DE VALIDATION & SIGNATURES ── */}
+        {showSignatures && (
+          <div className="pt-6 border-t-2 border-slate-900 space-y-4">
+            <h2 className="text-xs font-black uppercase tracking-wider text-slate-700">
+              7. Visa & Certifications Officielles
+            </h2>
+            <div className="grid grid-cols-3 gap-6 pt-2">
+              <div className="border border-slate-300 rounded-xl p-4 min-h-[110px] flex flex-col justify-between">
+                <div>
+                  <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">
+                    Établi par :
+                  </span>
+                  <p className="text-xs font-bold text-slate-900 mt-0.5">{preparedBy}</p>
+                </div>
+                <div className="border-t border-dashed border-slate-300 pt-1 text-[10px] text-slate-400">
+                  Signature & Date :
+                </div>
+              </div>
+
+              <div className="border border-slate-300 rounded-xl p-4 min-h-[110px] flex flex-col justify-between">
+                <div>
+                  <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">
+                    Vérifié & Approuvé par :
+                  </span>
+                  <p className="text-xs font-bold text-slate-900 mt-0.5">{reviewedBy}</p>
+                </div>
+                <div className="border-t border-dashed border-slate-300 pt-1 text-[10px] text-slate-400">
+                  Signature & Date :
+                </div>
+              </div>
+
+              <div className="border border-slate-300 rounded-xl p-4 min-h-[110px] flex flex-col justify-between">
+                <div>
+                  <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">
+                    Pour le Bailleur / COPIL :
+                  </span>
+                  <p className="text-xs font-bold text-slate-900 mt-0.5">{funderRepresentative}</p>
+                </div>
+                <div className="border-t border-dashed border-slate-300 pt-1 text-[10px] text-slate-400">
+                  Mention « Lu et Approuvé » & Date :
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+      </div>
     </div>
   );
 }

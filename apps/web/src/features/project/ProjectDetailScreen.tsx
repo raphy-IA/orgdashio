@@ -1477,6 +1477,7 @@ export function ProjectDetailScreen() {
     updates = [],
     deliverables = [],
     serviceDeliveries = [],
+    indicators = [],
   } = data;
 
   // ── Derived stats & Real Progress Rollup ──
@@ -2592,6 +2593,7 @@ export function ProjectDetailScreen() {
             fundingSources={fundingSources}
             serviceDeliveries={serviceDeliveries}
             resultNodes={resultNodes}
+            indicators={indicators}
             budget={projBudget}
           />
         )}
