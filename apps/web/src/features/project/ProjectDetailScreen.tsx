@@ -1509,9 +1509,7 @@ export function ProjectDetailScreen() {
         : 0;
 
   const totalTasks = planItems.length;
-  const demographics = React.useMemo(() => {
-    return calculateBeneficiaryDemographics(serviceDeliveries);
-  }, [serviceDeliveries]);
+  const demographics = calculateBeneficiaryDemographics(serviceDeliveries);
   const completedTasks = planItems.filter((p: any) => p.status === 'completed' || (p.progressPct ?? 0) === 100).length;
   const inProgressTasks = planItems.filter((p: any) => (p.progressPct ?? 0) > 0 && (p.progressPct ?? 0) < 100).length;
   const blockedTasks = planItems.filter((p: any) => p.status === 'blocked').length;
