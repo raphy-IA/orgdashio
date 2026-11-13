@@ -28,6 +28,7 @@ import {
   notification,
   userAccount,
   party,
+  beneficiaryProfile,
   membership,
   indicator,
   serviceDelivery,
@@ -554,9 +555,11 @@ export class ProjectService {
           partyKind: party.kind,
           email: party.email,
           phone: party.phone,
+          customFields: beneficiaryProfile.customFields,
         })
         .from(serviceDelivery)
         .leftJoin(party, eq(serviceDelivery.partyId, party.id))
+        .leftJoin(beneficiaryProfile, eq(serviceDelivery.partyId, beneficiaryProfile.partyId))
         .where(eq(serviceDelivery.projectId, projectId));
 
       return {

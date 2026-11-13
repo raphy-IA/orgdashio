@@ -110,6 +110,12 @@ export function PeopleListScreen() {
   const [benGender, setBenGender] = useState('');
   const [benMemberCount, setBenMemberCount] = useState('');
   const [benChildCount, setBenChildCount] = useState('');
+  const [benMenCount, setBenMenCount] = useState('');
+  const [benWomenCount, setBenWomenCount] = useState('');
+  const [benOtherCount, setBenOtherCount] = useState('');
+  const [benBoysCount, setBenBoysCount] = useState('');
+  const [benGirlsCount, setBenGirlsCount] = useState('');
+  const [benOtherChildrenCount, setBenOtherChildrenCount] = useState('');
   const [benLocation, setBenLocation] = useState('');
   const [benContactPerson, setBenContactPerson] = useState('');
   const [benSubCategory, setBenSubCategory] = useState('');
@@ -314,6 +320,12 @@ export function PeopleListScreen() {
         setBenGender('');
         setBenMemberCount('');
         setBenChildCount('');
+        setBenMenCount('');
+        setBenWomenCount('');
+        setBenOtherCount('');
+        setBenBoysCount('');
+        setBenGirlsCount('');
+        setBenOtherChildrenCount('');
         setBenLocation('');
         setBenContactPerson('');
         setBenSubCategory('');
@@ -410,6 +422,12 @@ export function PeopleListScreen() {
 
     if (benMemberCount) customFields.memberCount = parseInt(benMemberCount, 10);
     if (benChildCount) customFields.childCount = parseInt(benChildCount, 10);
+    if (benMenCount) customFields.menCount = parseInt(benMenCount, 10);
+    if (benWomenCount) customFields.womenCount = parseInt(benWomenCount, 10);
+    if (benOtherCount) customFields.otherCount = parseInt(benOtherCount, 10);
+    if (benBoysCount) customFields.boysCount = parseInt(benBoysCount, 10);
+    if (benGirlsCount) customFields.girlsCount = parseInt(benGirlsCount, 10);
+    if (benOtherChildrenCount) customFields.otherChildrenCount = parseInt(benOtherChildrenCount, 10);
     if (benLocation) customFields.location = benLocation;
     if (benContactPerson) customFields.contactPerson = benContactPerson;
     if (benSubCategory) customFields.subCategory = benSubCategory;
@@ -513,6 +531,12 @@ export function PeopleListScreen() {
     let orgCount = 0;
     let institutionCount = 0;
     let totalDirectPersons = 0;
+    let totalMen = 0;
+    let totalWomen = 0;
+    let totalOther = 0;
+    let totalBoys = 0;
+    let totalGirls = 0;
+    let totalChildren = 0;
     let assignedCount = 0;
     let consentGrantedCount = 0;
 
@@ -522,22 +546,43 @@ export function PeopleListScreen() {
       const deliveries = b.serviceDeliveries || [];
       const consents = b.consents || [];
 
+      let entityPersons = 0;
+
       if (bType === 'individual') {
         individualCount++;
-        totalDirectPersons += 1;
-      } else if (bType === 'household') {
-        householdCount++;
-        totalDirectPersons += custom?.memberCount ? Number(custom.memberCount) : 4;
-      } else if (bType === 'community') {
-        communityCount++;
-        totalDirectPersons += custom?.memberCount ? Number(custom.memberCount) : 50;
-      } else if (bType === 'organization') {
-        orgCount++;
-        totalDirectPersons += custom?.memberCount ? Number(custom.memberCount) : 10;
-      } else if (bType === 'institution') {
-        institutionCount++;
-        totalDirectPersons += custom?.memberCount ? Number(custom.memberCount) : 30;
+        entityPersons = 1;
+        const g = b.profile?.genderCode || b.genderCode;
+        if (g === 'M') totalMen++;
+        else if (g === 'F') totalWomen++;
+        else if (g) totalOther++;
+      } else {
+        if (bType === 'household') householdCount++;
+        else if (bType === 'community') communityCount++;
+        else if (bType === 'organization') orgCount++;
+        else if (bType === 'institution') institutionCount++;
+
+        const mMen = Number(custom?.menCount) || 0;
+        const mWomen = Number(custom?.womenCount) || 0;
+        const mOther = Number(custom?.otherCount) || 0;
+        const mBoys = Number(custom?.boysCount) || 0;
+        const mGirls = Number(custom?.girlsCount) || 0;
+        const mOtherKids = Number(custom?.otherChildrenCount) || 0;
+        const sumGenders = mMen + mWomen + mOther + mBoys + mGirls + mOtherKids;
+
+        const defaultFallback = bType === 'household' ? 4 : bType === 'community' ? 50 : bType === 'organization' ? 10 : 30;
+        const explicitCount = custom?.memberCount ? Number(custom.memberCount) : 0;
+        entityPersons = sumGenders > 0 ? Math.max(sumGenders, explicitCount) : (explicitCount > 0 ? explicitCount : defaultFallback);
+
+        totalMen += mMen;
+        totalWomen += mWomen;
+        totalOther += mOther;
+        totalBoys += mBoys;
+        totalGirls += mGirls;
+        const explicitKids = custom?.childCount ? Number(custom.childCount) : 0;
+        totalChildren += (mBoys + mGirls + mOtherKids) > 0 ? (mBoys + mGirls + mOtherKids) : explicitKids;
       }
+
+      totalDirectPersons += entityPersons;
 
       if (deliveries.length > 0) {
         assignedCount++;
@@ -555,6 +600,12 @@ export function PeopleListScreen() {
       orgCount,
       institutionCount,
       totalDirectPersons,
+      totalMen,
+      totalWomen,
+      totalOther,
+      totalBoys,
+      totalGirls,
+      totalChildren,
       assignedCount,
       unassignedCount: beneficiaries.length - assignedCount,
       assignedPct: beneficiaries.length > 0 ? Math.round((assignedCount / beneficiaries.length) * 100) : 0,
@@ -657,7 +708,12 @@ export function PeopleListScreen() {
             }`}
           >
             <ShieldCheck className="h-4 w-4 text-sky-600" />
-            {t('people.beneficiaries')} ({beneficiaries.length})
+            <span>{t('people.beneficiaries')}</span>
+            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-bold bg-indigo-100 text-indigo-800 border border-indigo-200" title={`${benStats.totalDirectPersons} personnes touchées à travers ${beneficiaries.length} cibles répertoriées`}>
+              <Users className="h-3 w-3 inline" />
+              {benStats.totalDirectPersons} pers.
+              <span className="text-[10px] font-normal text-indigo-600">({beneficiaries.length} cibles)</span>
+            </span>
           </button>
         </div>
 
@@ -1194,15 +1250,54 @@ export function PeopleListScreen() {
               <div className="rounded-xl border bg-white p-4 shadow-sm flex items-center justify-between">
                 <div>
                   <span className="text-xs font-semibold uppercase tracking-wider text-slate-500">
-                    Total Cibles & Bénéficiaires
+                    Personnes Touchées (Impact Réel)
                   </span>
-                  <p className="mt-1 text-2xl font-bold text-slate-900">{benStats.totalCount}</p>
+                  <div className="flex items-baseline gap-2 mt-1">
+                    <p className="text-2xl font-black text-indigo-600">{benStats.totalDirectPersons.toLocaleString()}</p>
+                    <span className="text-xs font-semibold text-slate-500">personnes</span>
+                  </div>
                   <p className="text-[11px] text-slate-400 mt-0.5">
-                    Impact estimé: <strong className="text-indigo-600 font-bold">{benStats.totalDirectPersons}</strong> personnes touchées
+                    Sur un total de <strong className="text-slate-700 font-bold">{benStats.totalCount}</strong> entités cibles
                   </p>
                 </div>
                 <div className="h-10 w-10 rounded-xl bg-indigo-50 text-indigo-600 flex items-center justify-center">
                   <Users className="h-5 w-5" />
+                </div>
+              </div>
+
+              {/* KPI 2: Répartition par Genre & Enfants */}
+              <div className="rounded-xl border bg-white p-4 shadow-sm flex items-center justify-between">
+                <div>
+                  <span className="text-xs font-semibold uppercase tracking-wider text-slate-500">
+                    Répartition Genre & Âge
+                  </span>
+                  <div className="mt-1 flex flex-wrap gap-1.5 text-xs font-semibold">
+                    <span className="bg-blue-50 text-blue-700 border border-blue-200 px-1.5 py-0.5 rounded" title="Hommes déclarés">
+                      👨 {benStats.totalMen} H
+                    </span>
+                    <span className="bg-pink-50 text-pink-700 border border-pink-200 px-1.5 py-0.5 rounded" title="Femmes déclarées">
+                      👩 {benStats.totalWomen} F
+                    </span>
+                    {benStats.totalOther > 0 && (
+                      <span className="bg-purple-50 text-purple-700 border border-purple-200 px-1.5 py-0.5 rounded" title="Autre genre">
+                        ⚧ {benStats.totalOther} Autre
+                      </span>
+                    )}
+                    {benStats.totalChildren > 0 && (
+                      <span className="bg-amber-50 text-amber-800 border border-amber-200 px-1.5 py-0.5 rounded" title={`Enfants : ${benStats.totalBoys} garçons, ${benStats.totalGirls} filles`}>
+                        🧒 {benStats.totalChildren} Enfants
+                        {(benStats.totalBoys > 0 || benStats.totalGirls > 0) && (
+                          <span className="text-[10px] text-amber-600 ml-1">({benStats.totalBoys}G / {benStats.totalGirls}F)</span>
+                        )}
+                      </span>
+                    )}
+                  </div>
+                  <p className="text-[10px] text-slate-400 mt-1">
+                    Ventilation consolidée des effectifs
+                  </p>
+                </div>
+                <div className="h-10 w-10 rounded-xl bg-pink-50 text-pink-600 flex items-center justify-center">
+                  <HeartHandshake className="h-5 w-5" />
                 </div>
               </div>
 
@@ -1224,22 +1319,7 @@ export function PeopleListScreen() {
               <div className="rounded-xl border bg-white p-4 shadow-sm flex items-center justify-between">
                 <div>
                   <span className="text-xs font-semibold uppercase tracking-wider text-slate-500">
-                    Conformité Loi 25 (Consentement)
-                  </span>
-                  <p className="mt-1 text-2xl font-bold text-sky-600">{benStats.consentPct}%</p>
-                  <p className="text-[11px] text-slate-400 mt-0.5">
-                    <strong>{benStats.consentGrantedCount}</strong> consentements valides
-                  </p>
-                </div>
-                <div className="h-10 w-10 rounded-xl bg-sky-50 text-sky-600 flex items-center justify-center">
-                  <ShieldCheck className="h-5 w-5" />
-                </div>
-              </div>
-
-              <div className="rounded-xl border bg-white p-4 shadow-sm flex items-center justify-between">
-                <div>
-                  <span className="text-xs font-semibold uppercase tracking-wider text-slate-500">
-                    Typologies Cibles
+                    Typologies des Cibles ({benStats.totalCount})
                   </span>
                   <div className="mt-1 flex flex-wrap gap-1 text-[11px] font-semibold">
                     <span className="bg-indigo-50 text-indigo-700 px-1.5 py-0.5 rounded">
@@ -1255,6 +1335,9 @@ export function PeopleListScreen() {
                       {benStats.orgCount + benStats.institutionCount} struct.
                     </span>
                   </div>
+                  <p className="text-[10px] text-slate-400 mt-1">
+                    Loi 25: <strong>{benStats.consentPct}%</strong> conformes
+                  </p>
                 </div>
                 <div className="h-10 w-10 rounded-xl bg-amber-50 text-amber-600 flex items-center justify-center">
                   <PieChart className="h-5 w-5" />
@@ -1485,7 +1568,19 @@ export function PeopleListScreen() {
                                         )}
                                       </td>
                                       <td className="px-6 py-4 text-xs text-slate-600">
-                                        {custom?.location || '—'}
+                                        <div className="space-y-0.5">
+                                          <div>📍 {custom?.location || '—'}</div>
+                                          {bType !== 'individual' && custom?.memberCount && (
+                                            <div className="text-slate-700 font-semibold text-[11px]">
+                                              👥 {custom.memberCount} pers.
+                                              {(custom?.menCount || custom?.womenCount) && (
+                                                <span className="text-slate-500 font-normal ml-1">
+                                                  ({custom.menCount || 0}H / {custom.womenCount || 0}F)
+                                                </span>
+                                              )}
+                                            </div>
+                                          )}
+                                        </div>
                                       </td>
                                       <td className="px-6 py-4 text-xs">
                                         {hasConsent ? (
@@ -1623,18 +1718,39 @@ export function PeopleListScreen() {
                               )}
                             </td>
                             <td className="px-6 py-4 text-xs text-slate-600">
-                              <div className="space-y-0.5">
+                              <div className="space-y-1">
                                 {custom?.location && (
                                   <div>📍 Zone : <strong>{custom.location}</strong></div>
                                 )}
-                                {custom?.memberCount && (
-                                  <div>👥 Effectif : <strong>{custom.memberCount} pers.</strong> {custom.childCount ? `(${custom.childCount} enfants)` : ''}</div>
+                                {bType === 'individual' ? (
+                                  <div className="text-slate-500">
+                                    👤 Individu {p.profile?.genderCode ? `• Genre: ${p.profile.genderCode === 'F' ? 'Femme' : p.profile.genderCode === 'M' ? 'Homme' : 'Autre'}` : ''}
+                                  </div>
+                                ) : (
+                                  <div>
+                                    <div className="font-semibold text-slate-900 flex items-center gap-1.5">
+                                      👥 Effectif : <span className="text-indigo-700 font-bold">{custom?.memberCount || '—'} personnes</span>
+                                    </div>
+                                    {(custom?.menCount || custom?.womenCount || custom?.otherCount || custom?.boysCount || custom?.girlsCount || custom?.childCount) && (
+                                      <div className="flex flex-wrap gap-1 text-[10px] mt-0.5">
+                                        {custom?.menCount && <span className="bg-blue-50 text-blue-700 px-1 py-0.2 rounded border border-blue-200">👨 {custom.menCount} H</span>}
+                                        {custom?.womenCount && <span className="bg-pink-50 text-pink-700 px-1 py-0.2 rounded border border-pink-200">👩 {custom.womenCount} F</span>}
+                                        {custom?.otherCount && <span className="bg-purple-50 text-purple-700 px-1 py-0.2 rounded border border-purple-200">⚧ {custom.otherCount} Autre</span>}
+                                        {(custom?.boysCount || custom?.girlsCount || custom?.otherChildrenCount) ? (
+                                          <span className="bg-amber-50 text-amber-800 px-1 py-0.2 rounded border border-amber-200">
+                                            🧒 Enfants: {custom?.boysCount || 0}G / {custom?.girlsCount || 0}F {custom?.otherChildrenCount ? `+ ${custom.otherChildrenCount}A` : ''}
+                                          </span>
+                                        ) : custom?.childCount ? (
+                                          <span className="bg-amber-50 text-amber-800 px-1 py-0.2 rounded border border-amber-200">
+                                            🧒 {custom.childCount} enfants
+                                          </span>
+                                        ) : null}
+                                      </div>
+                                    )}
+                                  </div>
                                 )}
                                 {custom?.contactPerson && (
-                                  <div>👤 Référent : <strong>{custom.contactPerson}</strong></div>
-                                )}
-                                {!custom?.location && !custom?.memberCount && !custom?.contactPerson && (
-                                  <span className="text-slate-400">—</span>
+                                  <div className="text-slate-500 text-[11px]">👤 Référent : <strong>{custom.contactPerson}</strong></div>
                                 )}
                               </div>
                             </td>
@@ -2104,22 +2220,126 @@ export function PeopleListScreen() {
                       onChange={(e) => setBenEntityName(e.target.value)}
                       required
                     />
-                    <div className="grid grid-cols-2 gap-3">
-                      <Input
-                        label="Nombre total de membres"
-                        type="number"
-                        placeholder="Ex: 6"
-                        value={benMemberCount}
-                        onChange={(e) => setBenMemberCount(e.target.value)}
-                      />
-                      <Input
-                        label="Nombre d'enfants / dépendants"
-                        type="number"
-                        placeholder="Ex: 4"
-                        value={benChildCount}
-                        onChange={(e) => setBenChildCount(e.target.value)}
-                      />
+
+                    {/* Identification des effectifs & Genre (Adultes et Enfants) */}
+                    <div className="p-3 bg-white rounded-lg border border-emerald-200 space-y-2">
+                      <div className="flex items-center justify-between">
+                        <span className="text-xs font-bold text-slate-800 uppercase tracking-wide">
+                          Composition & Ventilation par Genre
+                        </span>
+                        <span className="text-[11px] text-slate-500 font-medium">
+                          Total membres : <strong>{benMemberCount || (Number(benMenCount || 0) + Number(benWomenCount || 0) + Number(benOtherCount || 0) + Number(benBoysCount || 0) + Number(benGirlsCount || 0) + Number(benOtherChildrenCount || 0)) || '0'}</strong>
+                        </span>
+                      </div>
+
+                      <div className="text-[11px] font-semibold text-slate-600 pt-1">Adultes :</div>
+                      <div className="grid grid-cols-3 gap-2">
+                        <Input
+                          label="Hommes (H)"
+                          type="number"
+                          placeholder="0"
+                          value={benMenCount}
+                          onChange={(e) => {
+                            setBenMenCount(e.target.value);
+                            const m = Number(e.target.value) || 0;
+                            const w = Number(benWomenCount) || 0;
+                            const o = Number(benOtherCount) || 0;
+                            const b = Number(benBoysCount) || 0;
+                            const g = Number(benGirlsCount) || 0;
+                            const ok = Number(benOtherChildrenCount) || 0;
+                            setBenMemberCount(String(m + w + o + b + g + ok));
+                          }}
+                        />
+                        <Input
+                          label="Femmes (F)"
+                          type="number"
+                          placeholder="0"
+                          value={benWomenCount}
+                          onChange={(e) => {
+                            setBenWomenCount(e.target.value);
+                            const m = Number(benMenCount) || 0;
+                            const w = Number(e.target.value) || 0;
+                            const o = Number(benOtherCount) || 0;
+                            const b = Number(benBoysCount) || 0;
+                            const g = Number(benGirlsCount) || 0;
+                            const ok = Number(benOtherChildrenCount) || 0;
+                            setBenMemberCount(String(m + w + o + b + g + ok));
+                          }}
+                        />
+                        <Input
+                          label="Autre genre"
+                          type="number"
+                          placeholder="0"
+                          value={benOtherCount}
+                          onChange={(e) => {
+                            setBenOtherCount(e.target.value);
+                            const m = Number(benMenCount) || 0;
+                            const w = Number(benWomenCount) || 0;
+                            const o = Number(e.target.value) || 0;
+                            const b = Number(benBoysCount) || 0;
+                            const g = Number(benGirlsCount) || 0;
+                            const ok = Number(benOtherChildrenCount) || 0;
+                            setBenMemberCount(String(m + w + o + b + g + ok));
+                          }}
+                        />
+                      </div>
+
+                      <div className="text-[11px] font-semibold text-slate-600 pt-1">Enfants / Jeunes dépendants :</div>
+                      <div className="grid grid-cols-3 gap-2">
+                        <Input
+                          label="Garçons"
+                          type="number"
+                          placeholder="0"
+                          value={benBoysCount}
+                          onChange={(e) => {
+                            setBenBoysCount(e.target.value);
+                            const b = Number(e.target.value) || 0;
+                            const g = Number(benGirlsCount) || 0;
+                            const ok = Number(benOtherChildrenCount) || 0;
+                            setBenChildCount(String(b + g + ok));
+                            const m = Number(benMenCount) || 0;
+                            const w = Number(benWomenCount) || 0;
+                            const o = Number(benOtherCount) || 0;
+                            setBenMemberCount(String(m + w + o + b + g + ok));
+                          }}
+                        />
+                        <Input
+                          label="Filles"
+                          type="number"
+                          placeholder="0"
+                          value={benGirlsCount}
+                          onChange={(e) => {
+                            setBenGirlsCount(e.target.value);
+                            const b = Number(benBoysCount) || 0;
+                            const g = Number(e.target.value) || 0;
+                            const ok = Number(benOtherChildrenCount) || 0;
+                            setBenChildCount(String(b + g + ok));
+                            const m = Number(benMenCount) || 0;
+                            const w = Number(benWomenCount) || 0;
+                            const o = Number(benOtherCount) || 0;
+                            setBenMemberCount(String(m + w + o + b + g + ok));
+                          }}
+                        />
+                        <Input
+                          label="Autre enfant"
+                          type="number"
+                          placeholder="0"
+                          value={benOtherChildrenCount}
+                          onChange={(e) => {
+                            setBenOtherChildrenCount(e.target.value);
+                            const b = Number(benBoysCount) || 0;
+                            const g = Number(benGirlsCount) || 0;
+                            const ok = Number(e.target.value) || 0;
+                            setBenChildCount(String(b + g + ok));
+                            const m = Number(benMenCount) || 0;
+                            const w = Number(benWomenCount) || 0;
+                            const o = Number(benOtherCount) || 0;
+                            setBenMemberCount(String(m + w + o + b + g + ok));
+                          }}
+                        />
+                      </div>
                     </div>
+
                     <div className="grid grid-cols-2 gap-3">
                       <Input
                         label="Chef de famille / Référent"
@@ -2144,22 +2364,126 @@ export function PeopleListScreen() {
                       onChange={(e) => setBenEntityName(e.target.value)}
                       required
                     />
-                    <div className="grid grid-cols-2 gap-3">
-                      <Input
-                        label="Nombre estimé d'habitants"
-                        type="number"
-                        placeholder="Ex: 1500"
-                        value={benMemberCount}
-                        onChange={(e) => setBenMemberCount(e.target.value)}
-                      />
-                      <Input
-                        label="Nombre de ménages"
-                        type="number"
-                        placeholder="Ex: 25"
-                        value={benChildCount}
-                        onChange={(e) => setBenChildCount(e.target.value)}
-                      />
+
+                    {/* Identification des effectifs & Genre (Adultes et Enfants) */}
+                    <div className="p-3 bg-white rounded-lg border border-amber-200 space-y-2">
+                      <div className="flex items-center justify-between">
+                        <span className="text-xs font-bold text-slate-800 uppercase tracking-wide">
+                          Identification des Effectifs & Genre
+                        </span>
+                        <span className="text-[11px] text-slate-500 font-medium">
+                          Total habitants : <strong>{benMemberCount || (Number(benMenCount || 0) + Number(benWomenCount || 0) + Number(benOtherCount || 0) + Number(benBoysCount || 0) + Number(benGirlsCount || 0) + Number(benOtherChildrenCount || 0)) || '0'}</strong>
+                        </span>
+                      </div>
+
+                      <div className="text-[11px] font-semibold text-slate-600 pt-1">Population Adulte :</div>
+                      <div className="grid grid-cols-3 gap-2">
+                        <Input
+                          label="Hommes (H)"
+                          type="number"
+                          placeholder="0"
+                          value={benMenCount}
+                          onChange={(e) => {
+                            setBenMenCount(e.target.value);
+                            const m = Number(e.target.value) || 0;
+                            const w = Number(benWomenCount) || 0;
+                            const o = Number(benOtherCount) || 0;
+                            const b = Number(benBoysCount) || 0;
+                            const g = Number(benGirlsCount) || 0;
+                            const ok = Number(benOtherChildrenCount) || 0;
+                            setBenMemberCount(String(m + w + o + b + g + ok));
+                          }}
+                        />
+                        <Input
+                          label="Femmes (F)"
+                          type="number"
+                          placeholder="0"
+                          value={benWomenCount}
+                          onChange={(e) => {
+                            setBenWomenCount(e.target.value);
+                            const m = Number(benMenCount) || 0;
+                            const w = Number(e.target.value) || 0;
+                            const o = Number(benOtherCount) || 0;
+                            const b = Number(benBoysCount) || 0;
+                            const g = Number(benGirlsCount) || 0;
+                            const ok = Number(benOtherChildrenCount) || 0;
+                            setBenMemberCount(String(m + w + o + b + g + ok));
+                          }}
+                        />
+                        <Input
+                          label="Autre"
+                          type="number"
+                          placeholder="0"
+                          value={benOtherCount}
+                          onChange={(e) => {
+                            setBenOtherCount(e.target.value);
+                            const m = Number(benMenCount) || 0;
+                            const w = Number(benWomenCount) || 0;
+                            const o = Number(e.target.value) || 0;
+                            const b = Number(benBoysCount) || 0;
+                            const g = Number(benGirlsCount) || 0;
+                            const ok = Number(benOtherChildrenCount) || 0;
+                            setBenMemberCount(String(m + w + o + b + g + ok));
+                          }}
+                        />
+                      </div>
+
+                      <div className="text-[11px] font-semibold text-slate-600 pt-1">Enfants & Jeunes :</div>
+                      <div className="grid grid-cols-3 gap-2">
+                        <Input
+                          label="Garçons"
+                          type="number"
+                          placeholder="0"
+                          value={benBoysCount}
+                          onChange={(e) => {
+                            setBenBoysCount(e.target.value);
+                            const b = Number(e.target.value) || 0;
+                            const g = Number(benGirlsCount) || 0;
+                            const ok = Number(benOtherChildrenCount) || 0;
+                            setBenChildCount(String(b + g + ok));
+                            const m = Number(benMenCount) || 0;
+                            const w = Number(benWomenCount) || 0;
+                            const o = Number(benOtherCount) || 0;
+                            setBenMemberCount(String(m + w + o + b + g + ok));
+                          }}
+                        />
+                        <Input
+                          label="Filles"
+                          type="number"
+                          placeholder="0"
+                          value={benGirlsCount}
+                          onChange={(e) => {
+                            setBenGirlsCount(e.target.value);
+                            const b = Number(benBoysCount) || 0;
+                            const g = Number(e.target.value) || 0;
+                            const ok = Number(benOtherChildrenCount) || 0;
+                            setBenChildCount(String(b + g + ok));
+                            const m = Number(benMenCount) || 0;
+                            const w = Number(benWomenCount) || 0;
+                            const o = Number(benOtherCount) || 0;
+                            setBenMemberCount(String(m + w + o + b + g + ok));
+                          }}
+                        />
+                        <Input
+                          label="Autre"
+                          type="number"
+                          placeholder="0"
+                          value={benOtherChildrenCount}
+                          onChange={(e) => {
+                            setBenOtherChildrenCount(e.target.value);
+                            const b = Number(benBoysCount) || 0;
+                            const g = Number(benGirlsCount) || 0;
+                            const ok = Number(e.target.value) || 0;
+                            setBenChildCount(String(b + g + ok));
+                            const m = Number(benMenCount) || 0;
+                            const w = Number(benWomenCount) || 0;
+                            const o = Number(benOtherCount) || 0;
+                            setBenMemberCount(String(m + w + o + b + g + ok));
+                          }}
+                        />
+                      </div>
                     </div>
+
                     <div className="grid grid-cols-2 gap-3">
                       <Input
                         label="Commune / Région"
@@ -2184,35 +2508,80 @@ export function PeopleListScreen() {
                       onChange={(e) => setBenEntityName(e.target.value)}
                       required
                     />
+
+                    {/* Identification des effectifs & Genre */}
+                    <div className="p-3 bg-white rounded-lg border border-purple-200 space-y-2">
+                      <div className="flex items-center justify-between">
+                        <span className="text-xs font-bold text-slate-800 uppercase tracking-wide">
+                          Membres & Répartition par Genre
+                        </span>
+                        <span className="text-[11px] text-slate-500 font-medium">
+                          Total membres : <strong>{benMemberCount || (Number(benMenCount || 0) + Number(benWomenCount || 0) + Number(benOtherCount || 0)) || '0'}</strong>
+                        </span>
+                      </div>
+                      <div className="grid grid-cols-3 gap-2">
+                        <Input
+                          label="Hommes (H)"
+                          type="number"
+                          placeholder="0"
+                          value={benMenCount}
+                          onChange={(e) => {
+                            setBenMenCount(e.target.value);
+                            const m = Number(e.target.value) || 0;
+                            const w = Number(benWomenCount) || 0;
+                            const o = Number(benOtherCount) || 0;
+                            setBenMemberCount(String(m + w + o));
+                          }}
+                        />
+                        <Input
+                          label="Femmes (F)"
+                          type="number"
+                          placeholder="0"
+                          value={benWomenCount}
+                          onChange={(e) => {
+                            setBenWomenCount(e.target.value);
+                            const m = Number(benMenCount) || 0;
+                            const w = Number(e.target.value) || 0;
+                            const o = Number(benOtherCount) || 0;
+                            setBenMemberCount(String(m + w + o));
+                          }}
+                        />
+                        <Input
+                          label="Autre"
+                          type="number"
+                          placeholder="0"
+                          value={benOtherCount}
+                          onChange={(e) => {
+                            setBenOtherCount(e.target.value);
+                            const m = Number(benMenCount) || 0;
+                            const w = Number(benWomenCount) || 0;
+                            const o = Number(e.target.value) || 0;
+                            setBenMemberCount(String(m + w + o));
+                          }}
+                        />
+                      </div>
+                    </div>
+
                     <div className="grid grid-cols-2 gap-3">
-                      <Input
-                        label="Nombre d'adhérents / membres"
-                        type="number"
-                        placeholder="Ex: 45"
-                        value={benMemberCount}
-                        onChange={(e) => setBenMemberCount(e.target.value)}
-                      />
                       <Input
                         label="Secteur / Domaine d'activité"
                         placeholder="Ex: Agriculture maraîchère"
                         value={benSubCategory}
                         onChange={(e) => setBenSubCategory(e.target.value)}
                       />
-                    </div>
-                    <div className="grid grid-cols-2 gap-3">
                       <Input
                         label="Représentant(e) légal(e)"
                         placeholder="Ex: Aminata Sow"
                         value={benContactPerson}
                         onChange={(e) => setBenContactPerson(e.target.value)}
                       />
-                      <Input
-                        label="Siège / Adresse"
-                        placeholder="Ex: Case communautaire"
-                        value={benLocation}
-                        onChange={(e) => setBenLocation(e.target.value)}
-                      />
                     </div>
+                    <Input
+                      label="Siège / Adresse"
+                      placeholder="Ex: Case communautaire"
+                      value={benLocation}
+                      onChange={(e) => setBenLocation(e.target.value)}
+                    />
                   </div>
                 ) : (
                   <div className="space-y-3 bg-sky-50/40 p-3.5 rounded-lg border border-sky-200/60">
@@ -2223,14 +2592,61 @@ export function PeopleListScreen() {
                       onChange={(e) => setBenEntityName(e.target.value)}
                       required
                     />
+
+                    {/* Effectifs de l'établissement */}
+                    <div className="p-3 bg-white rounded-lg border border-sky-200 space-y-2">
+                      <div className="flex items-center justify-between">
+                        <span className="text-xs font-bold text-slate-800 uppercase tracking-wide">
+                          Effectif & Ventilation des usagers / élèves
+                        </span>
+                        <span className="text-[11px] text-slate-500 font-medium">
+                          Total : <strong>{benMemberCount || (Number(benMenCount || 0) + Number(benWomenCount || 0) + Number(benOtherCount || 0) + Number(benBoysCount || 0) + Number(benGirlsCount || 0)) || '0'}</strong>
+                        </span>
+                      </div>
+                      <div className="grid grid-cols-3 gap-2">
+                        <Input
+                          label="Garçons / Hommes"
+                          type="number"
+                          placeholder="0"
+                          value={benMenCount}
+                          onChange={(e) => {
+                            setBenMenCount(e.target.value);
+                            const m = Number(e.target.value) || 0;
+                            const w = Number(benWomenCount) || 0;
+                            const o = Number(benOtherCount) || 0;
+                            setBenMemberCount(String(m + w + o));
+                          }}
+                        />
+                        <Input
+                          label="Filles / Femmes"
+                          type="number"
+                          placeholder="0"
+                          value={benWomenCount}
+                          onChange={(e) => {
+                            setBenWomenCount(e.target.value);
+                            const m = Number(benMenCount) || 0;
+                            const w = Number(e.target.value) || 0;
+                            const o = Number(benOtherCount) || 0;
+                            setBenMemberCount(String(m + w + o));
+                          }}
+                        />
+                        <Input
+                          label="Autre"
+                          type="number"
+                          placeholder="0"
+                          value={benOtherCount}
+                          onChange={(e) => {
+                            setBenOtherCount(e.target.value);
+                            const m = Number(benMenCount) || 0;
+                            const w = Number(benWomenCount) || 0;
+                            const o = Number(e.target.value) || 0;
+                            setBenMemberCount(String(m + w + o));
+                          }}
+                        />
+                      </div>
+                    </div>
+
                     <div className="grid grid-cols-2 gap-3">
-                      <Input
-                        label="Capacité / Effectif (élèves ou lits)"
-                        type="number"
-                        placeholder="Ex: 320"
-                        value={benMemberCount}
-                        onChange={(e) => setBenMemberCount(e.target.value)}
-                      />
                       <div>
                         <label className="mb-1 block text-xs font-bold text-slate-700">Type d'établissement</label>
                         <select
@@ -2244,21 +2660,19 @@ export function PeopleListScreen() {
                           <option value="autre">Autre établissement public</option>
                         </select>
                       </div>
-                    </div>
-                    <div className="grid grid-cols-2 gap-3">
                       <Input
                         label="Directeur / Responsable"
                         placeholder="Ex: Mamadou Diop"
                         value={benContactPerson}
                         onChange={(e) => setBenContactPerson(e.target.value)}
                       />
-                      <Input
-                        label="Localisation"
-                        placeholder="Ex: Village Fatou"
-                        value={benLocation}
-                        onChange={(e) => setBenLocation(e.target.value)}
-                      />
                     </div>
+                    <Input
+                      label="Localisation"
+                      placeholder="Ex: Village Fatou"
+                      value={benLocation}
+                      onChange={(e) => setBenLocation(e.target.value)}
+                    />
                   </div>
                 )}
 

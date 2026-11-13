@@ -73,6 +73,30 @@ export function ProjectStrategicHub({
   const budget = Number(project?.budget) || 0;
   const fundingRate = budget > 0 ? Math.min(100, Math.round((totalFunding / budget) * 100)) : 0;
 
+  // Calcul du nombre de personnes impactées sur ce projet
+  const projectBeneficiaryStats = (serviceDeliveries || []).reduce(
+    (acc: { totalPersons: number; cibles: number }, s: any) => {
+      acc.cibles += 1;
+      const custom = s.customFields;
+      if (s.partyKind === 'organization') {
+        const mMen = Number(custom?.menCount) || 0;
+        const mWomen = Number(custom?.womenCount) || 0;
+        const mOther = Number(custom?.otherCount) || 0;
+        const mBoys = Number(custom?.boysCount) || 0;
+        const mGirls = Number(custom?.girlsCount) || 0;
+        const mOtherKids = Number(custom?.otherChildrenCount) || 0;
+        const sumGenders = mMen + mWomen + mOther + mBoys + mGirls + mOtherKids;
+        const memberCount = Number(custom?.memberCount) || 0;
+        const effectiveCount = sumGenders > 0 ? Math.max(sumGenders, memberCount) : (memberCount > 0 ? memberCount : 10);
+        acc.totalPersons += effectiveCount;
+      } else {
+        acc.totalPersons += 1;
+      }
+      return acc;
+    },
+    { totalPersons: 0, cibles: 0 }
+  );
+
   const subTabs = [
     {
       id: 'charter' as const,
@@ -109,8 +133,8 @@ export function ProjectStrategicHub({
       id: 'beneficiaries' as const,
       label: 'Bénéficiaires & Cibles',
       icon: HeartHandshake,
-      count: serviceDeliveries?.length || 0,
-      badge: `${serviceDeliveries?.length || 0}`,
+      count: projectBeneficiaryStats.totalPersons,
+      badge: `${projectBeneficiaryStats.totalPersons} pers.`,
       badgeCls: 'bg-pink-500/20 text-pink-300 border-pink-400/30',
     },
   ];
