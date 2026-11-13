@@ -12,10 +12,10 @@ export const FundingSourceSchema = z.object({
 export type FundingSourceInput = z.infer<typeof FundingSourceSchema>;
 
 export const ResultNodeSchema = z.object({
-  parentId: z.string().uuid().optional(),
+  parentId: z.string().uuid().optional().nullable(),
   level: z.enum(['impact', 'outcome', 'output']),
   title: z.string().min(2, 'Le titre doit comporter au moins 2 caractères'),
-  description: z.string().optional(),
+  description: z.string().optional().nullable(),
 });
 
 export type ResultNodeInput = z.infer<typeof ResultNodeSchema>;

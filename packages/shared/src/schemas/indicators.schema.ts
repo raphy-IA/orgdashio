@@ -58,10 +58,10 @@ export type RecordObservationInput = z.infer<typeof RecordObservationSchema>;
 
 export const CreateResultNodeSchema = z.object({
   projectId: z.string().uuid('Le projet est requis'),
-  parentId: z.string().uuid().optional(),
+  parentId: z.string().uuid().optional().nullable(),
   level: z.enum(['impact', 'outcome', 'output']),
   title: z.string().min(2, 'Le titre est requis'),
-  description: z.string().optional(),
+  description: z.string().optional().nullable(),
 });
 
 export type CreateResultNodeInput = z.infer<typeof CreateResultNodeSchema>;

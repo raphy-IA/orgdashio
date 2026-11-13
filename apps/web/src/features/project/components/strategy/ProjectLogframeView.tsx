@@ -77,6 +77,8 @@ export function ProjectLogframeView({
   const [description, setDescription] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
 
+  const [errorMsg, setErrorMsg] = useState('');
+
   // Group nodes by level
   const impacts = resultNodes.filter((r) => r.level === 'impact');
   const outcomes = resultNodes.filter((r) => r.level === 'outcome');
@@ -84,6 +86,7 @@ export function ProjectLogframeView({
 
   const handleCreate = async () => {
     if (!title.trim()) return;
+    setErrorMsg('');
     try {
       setIsSubmitting(true);
       await onAddResultNode({
@@ -96,6 +99,8 @@ export function ProjectLogframeView({
       setDescription('');
       setParentId('');
       setShowForm(false);
+    } catch (err: any) {
+      setErrorMsg(err?.message || 'Erreur lors de l’enregistrement du résultat');
     } finally {
       setIsSubmitting(false);
     }
@@ -216,6 +221,12 @@ export function ProjectLogframeView({
               />
             </div>
           </div>
+
+          {errorMsg && (
+            <div className="rounded-lg bg-red-50 border border-red-200 p-3 text-xs text-red-700">
+              ⚠️ {errorMsg}
+            </div>
+          )}
 
           <div className="flex items-center justify-end gap-2 pt-2">
             <Button size="sm" variant="ghost" onClick={() => setShowForm(false)} className="text-xs">

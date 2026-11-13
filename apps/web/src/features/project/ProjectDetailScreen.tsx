@@ -648,23 +648,36 @@ export function ProjectDetailScreen() {
 
   const addResultNode = useMutation({
     mutationFn: async (nodePayload?: { level?: string; title?: string; description?: string | null; parentId?: string | null }) => {
-      const payload = nodePayload || {
-        level: rnLevel,
-        title: rnTitle,
-        description: rnDesc || undefined,
-        parentId: rnParentId || undefined,
-      };
+      const payload = nodePayload
+        ? {
+            level: nodePayload.level,
+            title: nodePayload.title,
+            description: nodePayload.description ? nodePayload.description.trim() : undefined,
+            parentId: nodePayload.parentId ? nodePayload.parentId : undefined,
+          }
+        : {
+            level: rnLevel,
+            title: rnTitle,
+            description: rnDesc?.trim() ? rnDesc.trim() : undefined,
+            parentId: rnParentId || undefined,
+          };
       const res = await fetch(`/api/v1/projects/${id}/result-nodes`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload),
       });
-      if (!res.ok) throw new Error('Erreur');
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error(err.message || 'Erreur lors de l’enregistrement du nœud de résultat');
+      }
       return res.json();
     },
     onSuccess: () => {
       invalidate();
       setRnTitle(''); setRnDesc(''); setRnParentId(''); setShowResultNodeForm(false);
+    },
+    onError: (err: any) => {
+      alert(err.message || 'Erreur lors de la création du résultat');
     },
   });
 
