@@ -11,17 +11,57 @@ import {
   party,
   staffProfile,
   beneficiaryProfile,
+  household,
+  householdMember,
   orgUnit,
   project,
   caseFile,
+  caseAssignment,
+  caseNote,
+  caseReferral,
+  breakGlassLog,
+  interventionPlan,
+  interventionGoal,
   trainingSession,
   trainingProgram,
+  course,
+  trainingProgramCourse,
+  sessionOccurrence,
+  enrollment,
+  attendance,
+  certificate,
   document,
   supportAccessGrant,
   auditLog,
   consentRecord,
+  consentPurpose,
+  serviceDelivery,
   fundingSource,
+  funderOrganization,
+  grantRecord,
+  grantInstallment,
+  grantDeliverable,
+  donor,
+  donationCampaign,
+  donation,
+  taxReceipt,
+  resultNode,
   planItem,
+  planDependency,
+  projectMember,
+  planItemRaci,
+  planItemUpdate,
+  planItemDeliverable,
+  budget,
+  budgetLine,
+  expense,
+  raidItem,
+  indicator,
+  indicatorObservation,
+  userHrProfile,
+  timesheet,
+  timesheetEntry,
+  invitation,
   subscriptionPlan,
   tenantSubscription,
   tenantInvoice,
@@ -29,6 +69,7 @@ import {
   securityIncident,
   tenantFeatureFlag,
   userSession,
+  SelectivePurgeInput,
 } from '@orgdashio/shared';
 import { hash } from '@node-rs/argon2';
 import { eq, and, sql, desc, inArray } from 'drizzle-orm';
@@ -903,6 +944,177 @@ export class PlatformService {
     });
 
     return { success: true, message: `L'organisme "${tenant.name}" a été définitivement purgé conformément à la Loi 25.` };
+  }
+
+  /**
+   * Purge sélective de données selon les options cochées pour un tenant client (Loi 25 / RGPD).
+   */
+  async purgeTenantSelective(tenantId: string, options: SelectivePurgeInput, adminUserId: string) {
+    const [tenant] = await this.db.select().from(tenantRegistry).where(eq(tenantRegistry.id, tenantId));
+    if (!tenant) throw new NotFoundException('Organisme non trouvé');
+
+    // Si suppression totale du tenant cochée
+    if (options.deleteTenantEntirely) {
+      return this.purgeTenant(tenantId, adminUserId);
+    }
+
+    const purgedCategories: string[] = [];
+
+    // 1. Feuille de temps / Timesheets
+    if (options.deleteTimesheets) {
+      await this.db.delete(timesheetEntry).where(eq(timesheetEntry.tenantId, tenantId));
+      await this.db.delete(timesheet).where(eq(timesheet.tenantId, tenantId));
+      await this.db.delete(userHrProfile).where(eq(userHrProfile.tenantId, tenantId));
+      purgedCategories.push('Feuilles de temps & Profils RH');
+    }
+
+    // 2. Dossiers usagers & Interventions
+    if (options.deleteCases) {
+      await this.db.delete(breakGlassLog).where(eq(breakGlassLog.tenantId, tenantId));
+      await this.db.delete(caseNote).where(eq(caseNote.tenantId, tenantId));
+      await this.db.delete(caseAssignment).where(eq(caseAssignment.tenantId, tenantId));
+      await this.db.delete(caseReferral).where(eq(caseReferral.tenantId, tenantId));
+      await this.db.delete(interventionGoal).where(eq(interventionGoal.tenantId, tenantId));
+      await this.db.delete(interventionPlan).where(eq(interventionPlan.tenantId, tenantId));
+      await this.db.delete(caseFile).where(eq(caseFile.tenantId, tenantId));
+      purgedCategories.push('Dossiers usagers & Plans d’intervention');
+    }
+
+    // 3. Formations
+    if (options.deleteTrainings) {
+      await this.db.delete(certificate).where(eq(certificate.tenantId, tenantId));
+      await this.db.delete(attendance).where(eq(attendance.tenantId, tenantId));
+      await this.db.delete(enrollment).where(eq(enrollment.tenantId, tenantId));
+      await this.db.delete(sessionOccurrence).where(eq(sessionOccurrence.tenantId, tenantId));
+      await this.db.delete(trainingSession).where(eq(trainingSession.tenantId, tenantId));
+      await this.db.delete(trainingProgramCourse).where(eq(trainingProgramCourse.tenantId, tenantId));
+      await this.db.delete(course).where(eq(course.tenantId, tenantId));
+      await this.db.delete(trainingProgram).where(eq(trainingProgram.tenantId, tenantId));
+      purgedCategories.push('Formations, Sessions & Certificats');
+    }
+
+    // 4. Projets & Subventions
+    if (options.deleteProjects) {
+      await this.db.delete(planItemDeliverable).where(eq(planItemDeliverable.tenantId, tenantId));
+      await this.db.delete(planItemUpdate).where(eq(planItemUpdate.tenantId, tenantId));
+      await this.db.delete(planItemRaci).where(eq(planItemRaci.tenantId, tenantId));
+      await this.db.delete(planDependency).where(eq(planDependency.tenantId, tenantId));
+      await this.db.delete(planItem).where(eq(planItem.tenantId, tenantId));
+      await this.db.delete(resultNode).where(eq(resultNode.tenantId, tenantId));
+      await this.db.delete(projectMember).where(eq(projectMember.tenantId, tenantId));
+      await this.db.delete(expense).where(eq(expense.tenantId, tenantId));
+      await this.db.delete(budgetLine).where(eq(budgetLine.tenantId, tenantId));
+      await this.db.delete(budget).where(eq(budget.tenantId, tenantId));
+      await this.db.delete(raidItem).where(eq(raidItem.tenantId, tenantId));
+      await this.db.delete(indicatorObservation).where(eq(indicatorObservation.tenantId, tenantId));
+      await this.db.delete(indicator).where(eq(indicator.tenantId, tenantId));
+      await this.db.delete(grantDeliverable).where(eq(grantDeliverable.tenantId, tenantId));
+      await this.db.delete(grantInstallment).where(eq(grantInstallment.tenantId, tenantId));
+      await this.db.delete(grantRecord).where(eq(grantRecord.tenantId, tenantId));
+      await this.db.delete(funderOrganization).where(eq(funderOrganization.tenantId, tenantId));
+      await this.db.delete(fundingSource).where(eq(fundingSource.tenantId, tenantId));
+      await this.db.delete(project).where(eq(project.tenantId, tenantId));
+      purgedCategories.push('Projets, Budgets & Subventions');
+    }
+
+    // 5. Dons & Campagnes
+    if (options.deleteDonations) {
+      await this.db.delete(taxReceipt).where(eq(taxReceipt.tenantId, tenantId));
+      await this.db.delete(donation).where(eq(donation.tenantId, tenantId));
+      await this.db.delete(donationCampaign).where(eq(donationCampaign.tenantId, tenantId));
+      await this.db.delete(donor).where(eq(donor.tenantId, tenantId));
+      purgedCategories.push('Dons, Reçus fiscaux & Donateurs');
+    }
+
+    // 6. Documents & GED
+    if (options.deleteDocuments) {
+      await this.db.delete(document).where(eq(document.tenantId, tenantId));
+      purgedCategories.push('Documents & Fichiers GED');
+    }
+
+    // 7. Bénéficiaires & Usagers
+    if (options.deleteBeneficiaries) {
+      await this.db.delete(serviceDelivery).where(eq(serviceDelivery.tenantId, tenantId));
+      await this.db.delete(householdMember).where(eq(householdMember.tenantId, tenantId));
+      await this.db.delete(household).where(eq(household.tenantId, tenantId));
+      await this.db.delete(consentRecord).where(eq(consentRecord.tenantId, tenantId));
+      await this.db.delete(consentPurpose).where(eq(consentPurpose.tenantId, tenantId));
+      
+      const benProfiles = await this.db
+        .select({ partyId: beneficiaryProfile.partyId })
+        .from(beneficiaryProfile)
+        .where(eq(beneficiaryProfile.tenantId, tenantId));
+      
+      await this.db.delete(beneficiaryProfile).where(eq(beneficiaryProfile.tenantId, tenantId));
+      
+      // Nettoyer les parties associées si elles ne sont pas aussi des employés
+      if (benProfiles.length > 0) {
+        const staffParties = await this.db
+          .select({ partyId: staffProfile.partyId })
+          .from(staffProfile)
+          .where(eq(staffProfile.tenantId, tenantId));
+        const staffPartyIds = new Set(staffParties.map(s => s.partyId));
+        const partiesToDelete = benProfiles.map(b => b.partyId).filter(pId => !staffPartyIds.has(pId));
+        if (partiesToDelete.length > 0) {
+          await this.db.delete(party).where(and(eq(party.tenantId, tenantId), inArray(party.id, partiesToDelete)));
+        }
+      }
+      purgedCategories.push('Bénéficiaires & Fiches usagers');
+    }
+
+    // 8. Personnel & Bénévoles (profils staff, hors compte utilisateur racine)
+    if (options.deleteStaff) {
+      const sProfiles = await this.db
+        .select({ partyId: staffProfile.partyId })
+        .from(staffProfile)
+        .where(eq(staffProfile.tenantId, tenantId));
+
+      await this.db.delete(staffProfile).where(eq(staffProfile.tenantId, tenantId));
+
+      if (sProfiles.length > 0) {
+        const benParties = await this.db
+          .select({ partyId: beneficiaryProfile.partyId })
+          .from(beneficiaryProfile)
+          .where(eq(beneficiaryProfile.tenantId, tenantId));
+        const benPartyIds = new Set(benParties.map(b => b.partyId));
+        const partiesToDelete = sProfiles.map(s => s.partyId).filter(pId => !benPartyIds.has(pId));
+        if (partiesToDelete.length > 0) {
+          await this.db.delete(party).where(and(eq(party.tenantId, tenantId), inArray(party.id, partiesToDelete)));
+        }
+      }
+      purgedCategories.push('Personnel & Bénévoles');
+    }
+
+    // 9. Audit Logs
+    if (options.deleteAuditLogs) {
+      await this.db.delete(auditLog).where(eq(auditLog.tenantId, tenantId));
+      purgedCategories.push('Journaux d’audit');
+    }
+
+    // Log the purge certificate in auditLog (sauf si tout a été purgé ou recréé)
+    await this.db.insert(auditLog).values({
+      tenantId,
+      userId: adminUserId,
+      action: 'TENANT_SELECTIVE_PURGE_LOI25',
+      entityType: 'tenant',
+      entityId: tenantId,
+      payload: {
+        purgedTenantName: tenant.name,
+        purgedSlug: tenant.slug,
+        purgedCategories,
+        options,
+        timestamp: new Date().toISOString(),
+        certificate: `LOI25-SELECTIVE-PURGE-CERT-${Date.now()}`,
+      },
+    });
+
+    return {
+      success: true,
+      message: purgedCategories.length > 0
+        ? `Données purgées avec succès : ${purgedCategories.join(', ')}.`
+        : 'Aucune donnée n’a été sélectionnée pour la purge.',
+      purgedCategories,
+    };
   }
 
   /**

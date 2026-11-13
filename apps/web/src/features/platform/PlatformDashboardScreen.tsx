@@ -120,6 +120,22 @@ export function PlatformDashboardScreen() {
   const [editStaffStatus, setEditStaffStatus] = useState<'active' | 'on_leave' | 'inactive' | 'archived'>('active');
   const [editStaffDeptId, setEditStaffDeptId] = useState<string>('');
 
+  // Selective Purge Modal State
+  const [purgeModalOpen, setPurgeModalOpen] = useState(false);
+  const [purgeConfirmationText, setPurgeConfirmationText] = useState('');
+  const [purgeOptions, setPurgeOptions] = useState({
+    deleteBeneficiaries: false,
+    deleteStaff: false,
+    deleteCases: false,
+    deleteTrainings: false,
+    deleteProjects: false,
+    deleteDonations: false,
+    deleteTimesheets: false,
+    deleteDocuments: false,
+    deleteAuditLogs: false,
+    deleteTenantEntirely: false,
+  });
+
   // User Edit State & Modal
   const [editingUserItem, setEditingUserItem] = useState<any | null>(null);
   const [editUserFirstName, setEditUserFirstName] = useState('');
@@ -401,6 +417,33 @@ export function PlatformDashboardScreen() {
       alert(data.message || 'Organisme purgé avec succès.');
       queryClient.invalidateQueries({ queryKey: ['platform-tenants'] });
       setSelectedTenantId(null);
+    },
+  });
+
+  const purgeTenantSelectiveMutation = useMutation({
+    mutationFn: async ({ id, options }: { id: string; options: typeof purgeOptions }) => {
+      const res = await fetch(`/api/v1/platform/tenants/${id}/purge-selective`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'x-platform-admin': 'true' },
+        body: JSON.stringify(options),
+      });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error(err.message || 'Erreur lors de la purge sélective');
+      }
+      return res.json();
+    },
+    onSuccess: (data) => {
+      alert(data.message || 'Purge des données terminée.');
+      queryClient.invalidateQueries({ queryKey: ['platform-tenants'] });
+      queryClient.invalidateQueries({ queryKey: ['platform-tenant-details', selectedTenantId] });
+      setPurgeModalOpen(false);
+      if (purgeOptions.deleteTenantEntirely) {
+        setSelectedTenantId(null);
+      }
+    },
+    onError: (err: any) => {
+      alert(`Erreur : ${err.message}`);
     },
   });
 
@@ -830,18 +873,26 @@ export function PlatformDashboardScreen() {
                     {currentSelectedTenant.status === 'active' ? 'Suspendre' : 'Réactiver'}
                   </Button>
 
-                  {/* Decommission / Purge button */}
+                  {/* Decommission / Purge button with selective modal */}
                   <Button
                     size="sm"
                     variant="outline"
                     className="text-xs border-red-900/60 text-red-500 hover:bg-red-950 hover:text-red-400"
                     onClick={() => {
-                      if (selectedTenantId) {
-                        const confirmation = prompt(`⚠️ ATTENTION : Purge définitive Loi 25 !\nTapez "PURGER ${currentSelectedTenant.slug}" pour supprimer irréversiblement ce tenant et toutes ses données :`);
-                        if (confirmation === `PURGER ${currentSelectedTenant.slug}`) {
-                          purgeTenantMutation.mutate(selectedTenantId);
-                        }
-                      }
+                      setPurgeConfirmationText('');
+                      setPurgeOptions({
+                        deleteBeneficiaries: false,
+                        deleteStaff: false,
+                        deleteCases: false,
+                        deleteTrainings: false,
+                        deleteProjects: false,
+                        deleteDonations: false,
+                        deleteTimesheets: false,
+                        deleteDocuments: false,
+                        deleteAuditLogs: false,
+                        deleteTenantEntirely: false,
+                      });
+                      setPurgeModalOpen(true);
                     }}
                   >
                     <Trash2 className="mr-1.5 h-3.5 w-3.5" />
@@ -2359,6 +2410,272 @@ export function PlatformDashboardScreen() {
                   ))}
                 </div>
               )}
+            </div>
+          </div>
+        )}
+
+        {/* Modal : Purge de Données & Loi 25 */}
+        {purgeModalOpen && currentSelectedTenant && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 p-4 backdrop-blur-sm">
+            <div className="rounded-2xl border border-red-900 bg-slate-900 p-6 max-w-xl w-full space-y-4 shadow-2xl max-h-[90vh] overflow-y-auto">
+              <div className="flex justify-between items-center border-b border-slate-800 pb-3">
+                <div className="flex items-center gap-2">
+                  <div className="p-2 rounded-lg bg-red-950/60 border border-red-800/60 text-red-400">
+                    <Trash2 className="h-5 w-5" />
+                  </div>
+                  <div>
+                    <h3 className="font-bold text-white text-base">Purge des données (Loi 25)</h3>
+                    <p className="text-xs text-slate-400">Organisme : <span className="text-white font-semibold">{currentSelectedTenant.name}</span> ({currentSelectedTenant.slug})</p>
+                  </div>
+                </div>
+                <button onClick={() => setPurgeModalOpen(false)} className="text-slate-400 hover:text-white">
+                  <X className="h-5 w-5" />
+                </button>
+              </div>
+
+              <div className="p-3 bg-red-950/30 border border-red-900/50 rounded-lg text-xs text-red-300">
+                ⚠️ <strong>Avertissement :</strong> La suppression des données sélectionnées est irréversible conformément aux exigences de la Loi 25 sur la protection des renseignements personnels.
+              </div>
+
+              <div className="space-y-3">
+                <div className="flex items-center justify-between pb-1">
+                  <span className="text-xs font-bold uppercase tracking-wider text-slate-400">Sélectionnez les catégories de données à effacer :</span>
+                  <div className="space-x-2">
+                    <button
+                      type="button"
+                      onClick={() => setPurgeOptions({
+                        deleteBeneficiaries: true,
+                        deleteStaff: true,
+                        deleteCases: true,
+                        deleteTrainings: true,
+                        deleteProjects: true,
+                        deleteDonations: true,
+                        deleteTimesheets: true,
+                        deleteDocuments: true,
+                        deleteAuditLogs: true,
+                        deleteTenantEntirely: false,
+                      })}
+                      className="text-[11px] text-indigo-400 hover:underline"
+                    >
+                      Tout cocher
+                    </button>
+                    <span className="text-slate-600">|</span>
+                    <button
+                      type="button"
+                      onClick={() => setPurgeOptions({
+                        deleteBeneficiaries: false,
+                        deleteStaff: false,
+                        deleteCases: false,
+                        deleteTrainings: false,
+                        deleteProjects: false,
+                        deleteDonations: false,
+                        deleteTimesheets: false,
+                        deleteDocuments: false,
+                        deleteAuditLogs: false,
+                        deleteTenantEntirely: false,
+                      })}
+                      className="text-[11px] text-slate-400 hover:underline"
+                    >
+                      Tout décocher
+                    </button>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                  <label className={`flex items-start gap-2.5 p-2.5 rounded-lg border text-xs cursor-pointer transition ${
+                    purgeOptions.deleteBeneficiaries ? 'bg-red-950/40 border-red-700 text-white' : 'bg-slate-950/50 border-slate-800 text-slate-300 hover:border-slate-700'
+                  }`}>
+                    <input
+                      type="checkbox"
+                      checked={purgeOptions.deleteBeneficiaries}
+                      onChange={(e) => setPurgeOptions(prev => ({ ...prev, deleteBeneficiaries: e.target.checked }))}
+                      className="mt-0.5 rounded border-slate-700 text-red-600 focus:ring-red-500"
+                    />
+                    <div>
+                      <div className="font-semibold text-white">Bénéficiaires & Fiches usagers</div>
+                      <div className="text-[10px] text-slate-400">Profils usagers, prestations et consentements</div>
+                    </div>
+                  </label>
+
+                  <label className={`flex items-start gap-2.5 p-2.5 rounded-lg border text-xs cursor-pointer transition ${
+                    purgeOptions.deleteStaff ? 'bg-red-950/40 border-red-700 text-white' : 'bg-slate-950/50 border-slate-800 text-slate-300 hover:border-slate-700'
+                  }`}>
+                    <input
+                      type="checkbox"
+                      checked={purgeOptions.deleteStaff}
+                      onChange={(e) => setPurgeOptions(prev => ({ ...prev, deleteStaff: e.target.checked }))}
+                      className="mt-0.5 rounded border-slate-700 text-red-600 focus:ring-red-500"
+                    />
+                    <div>
+                      <div className="font-semibold text-white">Personnel & Bénévoles</div>
+                      <div className="text-[10px] text-slate-400">Fiches collaborateurs (conserve le compte auth)</div>
+                    </div>
+                  </label>
+
+                  <label className={`flex items-start gap-2.5 p-2.5 rounded-lg border text-xs cursor-pointer transition ${
+                    purgeOptions.deleteCases ? 'bg-red-950/40 border-red-700 text-white' : 'bg-slate-950/50 border-slate-800 text-slate-300 hover:border-slate-700'
+                  }`}>
+                    <input
+                      type="checkbox"
+                      checked={purgeOptions.deleteCases}
+                      onChange={(e) => setPurgeOptions(prev => ({ ...prev, deleteCases: e.target.checked }))}
+                      className="mt-0.5 rounded border-slate-700 text-red-600 focus:ring-red-500"
+                    />
+                    <div>
+                      <div className="font-semibold text-white">Dossiers Usagers & Suivis</div>
+                      <div className="text-[10px] text-slate-400">Notes d'évolution, interventions et objectifs</div>
+                    </div>
+                  </label>
+
+                  <label className={`flex items-start gap-2.5 p-2.5 rounded-lg border text-xs cursor-pointer transition ${
+                    purgeOptions.deleteTrainings ? 'bg-red-950/40 border-red-700 text-white' : 'bg-slate-950/50 border-slate-800 text-slate-300 hover:border-slate-700'
+                  }`}>
+                    <input
+                      type="checkbox"
+                      checked={purgeOptions.deleteTrainings}
+                      onChange={(e) => setPurgeOptions(prev => ({ ...prev, deleteTrainings: e.target.checked }))}
+                      className="mt-0.5 rounded border-slate-700 text-red-600 focus:ring-red-500"
+                    />
+                    <div>
+                      <div className="font-semibold text-white">Formations & Séances</div>
+                      <div className="text-[10px] text-slate-400">Inscriptions, présences et certificats</div>
+                    </div>
+                  </label>
+
+                  <label className={`flex items-start gap-2.5 p-2.5 rounded-lg border text-xs cursor-pointer transition ${
+                    purgeOptions.deleteProjects ? 'bg-red-950/40 border-red-700 text-white' : 'bg-slate-950/50 border-slate-800 text-slate-300 hover:border-slate-700'
+                  }`}>
+                    <input
+                      type="checkbox"
+                      checked={purgeOptions.deleteProjects}
+                      onChange={(e) => setPurgeOptions(prev => ({ ...prev, deleteProjects: e.target.checked }))}
+                      className="mt-0.5 rounded border-slate-700 text-red-600 focus:ring-red-500"
+                    />
+                    <div>
+                      <div className="font-semibold text-white">Projets, Budgets & Subventions</div>
+                      <div className="text-[10px] text-slate-400">Bailleurs, livrables, dépenses et tâches</div>
+                    </div>
+                  </label>
+
+                  <label className={`flex items-start gap-2.5 p-2.5 rounded-lg border text-xs cursor-pointer transition ${
+                    purgeOptions.deleteDonations ? 'bg-red-950/40 border-red-700 text-white' : 'bg-slate-950/50 border-slate-800 text-slate-300 hover:border-slate-700'
+                  }`}>
+                    <input
+                      type="checkbox"
+                      checked={purgeOptions.deleteDonations}
+                      onChange={(e) => setPurgeOptions(prev => ({ ...prev, deleteDonations: e.target.checked }))}
+                      className="mt-0.5 rounded border-slate-700 text-red-600 focus:ring-red-500"
+                    />
+                    <div>
+                      <div className="font-semibold text-white">Dons & Donateurs</div>
+                      <div className="text-[10px] text-slate-400">Campagnes de financement et reçus fiscaux</div>
+                    </div>
+                  </label>
+
+                  <label className={`flex items-start gap-2.5 p-2.5 rounded-lg border text-xs cursor-pointer transition ${
+                    purgeOptions.deleteTimesheets ? 'bg-red-950/40 border-red-700 text-white' : 'bg-slate-950/50 border-slate-800 text-slate-300 hover:border-slate-700'
+                  }`}>
+                    <input
+                      type="checkbox"
+                      checked={purgeOptions.deleteTimesheets}
+                      onChange={(e) => setPurgeOptions(prev => ({ ...prev, deleteTimesheets: e.target.checked }))}
+                      className="mt-0.5 rounded border-slate-700 text-red-600 focus:ring-red-500"
+                    />
+                    <div>
+                      <div className="font-semibold text-white">Feuilles de temps & RH</div>
+                      <div className="text-[10px] text-slate-400">Entrées d'heures et profils RH employés</div>
+                    </div>
+                  </label>
+
+                  <label className={`flex items-start gap-2.5 p-2.5 rounded-lg border text-xs cursor-pointer transition ${
+                    purgeOptions.deleteDocuments ? 'bg-red-950/40 border-red-700 text-white' : 'bg-slate-950/50 border-slate-800 text-slate-300 hover:border-slate-700'
+                  }`}>
+                    <input
+                      type="checkbox"
+                      checked={purgeOptions.deleteDocuments}
+                      onChange={(e) => setPurgeOptions(prev => ({ ...prev, deleteDocuments: e.target.checked }))}
+                      className="mt-0.5 rounded border-slate-700 text-red-600 focus:ring-red-500"
+                    />
+                    <div>
+                      <div className="font-semibold text-white">Documents & GED</div>
+                      <div className="text-[10px] text-slate-400">Fichiers et pièces jointes rattachés</div>
+                    </div>
+                  </label>
+
+                  <label className={`flex items-start gap-2.5 p-2.5 rounded-lg border text-xs cursor-pointer transition ${
+                    purgeOptions.deleteAuditLogs ? 'bg-red-950/40 border-red-700 text-white' : 'bg-slate-950/50 border-slate-800 text-slate-300 hover:border-slate-700'
+                  }`}>
+                    <input
+                      type="checkbox"
+                      checked={purgeOptions.deleteAuditLogs}
+                      onChange={(e) => setPurgeOptions(prev => ({ ...prev, deleteAuditLogs: e.target.checked }))}
+                      className="mt-0.5 rounded border-slate-700 text-red-600 focus:ring-red-500"
+                    />
+                    <div>
+                      <div className="font-semibold text-white">Journaux d’audit</div>
+                      <div className="text-[10px] text-slate-400">Historique d'audit des actions de ce tenant</div>
+                    </div>
+                  </label>
+
+                  <label className={`flex items-start gap-2.5 p-2.5 rounded-lg border text-xs cursor-pointer transition col-span-1 sm:col-span-2 ${
+                    purgeOptions.deleteTenantEntirely ? 'bg-red-950/70 border-red-500 text-white' : 'bg-slate-950/80 border-red-950 text-red-300 hover:border-red-800'
+                  }`}>
+                    <input
+                      type="checkbox"
+                      checked={purgeOptions.deleteTenantEntirely}
+                      onChange={(e) => setPurgeOptions(prev => ({ ...prev, deleteTenantEntirely: e.target.checked }))}
+                      className="mt-0.5 rounded border-red-700 text-red-600 focus:ring-red-500"
+                    />
+                    <div>
+                      <div className="font-bold text-red-400 flex items-center gap-1.5">
+                        <AlertTriangle className="h-3.5 w-3.5" />
+                        Supprimer également le compte client (Tenant Registry)
+                      </div>
+                      <div className="text-[11px] text-slate-400">Cochez cette option si vous souhaitez détruire complètement le tenant et fermer l'accès à l'organisation.</div>
+                    </div>
+                  </label>
+                </div>
+
+                <div className="pt-2 border-t border-slate-800">
+                  <label className="text-xs font-semibold text-slate-300 block mb-1">
+                    Confirmation de sécurité requise :
+                  </label>
+                  <p className="text-[11px] text-slate-400 mb-2">
+                    Veuillez taper <span className="font-mono text-red-400 font-bold bg-slate-950 px-1 py-0.5 rounded">PURGER {currentSelectedTenant.slug}</span> pour confirmer :
+                  </p>
+                  <Input
+                    placeholder={`PURGER ${currentSelectedTenant.slug}`}
+                    value={purgeConfirmationText}
+                    onChange={(e) => setPurgeConfirmationText(e.target.value)}
+                    className="bg-slate-950 border-slate-700 text-xs text-white"
+                  />
+                </div>
+              </div>
+
+              <div className="flex justify-end gap-2 pt-3 border-t border-slate-800">
+                <Button variant="outline" onClick={() => setPurgeModalOpen(false)} className="text-xs border-slate-700">
+                  Annuler
+                </Button>
+                <Button
+                  className="bg-red-600 hover:bg-red-700 text-white text-xs font-semibold"
+                  disabled={
+                    purgeConfirmationText !== `PURGER ${currentSelectedTenant.slug}` ||
+                    purgeTenantSelectiveMutation.isPending ||
+                    !Object.values(purgeOptions).some(Boolean)
+                  }
+                  onClick={() => {
+                    if (selectedTenantId) {
+                      purgeTenantSelectiveMutation.mutate({
+                        id: selectedTenantId,
+                        options: purgeOptions,
+                      });
+                    }
+                  }}
+                >
+                  <Trash2 className="h-3.5 w-3.5 mr-1" />
+                  {purgeTenantSelectiveMutation.isPending ? 'Purge en cours...' : 'Exécuter la purge'}
+                </Button>
+              </div>
             </div>
           </div>
         )}

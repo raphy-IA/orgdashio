@@ -60,3 +60,18 @@ export const CreateSecurityIncidentSchema = z.object({
 });
 
 export type CreateSecurityIncidentInput = z.infer<typeof CreateSecurityIncidentSchema>;
+
+export const SelectivePurgeSchema = z.object({
+  deleteBeneficiaries: z.boolean().default(false),
+  deleteStaff: z.boolean().default(false),
+  deleteCases: z.boolean().default(false),
+  deleteTrainings: z.boolean().default(false),
+  deleteProjects: z.boolean().default(false),
+  deleteDonations: z.boolean().default(false),
+  deleteTimesheets: z.boolean().default(false),
+  deleteDocuments: z.boolean().default(false),
+  deleteAuditLogs: z.boolean().default(false),
+  deleteTenantEntirely: z.boolean().default(false),
+});
+
+export type SelectivePurgeInput = z.infer<typeof SelectivePurgeSchema>;

@@ -79,6 +79,11 @@ export class PlatformController {
     return this.platformService.purgeTenant(id, req.user?.id);
   }
 
+  @Post('tenants/:id/purge-selective')
+  async purgeTenantSelective(@Param('id') id: string, @Body() body: any, @Req() req: any) {
+    return this.platformService.purgeTenantSelective(id, body, req.user?.id);
+  }
+
   // ==========================================
   // Pilier 3 : Feature Flags & Entitlements
   // ==========================================
