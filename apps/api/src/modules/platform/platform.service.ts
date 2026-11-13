@@ -385,8 +385,8 @@ export class PlatformService {
       .where(and(eq(membership.tenantId, tenantId), eq(membership.userId, userId)));
     if (!mem) throw new NotFoundException('Adhésion au tenant non trouvée');
 
-    // 1. Update userAccount fields
-    const userUpdates: any = { updatedAt: new Date() };
+    // 1. Update userAccount fields if any user field changed
+    const userUpdates: any = {};
     if (input.firstName !== undefined) userUpdates.firstName = input.firstName || null;
     if (input.lastName !== undefined) userUpdates.lastName = input.lastName || null;
     if (input.email !== undefined) userUpdates.email = input.email.toLowerCase().trim();
@@ -400,11 +400,16 @@ export class PlatformService {
         .where(eq(membership.id, mem.id));
     }
 
-    const [updatedUser] = await this.db
-      .update(userAccount)
-      .set(userUpdates)
-      .where(eq(userAccount.id, userId))
-      .returning();
+    let updatedUser: any = user;
+    if (Object.keys(userUpdates).length > 0) {
+      userUpdates.updatedAt = new Date();
+      const [u] = await this.db
+        .update(userAccount)
+        .set(userUpdates)
+        .where(eq(userAccount.id, userId))
+        .returning();
+      if (u) updatedUser = u;
+    }
 
     // 2. Reset password if provided (support newPassword or password)
     const rawPassword = input.password || input.newPassword;

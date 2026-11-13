@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useNavigate, Link } from 'react-router-dom';
+import { useQueryClient } from '@tanstack/react-query';
 import { Button, Input } from '@orgdashio/ui';
 
 import { useAuth } from './AuthContext';
@@ -8,6 +9,7 @@ import { useAuth } from './AuthContext';
 export function LoginScreen() {
   const { t, i18n } = useTranslation();
   const navigate = useNavigate();
+  const queryClient = useQueryClient();
   const { refetchAuth } = useAuth();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -38,12 +40,14 @@ export function LoginScreen() {
         throw new Error(data?.message || 'Identifiants invalides');
       }
 
+      // Reset query cache and immediately sync fresh auth data
+      queryClient.removeQueries({ queryKey: ['authMe'] });
       await refetchAuth();
 
       if (data?.user?.isPlatformAdmin) {
-        navigate('/platform/dashboard');
+        navigate('/platform/dashboard', { replace: true });
       } else {
-        navigate('/dashboard');
+        navigate('/dashboard', { replace: true });
       }
     } catch (err: any) {
       setError(err.message);

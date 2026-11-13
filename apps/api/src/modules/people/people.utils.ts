@@ -30,7 +30,7 @@ export function calculateDuplicateScore(
 }
 
 export function isServiceDeliveryAllowed(consentRecord: { status: string; withdrawnAt?: Date | null } | null): boolean {
-  if (!consentRecord) return true; // Allow initial or verbal intake unless explicitly withdrawn
+  if (!consentRecord) return false; // Consent must be explicitly present and granted
   if (consentRecord.status === 'withdrawn' || consentRecord.withdrawnAt) return false;
   return consentRecord.status === 'given' || consentRecord.status === 'granted';
 }

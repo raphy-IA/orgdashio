@@ -7,6 +7,8 @@ export const RegisterTenantSchema = z.object({
     .max(100),
   adminEmail: z
     .string()
+    .trim()
+    .toLowerCase()
     .email('Adresse courriel invalide'),
   adminFirstName: z.string().max(50).optional().nullable(),
   adminLastName: z.string().max(50).optional().nullable(),
@@ -20,7 +22,7 @@ export const RegisterTenantSchema = z.object({
 export type RegisterTenantInput = z.infer<typeof RegisterTenantSchema>;
 
 export const LoginSchema = z.object({
-  email: z.string().email('Adresse courriel invalide'),
+  email: z.string().trim().toLowerCase().email('Adresse courriel invalide'),
   password: z.string().min(1, 'Mot de passe requis'),
 });
 

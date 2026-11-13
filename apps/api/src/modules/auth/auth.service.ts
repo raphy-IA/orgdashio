@@ -272,7 +272,18 @@ export class AuthService {
       return null;
     }
 
-    return session;
+    const [sessionUser] = await this.db
+      .select({ isPlatformAdmin: userAccount.isPlatformAdmin })
+      .from(userAccount)
+      .where(eq(userAccount.id, session.userId));
+
+    return {
+      id: session.id,
+      userId: session.userId,
+      tenantId: session.tenantId,
+      expiresAt: session.expiresAt,
+      isPlatformAdmin: sessionUser ? !!sessionUser.isPlatformAdmin : false,
+    };
   }
 
   async getMe(sessionToken: string) {
