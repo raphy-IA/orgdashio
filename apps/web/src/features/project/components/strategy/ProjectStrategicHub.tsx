@@ -5,13 +5,20 @@ import {
   HandCoins,
   ShieldCheck,
   Sparkles,
+  HeartHandshake,
+  Building2,
+  Users,
+  Plus,
+  ChevronRight,
 } from 'lucide-react';
+import { Button } from '@orgdashio/ui';
+import { useNavigate } from 'react-router-dom';
 import { ProjectCharterView } from './ProjectCharterView';
 import { ProjectLogframeView } from './ProjectLogframeView';
 import { ProjectFundingView } from './ProjectFundingView';
 import { ProjectRaciGovernanceView } from './ProjectRaciGovernanceView';
 
-export type StrategySubTab = 'charter' | 'logframe' | 'funding' | 'team';
+export type StrategySubTab = 'charter' | 'logframe' | 'funding' | 'team' | 'beneficiaries';
 
 interface ProjectStrategicHubProps {
   project: any;
@@ -21,6 +28,7 @@ interface ProjectStrategicHubProps {
   resultNodes: any[];
   raci: any[];
   orgPeople: any[];
+  serviceDeliveries?: any[];
   initialSubTab?: StrategySubTab;
   onUpdateProject?: (updates: any) => Promise<void>;
   onAddResultNode: (node: any) => Promise<void>;
@@ -32,6 +40,7 @@ interface ProjectStrategicHubProps {
   onSetRaciRole: (planItemId: string, projectMemberId: string, raciRole: 'R' | 'A' | 'C' | 'I' | null) => Promise<void>;
   onSelectTask?: (task: any) => void;
   onNavigateTab?: (tab: string, subTab?: string) => void;
+  onOpenAddBeneficiary?: () => void;
 }
 
 export function ProjectStrategicHub({
@@ -42,6 +51,7 @@ export function ProjectStrategicHub({
   resultNodes,
   raci,
   orgPeople,
+  serviceDeliveries = [],
   initialSubTab = 'charter',
   onUpdateProject,
   onAddResultNode,
@@ -53,7 +63,9 @@ export function ProjectStrategicHub({
   onSetRaciRole,
   onSelectTask,
   onNavigateTab,
+  onOpenAddBeneficiary,
 }: ProjectStrategicHubProps) {
+  const navigate = useNavigate();
   const [activeSubTab, setActiveSubTab] = useState<StrategySubTab>(initialSubTab);
 
   // Quick summary badges
@@ -92,6 +104,14 @@ export function ProjectStrategicHub({
       count: members?.length || 0,
       badge: `${members?.length || 0}`,
       badgeCls: 'bg-purple-500/20 text-purple-300 border-purple-400/30',
+    },
+    {
+      id: 'beneficiaries' as const,
+      label: 'Bénéficiaires & Cibles',
+      icon: HeartHandshake,
+      count: serviceDeliveries?.length || 0,
+      badge: `${serviceDeliveries?.length || 0}`,
+      badgeCls: 'bg-pink-500/20 text-pink-300 border-pink-400/30',
     },
   ];
 
@@ -217,6 +237,108 @@ export function ProjectStrategicHub({
             onRemoveMember={onRemoveMember}
             onSetRaciRole={onSetRaciRole}
           />
+        )}
+
+        {activeSubTab === 'beneficiaries' && (
+          <div className="space-y-6">
+            <div className="rounded-xl border bg-white p-6 shadow-sm">
+              <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 border-b pb-4">
+                <div>
+                  <h2 className="text-lg font-bold text-slate-900 flex items-center gap-2">
+                    <HeartHandshake className="h-5 w-5 text-indigo-600" />
+                    Bénéficiaires & Cibles associées au projet
+                  </h2>
+                  <p className="text-xs text-slate-500 mt-1">
+                    Liste des personnes physiques, ménages et villages ayant bénéficié des prestations de ce projet.
+                  </p>
+                </div>
+                <Button
+                  size="sm"
+                  onClick={() => {
+                    if (onOpenAddBeneficiary) onOpenAddBeneficiary();
+                  }}
+                >
+                  <Plus className="mr-2 h-4 w-4" />
+                  + Affecter bénéficiaire
+                </Button>
+              </div>
+
+              {serviceDeliveries.length === 0 ? (
+                <div className="py-12 text-center text-slate-500 space-y-2">
+                  <HeartHandshake className="mx-auto h-12 w-12 text-slate-300" />
+                  <p className="font-semibold text-slate-700">Aucune distribution ni bénéficiaire encore consigné pour ce projet</p>
+                  <p className="text-xs text-slate-400 max-w-md mx-auto">
+                    Pour associer un bénéficiaire (individu ou village), cliquez sur <strong>« + Affecter bénéficiaire »</strong> ci-dessus.
+                  </p>
+                  <div className="pt-2">
+                    <Button
+                      size="sm"
+                      onClick={() => {
+                        if (onOpenAddBeneficiary) onOpenAddBeneficiary();
+                      }}
+                    >
+                      <Plus className="mr-2 h-4 w-4" />
+                      + Affecter bénéficiaire
+                    </Button>
+                  </div>
+                </div>
+              ) : (
+                <div className="mt-4 overflow-x-auto">
+                  <table className="w-full text-left text-sm text-slate-600">
+                    <thead className="bg-slate-50 text-xs uppercase text-slate-500">
+                      <tr>
+                        <th className="px-6 py-3">Bénéficiaire</th>
+                        <th className="px-6 py-3">Type</th>
+                        <th className="px-6 py-3">Prestation / Aide reçue</th>
+                        <th className="px-6 py-3">Date</th>
+                        <th className="px-6 py-3">Notes & Quantités</th>
+                        <th className="px-6 py-3 text-right">Fiche</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y">
+                      {serviceDeliveries.map((s: any) => {
+                        const isOrg = s.partyKind === 'organization';
+                        const name = isOrg ? (s.lastName || s.firstName) : `${s.firstName || ''} ${s.lastName || ''}`.trim();
+                        return (
+                          <tr key={s.id} className="hover:bg-slate-50">
+                            <td className="px-6 py-4 font-semibold text-slate-900">
+                              {name || 'Bénéficiaire'}
+                            </td>
+                            <td className="px-6 py-4">
+                              {isOrg ? (
+                                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs font-semibold bg-amber-100 text-amber-800 border border-amber-200">
+                                  <Building2 className="h-3 w-3" /> Village / Entité
+                                </span>
+                              ) : (
+                                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs font-semibold bg-indigo-50 text-indigo-700">
+                                  <Users className="h-3 w-3" /> Individu
+                                </span>
+                              )}
+                            </td>
+                            <td className="px-6 py-4 font-medium text-slate-800">
+                              {s.serviceType}
+                            </td>
+                            <td className="px-6 py-4 text-xs text-slate-500">
+                              {s.deliveredAt ? new Date(s.deliveredAt).toLocaleDateString() : '—'}
+                            </td>
+                            <td className="px-6 py-4 text-xs text-slate-600">
+                              {s.notes || '—'}
+                            </td>
+                            <td className="px-6 py-4 text-right">
+                              <Button variant="ghost" size="sm" onClick={() => navigate(`/people/${s.partyId}`)}>
+                                Voir fiche
+                                <ChevronRight className="ml-1 h-3 w-3" />
+                              </Button>
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </div>
+          </div>
         )}
       </div>
     </div>

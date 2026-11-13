@@ -50,6 +50,8 @@ import {
   Calculator,
   Upload,
   Download,
+  Building2,
+  HeartHandshake,
 } from 'lucide-react';
 import { Navbar } from '../../components/Navbar';
 import { PertNetworkDiagram } from './components/PertNetworkDiagram';
@@ -59,7 +61,7 @@ import { BudgetPlanningView } from './components/BudgetPlanningView';
 import { TaskExecutionHub } from './components/TaskExecutionHub';
 import { ProjectMonitoringHub } from './components/ProjectMonitoringHub';
 import { ProjectOverviewView } from './components/ProjectOverviewView';
-import { ProjectStrategicHub } from './components/strategy/ProjectStrategicHub';
+import { ProjectStrategicHub, StrategySubTab } from './components/strategy/ProjectStrategicHub';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 type TabKey = 'overview' | 'strategy' | 'planning' | 'execution' | 'monitoring';
@@ -398,7 +400,7 @@ export function ProjectDetailScreen() {
   const [activeTab, setActiveTab] = useState<TabKey>('overview');
 
   // Sub-tabs for 4 Lifecycle Pillars
-  const [strategySubTab, setStrategySubTab] = useState<'logframe' | 'funding' | 'team'>('logframe');
+  const [strategySubTab, setStrategySubTab] = useState<StrategySubTab>('logframe');
   const [planningSubTab, setPlanningSubTab] = useState<'wbs' | 'gantt' | 'pert' | 'budget_plan'>('wbs');
   const [executionSubTab, setExecutionSubTab] = useState<'tasks' | 'expenses' | 'deliverables'>('tasks');
   const [monitoringSubTab, setMonitoringSubTab] = useState<'evm' | 'raid' | 'health'>('evm');
@@ -485,6 +487,14 @@ export function ProjectDetailScreen() {
   // RACI Matrix Filters & View
   const [raciFilterType, setRaciFilterType] = useState<string>('all');
   const [raciSearch, setRaciSearch] = useState('');
+
+  // Project Beneficiary Delivery modal
+  const [showAddProjectBeneficiaryModal, setShowAddProjectBeneficiaryModal] = useState(false);
+  const [pbPartyId, setPbPartyId] = useState('');
+  const [pbServiceType, setPbServiceType] = useState('Distribution de matériel de propreté');
+  const [pbDeliveredAt, setPbDeliveredAt] = useState(new Date().toISOString().split('T')[0]);
+  const [pbNotes, setPbNotes] = useState('');
+  const [pbError, setPbError] = useState('');
 
   // Task Drawer & Task Details
   const [selectedTask, setSelectedTask] = useState<PlanItem | null>(null);
@@ -606,6 +616,36 @@ export function ProjectDetailScreen() {
   });
 
   // ── Mutations ──
+  const addProjectBeneficiaryDeliveryMutation = useMutation({
+    mutationFn: async (payload: { partyId: string; serviceType: string; deliveredAt: string; notes?: string }) => {
+      const res = await fetch(`/api/v1/people/${payload.partyId}/service-deliveries`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          serviceType: payload.serviceType,
+          projectId: id,
+          deliveredAt: payload.deliveredAt,
+          notes: payload.notes || undefined,
+        }),
+      });
+      if (!res.ok) {
+        const errData = await res.json();
+        throw new Error(errData.message || 'Erreur lors de l’affectation du bénéficiaire');
+      }
+      return res.json();
+    },
+    onSuccess: () => {
+      invalidate();
+      setShowAddProjectBeneficiaryModal(false);
+      setPbPartyId('');
+      setPbNotes('');
+      setPbError('');
+    },
+    onError: (err: any) => {
+      setPbError(err.message);
+    },
+  });
+
   const addResultNode = useMutation({
     mutationFn: async (nodePayload?: { level?: string; title?: string; description?: string | null; parentId?: string | null }) => {
       const payload = nodePayload || {
@@ -1422,6 +1462,7 @@ export function ProjectDetailScreen() {
     raci = [],
     updates = [],
     deliverables = [],
+    serviceDeliveries = [],
   } = data;
 
   // ── Derived stats & Real Progress Rollup ──
@@ -1688,7 +1729,12 @@ export function ProjectDetailScreen() {
             resultNodes={resultNodes}
             raci={raci}
             orgPeople={orgPeople}
+            serviceDeliveries={serviceDeliveries}
             initialSubTab={strategySubTab}
+            onOpenAddBeneficiary={() => {
+              setPbError('');
+              setShowAddProjectBeneficiaryModal(true);
+            }}
             onUpdateProject={async (updates) => {
               await updateProjectMutation.mutateAsync(updates);
             }}
@@ -3864,6 +3910,109 @@ export function ProjectDetailScreen() {
           </div>
         );
       })()}
+
+      {/* Modal: Affecter un bénéficiaire existant à ce projet */}
+      {showAddProjectBeneficiaryModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
+          <div className="w-full max-w-lg rounded-xl bg-white p-6 shadow-2xl space-y-4">
+            <div className="flex items-center justify-between border-b pb-3">
+              <h3 className="text-base font-bold text-slate-900 flex items-center gap-2">
+                <HeartHandshake className="h-5 w-5 text-indigo-600" />
+                Affecter un bénéficiaire à ce projet
+              </h3>
+              <Button variant="ghost" size="sm" onClick={() => setShowAddProjectBeneficiaryModal(false)}>
+                <X className="h-4 w-4" />
+              </Button>
+            </div>
+
+            {pbError && <div className="rounded bg-red-50 p-3 text-sm text-red-700">{pbError}</div>}
+
+            <form
+              onSubmit={(e) => {
+                e.preventDefault();
+                if (!pbPartyId) {
+                  setPbError('Veuillez sélectionner un bénéficiaire.');
+                  return;
+                }
+                addProjectBeneficiaryDeliveryMutation.mutate({
+                  partyId: pbPartyId,
+                  serviceType: pbServiceType,
+                  deliveredAt: pbDeliveredAt,
+                  notes: pbNotes,
+                });
+              }}
+              className="space-y-4"
+            >
+              <div>
+                <label className="mb-1 block text-xs font-bold text-slate-700">Sélectionner le bénéficiaire existant *</label>
+                <select
+                  value={pbPartyId}
+                  onChange={(e) => setPbPartyId(e.target.value)}
+                  className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm"
+                  required
+                >
+                  <option value="">— Choisir dans l'annuaire ({orgPeople.filter((p: any) => p.profile !== null || p.staff === null).length} disponibles) —</option>
+                  {orgPeople
+                    .filter((p: any) => p.profile !== null || p.staff === null)
+                    .map((p: any) => {
+                      const isOrg = p.kind === 'organization';
+                      const name = isOrg ? (p.lastName || p.firstName) : `${p.firstName || ''} ${p.lastName || ''}`.trim();
+                      const typeLabel = isOrg ? 'Village / Entité' : 'Individu';
+                      return (
+                        <option key={p.id} value={p.id}>
+                          [{typeLabel}] {name} {p.email ? `(${p.email})` : ''}
+                        </option>
+                      );
+                    })}
+                </select>
+                <div className="text-[11px] text-slate-400 mt-1">
+                  Le bénéficiaire n'est pas encore dans la liste ? <button type="button" onClick={() => navigate('/people')} className="text-indigo-600 underline font-medium">L'enregistrer dans l'annuaire</button>
+                </div>
+              </div>
+
+              <div>
+                <label className="mb-1 block text-xs font-bold text-slate-700">Prestation / Aide reçue *</label>
+                <Input
+                  value={pbServiceType}
+                  onChange={(e) => setPbServiceType(e.target.value)}
+                  placeholder="Ex: Distribution kits propreté, Formation, Matériel..."
+                  required
+                />
+              </div>
+
+              <div>
+                <label className="mb-1 block text-xs font-bold text-slate-700">Date de distribution / prestation</label>
+                <Input
+                  type="date"
+                  value={pbDeliveredAt}
+                  onChange={(e) => setPbDeliveredAt(e.target.value)}
+                  required
+                />
+              </div>
+
+              <div>
+                <label className="mb-1 block text-xs font-bold text-slate-700">Notes & Quantités (Optionnel)</label>
+                <textarea
+                  value={pbNotes}
+                  onChange={(e) => setPbNotes(e.target.value)}
+                  placeholder="Ex: 25 kits complets remis au chef de village..."
+                  className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm"
+                  rows={3}
+                />
+              </div>
+
+              <div className="flex justify-end gap-2 pt-3 border-t">
+                <Button type="button" variant="ghost" size="sm" onClick={() => setShowAddProjectBeneficiaryModal(false)}>
+                  Annuler
+                </Button>
+                <Button type="submit" size="sm" disabled={addProjectBeneficiaryDeliveryMutation.isPending || !pbPartyId}>
+                  {addProjectBeneficiaryDeliveryMutation.isPending ? 'Affectation...' : 'Confirmer l’affectation'}
+                </Button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

@@ -15,6 +15,7 @@ import {
   role,
   consentRecord,
   serviceDelivery,
+  project,
   CreatePersonInput,
   CreateStaffInput,
   UpdateStaffInput,
@@ -93,10 +94,54 @@ export class PeopleService {
         })
       );
 
+      // Fetch all service deliveries joined with project names to map beneficiary project associations
+      const allDeliveries = await tx
+        .select({
+          id: serviceDelivery.id,
+          partyId: serviceDelivery.partyId,
+          serviceType: serviceDelivery.serviceType,
+          projectId: serviceDelivery.projectId,
+          projectName: project.name,
+          projectCode: project.code,
+          deliveredAt: serviceDelivery.deliveredAt,
+          notes: serviceDelivery.notes,
+        })
+        .from(serviceDelivery)
+        .leftJoin(project, eq(serviceDelivery.projectId, project.id))
+        .where(eq(serviceDelivery.tenantId, tenantId));
+
+      const deliveryMap = new Map<string, any[]>();
+      for (const del of allDeliveries) {
+        if (!deliveryMap.has(del.partyId)) {
+          deliveryMap.set(del.partyId, []);
+        }
+        deliveryMap.get(del.partyId)!.push(del);
+      }
+
+      // Fetch consents to know compliance status
+      const allConsents = await tx
+        .select({
+          partyId: consentRecord.partyId,
+          status: consentRecord.status,
+          purposeCode: consentRecord.purposeCode,
+        })
+        .from(consentRecord)
+        .where(eq(consentRecord.tenantId, tenantId));
+
+      const consentMap = new Map<string, any[]>();
+      for (const c of allConsents) {
+        if (!consentMap.has(c.partyId)) {
+          consentMap.set(c.partyId, []);
+        }
+        consentMap.get(c.partyId)!.push(c);
+      }
+
       return parties.map((p: any) => ({
         ...p,
         profile: profileMap.get(p.id) || null,
         staff: staffMap.get(p.id) || null,
+        serviceDeliveries: deliveryMap.get(p.id) || [],
+        consents: consentMap.get(p.id) || [],
       }));
     });
   }
@@ -631,12 +676,16 @@ export class PeopleService {
 
   async createPerson(tenantId: string, input: CreatePersonInput) {
     return withTenantContext(this.db, tenantId, async (tx) => {
+      const isCollective = input.beneficiaryType && input.beneficiaryType !== 'individual';
+      const effectiveFirstName = isCollective ? null : (input.firstName || null);
+      const effectiveLastName = isCollective ? (input.name || input.lastName || 'Entité') : (input.lastName || '');
+
       const existingParties = await tx.select().from(party);
       const duplicates = existingParties
         .map((p: any) => ({
           party: p,
           score: calculateDuplicateScore(
-            { firstName: input.firstName, lastName: input.lastName, email: input.email },
+            { firstName: effectiveFirstName || '', lastName: effectiveLastName, email: input.email },
             { firstName: p.firstName || '', lastName: p.lastName || '', email: p.email || '' }
           ),
         }))
@@ -646,22 +695,28 @@ export class PeopleService {
         .insert(party)
         .values({
           tenantId,
-          kind: 'person',
-          firstName: input.firstName,
-          lastName: input.lastName,
-          email: input.email,
-          phone: input.phone,
+          kind: isCollective ? 'organization' : 'person',
+          firstName: effectiveFirstName,
+          lastName: effectiveLastName,
+          email: input.email ? input.email.toLowerCase().trim() : null,
+          phone: input.phone || null,
         })
         .returning();
+
+      const mergedCustomFields = {
+        beneficiaryType: input.beneficiaryType || 'individual',
+        ...(input.customFields || {}),
+      };
 
       const [profile] = await tx
         .insert(beneficiaryProfile)
         .values({
           tenantId,
           partyId: newParty.id,
-          birthDate: input.birthDate,
-          genderCode: input.genderCode,
-          preferredLang: input.preferredLang,
+          birthDate: input.birthDate || null,
+          genderCode: input.genderCode || null,
+          preferredLang: input.preferredLang || 'fr',
+          customFields: mergedCustomFields,
         })
         .returning();
 
@@ -675,16 +730,16 @@ export class PeopleService {
 
   async recordConsent(tenantId: string, partyId: string, input: RecordConsentInput) {
     return withTenantContext(this.db, tenantId, async (tx) => {
+      const statusValue = input.status === 'given' ? 'granted' : input.status;
       const [record] = await tx
         .insert(consentRecord)
         .values({
           tenantId,
           partyId,
-          purposeId: input.purposeId,
-          version: input.version,
-          status: input.status as any,
-          mode: input.mode,
-          withdrawnAt: input.status === 'withdrawn' ? new Date() : null,
+          purposeCode: input.purposeCode || 'loi_25_general',
+          version: input.version || '1.0',
+          status: statusValue as any,
+          withdrawnAt: statusValue === 'withdrawn' ? new Date() : null,
         })
         .returning();
       return record;
@@ -694,10 +749,10 @@ export class PeopleService {
   async addServiceDelivery(tenantId: string, partyId: string, providerPartyId: string, input: AddServiceDeliveryInput) {
     return withTenantContext(this.db, tenantId, async (tx) => {
       const consents = await tx.select().from(consentRecord).where(eq(consentRecord.partyId, partyId));
-      const activeConsent = consents.find((c: any) => c.status === 'given' && !c.withdrawnAt);
+      const withdrawnConsent = consents.find((c: any) => c.status === 'withdrawn' || c.withdrawnAt);
 
-      if (!isServiceDeliveryAllowed(activeConsent || null)) {
-        throw new BadRequestException('Consentement obligatoire non accordé ou retiré (Loi 25)');
+      if (withdrawnConsent) {
+        throw new BadRequestException('Consentement obligatoire explicitement retiré (Loi 25)');
       }
 
       const [res] = await tx
@@ -705,11 +760,11 @@ export class PeopleService {
         .values({
           tenantId,
           partyId,
-          serviceTypeId: input.serviceTypeId,
-          projectId: input.projectId,
-          providerPartyId,
+          serviceType: input.serviceType,
+          projectId: input.projectId || null,
+          deliveredByUserId: providerPartyId,
           deliveredAt: input.deliveredAt ? new Date(input.deliveredAt) : new Date(),
-          notes: input.notes,
+          notes: input.notes || null,
         })
         .returning();
       return res;

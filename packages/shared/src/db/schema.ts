@@ -580,6 +580,7 @@ export const serviceDelivery = pgTable(
     partyId: uuid('party_id').notNull(),
     deliveredByUserId: uuid('delivered_by_user_id').notNull().references(() => userAccount.id),
     serviceType: text('service_type').notNull(),
+    projectId: uuid('project_id').references(() => project.id, { onDelete: 'set null' }),
     deliveredAt: timestamp('delivered_at', { withTimezone: true }).notNull().defaultNow(),
     notes: text('notes'),
   },

@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useQuery } from '@tanstack/react-query';
 import { Button, Badge } from '@orgdashio/ui';
@@ -15,6 +15,9 @@ import {
   Download,
   Building2,
   Layers,
+  FolderKanban,
+  FileCheck2,
+  Filter,
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { Navbar } from '../../components/Navbar';
@@ -22,6 +25,9 @@ import { Navbar } from '../../components/Navbar';
 export function ImpactDashboardScreen() {
   const { t } = useTranslation();
   const navigate = useNavigate();
+  const [projectFilter, setProjectFilter] = useState<string>('all');
+  const [levelFilter, setLevelFilter] = useState<string>('all');
+  const [healthFilter, setHealthFilter] = useState<string>('all');
 
   const { data: dashboard, isLoading } = useQuery({
     queryKey: ['impactDashboard'],
@@ -59,6 +65,13 @@ export function ImpactDashboardScreen() {
     globalDisaggregations = {},
     indicators = [],
   } = dashboard;
+
+  const filteredIndicators = indicators.filter((ind: any) => {
+    if (projectFilter !== 'all' && ind.projectName !== projectFilter) return false;
+    if (levelFilter !== 'all' && ind.level !== levelFilter) return false;
+    if (healthFilter !== 'all' && ind.health !== healthFilter) return false;
+    return true;
+  });
 
   const handleExportCsv = () => {
     window.open('/api/v1/indicators/donor-report?format=csv', '_blank');
@@ -172,6 +185,50 @@ export function ImpactDashboardScreen() {
           </div>
         </div>
 
+        {/* Filter Toolbar & Projects Multi-criteria */}
+        <div className="bg-white rounded-xl border border-slate-200 p-4 shadow-sm">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+            <span className="text-xs font-bold uppercase tracking-wider text-slate-500 flex items-center gap-1.5">
+              <Filter className="w-3.5 h-3.5 text-indigo-600" /> Filtrer le tableau de bord d'impact
+            </span>
+            <div className="flex flex-wrap items-center gap-2">
+              <select
+                value={projectFilter}
+                onChange={(e) => setProjectFilter(e.target.value)}
+                className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-1.5 text-xs font-semibold text-slate-800 focus:bg-white"
+              >
+                <option value="all">Tous les projets</option>
+                {Array.from(new Set(indicators.map((i: any) => i.projectName).filter(Boolean))).map((pName: any) => (
+                  <option key={pName} value={pName}>{pName}</option>
+                ))}
+              </select>
+
+              <select
+                value={levelFilter}
+                onChange={(e) => setLevelFilter(e.target.value)}
+                className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-1.5 text-xs font-semibold text-slate-800 focus:bg-white"
+              >
+                <option value="all">Tous les niveaux (GAR / RBM)</option>
+                <option value="impact">🎯 Impact (Effets à long terme)</option>
+                <option value="outcome">📈 Outcome (Effets intermédiaires)</option>
+                <option value="output">📦 Output (Extrants & Livrables)</option>
+              </select>
+
+              <select
+                value={healthFilter}
+                onChange={(e) => setHealthFilter(e.target.value)}
+                className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-1.5 text-xs font-semibold text-slate-800 focus:bg-white"
+              >
+                <option value="all">Toutes les performances</option>
+                <option value="exceeded">🚀 Objectif dépassé (&gt; 110%)</option>
+                <option value="on_track">✅ En bonne voie (90 - 110%)</option>
+                <option value="warning">⚠️ Vigilance (70 - 89%)</option>
+                <option value="off_track">🛑 En retard (&lt; 70%)</option>
+              </select>
+            </div>
+          </div>
+        </div>
+
         {/* Global Disaggregations Snapshot */}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
           <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm space-y-4">
@@ -240,12 +297,12 @@ export function ImpactDashboardScreen() {
             </Button>
           </div>
 
-          {indicators.length === 0 ? (
-            <p className="text-sm text-slate-400 italic">Aucun indicateur rattaché pour l'instant.</p>
+          {filteredIndicators.length === 0 ? (
+            <p className="text-sm text-slate-400 italic">Aucun indicateur correspondant aux filtres sélectionnés.</p>
           ) : (
             <div className="divide-y divide-slate-100">
-              {indicators.slice(0, 8).map((ind: any) => (
-                <div key={ind.id} className="py-4 flex justify-between items-center">
+              {filteredIndicators.map((ind: any) => (
+                <div key={ind.id} className="py-4 flex justify-between items-center hover:bg-slate-50/50 px-2 rounded-lg transition-colors">
                   <div className="space-y-1">
                     <div className="flex items-center gap-2">
                       <span className="font-mono text-xs font-semibold bg-slate-100 px-2 py-0.5 rounded text-slate-700">
@@ -253,17 +310,27 @@ export function ImpactDashboardScreen() {
                       </span>
                       <Badge variant="secondary">{ind.level}</Badge>
                       {getHealthBadge(ind.health)}
+                      {ind.projectName && (
+                        <span className="text-xs text-indigo-700 bg-indigo-50 px-2 py-0.5 rounded border border-indigo-100 font-medium">
+                          {ind.projectName}
+                        </span>
+                      )}
                     </div>
                     <h4 className="font-medium text-slate-900">{ind.name}</h4>
-                    <p className="text-xs text-slate-500">
-                      Réel : {ind.actualValue} {ind.unit} / Cible : {ind.targetValue} {ind.unit}
+                    {ind.resultNodeTitle && (
+                      <p className="text-xs text-slate-500 italic">
+                        ↳ Objectif RBM : {ind.resultNodeTitle}
+                      </p>
+                    )}
+                    <p className="text-xs text-slate-600 font-medium">
+                      Réel : <strong className="text-slate-900">{ind.actualValue} {ind.unit}</strong> / Cible : <strong className="text-slate-700">{ind.targetValue} {ind.unit}</strong>
                     </p>
                   </div>
                   <div className="text-right space-y-1">
                     <span className="text-sm font-bold text-indigo-600">{ind.progressPct}%</span>
                     <div className="w-32 bg-slate-100 h-2 rounded-full overflow-hidden">
                       <div
-                        className="bg-indigo-600 h-full rounded-full"
+                        className="bg-indigo-600 h-full rounded-full transition-all"
                         style={{ width: `${Math.min(ind.progressPct, 100)}%` }}
                       />
                     </div>

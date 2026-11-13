@@ -30,6 +30,7 @@ import {
   party,
   membership,
   indicator,
+  serviceDelivery,
   CreateProgramInput,
   UpdateProgramInput,
   CreateProjectInput,
@@ -539,6 +540,25 @@ export class ProjectService {
       const updates = allUpdates.filter((u: any) => itemIds.has(u.planItemId));
       const deliverables = allDeliverables.filter((d: any) => itemIds.has(d.planItemId));
 
+      // Fetch deliveries / beneficiaries linked to this project
+      const rawDeliveries = await tx
+        .select({
+          id: serviceDelivery.id,
+          partyId: serviceDelivery.partyId,
+          serviceType: serviceDelivery.serviceType,
+          deliveredAt: serviceDelivery.deliveredAt,
+          notes: serviceDelivery.notes,
+          deliveredByUserId: serviceDelivery.deliveredByUserId,
+          firstName: party.firstName,
+          lastName: party.lastName,
+          partyKind: party.kind,
+          email: party.email,
+          phone: party.phone,
+        })
+        .from(serviceDelivery)
+        .leftJoin(party, eq(serviceDelivery.partyId, party.id))
+        .where(eq(serviceDelivery.projectId, projectId));
+
       return {
         project: proj,
         fundingSources: funding,
@@ -552,6 +572,7 @@ export class ProjectService {
         raci,
         updates,
         deliverables,
+        serviceDeliveries: rawDeliveries,
       };
     });
   }

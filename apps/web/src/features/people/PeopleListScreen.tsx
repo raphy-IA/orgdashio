@@ -23,6 +23,15 @@ import {
   CheckCircle2,
   X,
   Filter,
+  Home,
+  GraduationCap,
+  FolderKanban,
+  Target,
+  FileCheck2,
+  PieChart,
+  Layers,
+  ChevronDown,
+  ExternalLink,
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { Navbar } from '../../components/Navbar';
@@ -91,13 +100,38 @@ export function PeopleListScreen() {
 
   // Beneficiary Modal State
   const [showBeneficiaryModal, setShowBeneficiaryModal] = useState(false);
+  const [benType, setBenType] = useState<'individual' | 'household' | 'community' | 'organization' | 'institution'>('individual');
   const [benFirstName, setBenFirstName] = useState('');
   const [benLastName, setBenLastName] = useState('');
+  const [benEntityName, setBenEntityName] = useState('');
   const [benEmail, setBenEmail] = useState('');
   const [benPhone, setBenPhone] = useState('');
+  const [benBirthDate, setBenBirthDate] = useState('');
+  const [benGender, setBenGender] = useState('');
+  const [benMemberCount, setBenMemberCount] = useState('');
+  const [benChildCount, setBenChildCount] = useState('');
+  const [benLocation, setBenLocation] = useState('');
+  const [benContactPerson, setBenContactPerson] = useState('');
+  const [benSubCategory, setBenSubCategory] = useState('');
   const [benWarnings, setBenWarnings] = useState<any[]>([]);
   const [staffWarnings, setStaffWarnings] = useState<any[]>([]);
   const [error, setError] = useState('');
+
+  // Beneficiary Filters & Grouping State
+  const [benCategoryFilter, setBenCategoryFilter] = useState<string>('all');
+  const [benProjectFilter, setBenProjectFilter] = useState<string>('all');
+  const [benConsentFilter, setBenConsentFilter] = useState<string>('all');
+  const [benGroupingMode, setBenGroupingMode] = useState<'flat' | 'by_project'>('flat');
+
+  // Fetch Projects for filter & project grouping
+  const { data: projects = [] } = useQuery({
+    queryKey: ['projects'],
+    queryFn: async () => {
+      const res = await fetch('/api/v1/projects');
+      if (!res.ok) return [];
+      return res.json();
+    },
+  });
 
   // Fetch People (Includes both staff & beneficiaries)
   const { data: people = [], isLoading } = useQuery({
@@ -270,10 +304,19 @@ export function PeopleListScreen() {
         setBenWarnings(data.warnings);
       } else {
         setShowBeneficiaryModal(false);
+        setBenType('individual');
         setBenFirstName('');
         setBenLastName('');
+        setBenEntityName('');
         setBenEmail('');
         setBenPhone('');
+        setBenBirthDate('');
+        setBenGender('');
+        setBenMemberCount('');
+        setBenChildCount('');
+        setBenLocation('');
+        setBenContactPerson('');
+        setBenSubCategory('');
       }
     },
     onError: (err: any) => {
@@ -359,11 +402,29 @@ export function PeopleListScreen() {
   const handleBeneficiarySubmit = (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
+
+    const isIndiv = benType === 'individual';
+    const customFields: Record<string, any> = {
+      beneficiaryType: benType,
+    };
+
+    if (benMemberCount) customFields.memberCount = parseInt(benMemberCount, 10);
+    if (benChildCount) customFields.childCount = parseInt(benChildCount, 10);
+    if (benLocation) customFields.location = benLocation;
+    if (benContactPerson) customFields.contactPerson = benContactPerson;
+    if (benSubCategory) customFields.subCategory = benSubCategory;
+
     createBeneficiaryMutation.mutate({
-      firstName: benFirstName,
-      lastName: benLastName,
+      kind: isIndiv ? 'person' : 'organization',
+      beneficiaryType: benType,
+      firstName: isIndiv ? benFirstName : undefined,
+      lastName: isIndiv ? benLastName : benEntityName,
+      name: isIndiv ? undefined : benEntityName,
       email: benEmail || undefined,
       phone: benPhone || undefined,
+      birthDate: isIndiv && benBirthDate ? benBirthDate : undefined,
+      genderCode: isIndiv && benGender ? benGender : undefined,
+      customFields,
     });
   };
 
@@ -402,15 +463,105 @@ export function PeopleListScreen() {
   });
 
   const filteredBeneficiaries = beneficiaries.filter((p: any) => {
+    const custom = p.profile?.customFields;
+    const bType = custom?.beneficiaryType || (p.kind === 'organization' ? 'community' : 'individual');
+
+    // 1. Category Filter
+    if (benCategoryFilter !== 'all' && bType !== benCategoryFilter) {
+      return false;
+    }
+
+    // 2. Project Filter
+    const pDeliveries: any[] = p.serviceDeliveries || [];
+    if (benProjectFilter === 'unassigned') {
+      if (pDeliveries.length > 0) return false;
+    } else if (benProjectFilter !== 'all') {
+      const isLinkedToProject = pDeliveries.some((d: any) => d.projectId === benProjectFilter);
+      if (!isLinkedToProject) return false;
+    }
+
+    // 3. Loi 25 Consent Filter
+    const pConsents: any[] = p.consents || [];
+    const hasGrantedConsent = pConsents.some((c: any) => c.status === 'granted');
+    if (benConsentFilter === 'granted' && !hasGrantedConsent) return false;
+    if (benConsentFilter === 'missing' && hasGrantedConsent) return false;
+
+    // 4. Text Search
     if (searchQuery.trim()) {
       const q = searchQuery.toLowerCase();
-      const fullName = `${p.firstName || ''} ${p.lastName || ''}`.toLowerCase();
+      const fullName = (p.kind === 'organization' ? (p.lastName || p.firstName) : `${p.firstName || ''} ${p.lastName || ''}`).toLowerCase();
       const email = (p.email || '').toLowerCase();
       const phone = (p.phone || '').toLowerCase();
-      return fullName.includes(q) || email.includes(q) || phone.includes(q);
+      const location = (custom?.location || '').toLowerCase();
+      const contactPerson = (custom?.contactPerson || '').toLowerCase();
+      return (
+        fullName.includes(q) ||
+        email.includes(q) ||
+        phone.includes(q) ||
+        location.includes(q) ||
+        contactPerson.includes(q)
+      );
     }
     return true;
   });
+
+  // Beneficiary Analytics / KPIs
+  const benStats = (() => {
+    let individualCount = 0;
+    let householdCount = 0;
+    let communityCount = 0;
+    let orgCount = 0;
+    let institutionCount = 0;
+    let totalDirectPersons = 0;
+    let assignedCount = 0;
+    let consentGrantedCount = 0;
+
+    for (const b of beneficiaries) {
+      const custom = b.profile?.customFields;
+      const bType = custom?.beneficiaryType || (b.kind === 'organization' ? 'community' : 'individual');
+      const deliveries = b.serviceDeliveries || [];
+      const consents = b.consents || [];
+
+      if (bType === 'individual') {
+        individualCount++;
+        totalDirectPersons += 1;
+      } else if (bType === 'household') {
+        householdCount++;
+        totalDirectPersons += custom?.memberCount ? Number(custom.memberCount) : 4;
+      } else if (bType === 'community') {
+        communityCount++;
+        totalDirectPersons += custom?.memberCount ? Number(custom.memberCount) : 50;
+      } else if (bType === 'organization') {
+        orgCount++;
+        totalDirectPersons += custom?.memberCount ? Number(custom.memberCount) : 10;
+      } else if (bType === 'institution') {
+        institutionCount++;
+        totalDirectPersons += custom?.memberCount ? Number(custom.memberCount) : 30;
+      }
+
+      if (deliveries.length > 0) {
+        assignedCount++;
+      }
+      if (consents.some((c: any) => c.status === 'granted')) {
+        consentGrantedCount++;
+      }
+    }
+
+    return {
+      totalCount: beneficiaries.length,
+      individualCount,
+      householdCount,
+      communityCount,
+      orgCount,
+      institutionCount,
+      totalDirectPersons,
+      assignedCount,
+      unassignedCount: beneficiaries.length - assignedCount,
+      assignedPct: beneficiaries.length > 0 ? Math.round((assignedCount / beneficiaries.length) * 100) : 0,
+      consentGrantedCount,
+      consentPct: beneficiaries.length > 0 ? Math.round((consentGrantedCount / beneficiaries.length) * 100) : 0,
+    };
+  })();
 
   // KPI stats
   const totalEmployees = staffMembers.filter((s: any) => s.staff?.employmentType === 'employee').length;
@@ -1038,62 +1189,484 @@ export function PeopleListScreen() {
         {/* ═════════════════════════════════════════════════════════════════ */}
         {activeTab === 'beneficiaries' && (
           <div className="space-y-6">
-            <div className="overflow-hidden rounded-xl border bg-white shadow-sm">
-              <div className="flex items-center justify-between border-b bg-slate-50 px-6 py-4">
+            {/* ── 1. TABLEAU DE BORD & INDICATEURS CLÉS (KPIS) ── */}
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
+              <div className="rounded-xl border bg-white p-4 shadow-sm flex items-center justify-between">
                 <div>
-                  <h3 className="font-bold text-slate-800">{t('people.beneficiaries')}</h3>
-                  <p className="text-xs text-slate-500">{t('people.emptyStates.noBeneficiariesDesc')}</p>
+                  <span className="text-xs font-semibold uppercase tracking-wider text-slate-500">
+                    Total Cibles & Bénéficiaires
+                  </span>
+                  <p className="mt-1 text-2xl font-bold text-slate-900">{benStats.totalCount}</p>
+                  <p className="text-[11px] text-slate-400 mt-0.5">
+                    Impact estimé: <strong className="text-indigo-600 font-bold">{benStats.totalDirectPersons}</strong> personnes touchées
+                  </p>
                 </div>
-                <div className="w-64">
+                <div className="h-10 w-10 rounded-xl bg-indigo-50 text-indigo-600 flex items-center justify-center">
+                  <Users className="h-5 w-5" />
+                </div>
+              </div>
+
+              <div className="rounded-xl border bg-white p-4 shadow-sm flex items-center justify-between">
+                <div>
+                  <span className="text-xs font-semibold uppercase tracking-wider text-slate-500">
+                    Affectation aux Projets
+                  </span>
+                  <p className="mt-1 text-2xl font-bold text-emerald-600">{benStats.assignedPct}%</p>
+                  <p className="text-[11px] text-slate-400 mt-0.5">
+                    <strong>{benStats.assignedCount}</strong> rattaché(s) • <strong>{benStats.unassignedCount}</strong> sans projet
+                  </p>
+                </div>
+                <div className="h-10 w-10 rounded-xl bg-emerald-50 text-emerald-600 flex items-center justify-center">
+                  <FolderKanban className="h-5 w-5" />
+                </div>
+              </div>
+
+              <div className="rounded-xl border bg-white p-4 shadow-sm flex items-center justify-between">
+                <div>
+                  <span className="text-xs font-semibold uppercase tracking-wider text-slate-500">
+                    Conformité Loi 25 (Consentement)
+                  </span>
+                  <p className="mt-1 text-2xl font-bold text-sky-600">{benStats.consentPct}%</p>
+                  <p className="text-[11px] text-slate-400 mt-0.5">
+                    <strong>{benStats.consentGrantedCount}</strong> consentements valides
+                  </p>
+                </div>
+                <div className="h-10 w-10 rounded-xl bg-sky-50 text-sky-600 flex items-center justify-center">
+                  <ShieldCheck className="h-5 w-5" />
+                </div>
+              </div>
+
+              <div className="rounded-xl border bg-white p-4 shadow-sm flex items-center justify-between">
+                <div>
+                  <span className="text-xs font-semibold uppercase tracking-wider text-slate-500">
+                    Typologies Cibles
+                  </span>
+                  <div className="mt-1 flex flex-wrap gap-1 text-[11px] font-semibold">
+                    <span className="bg-indigo-50 text-indigo-700 px-1.5 py-0.5 rounded">
+                      {benStats.individualCount} indiv.
+                    </span>
+                    <span className="bg-emerald-50 text-emerald-700 px-1.5 py-0.5 rounded">
+                      {benStats.householdCount} ménages
+                    </span>
+                    <span className="bg-amber-50 text-amber-800 px-1.5 py-0.5 rounded">
+                      {benStats.communityCount} vill.
+                    </span>
+                    <span className="bg-purple-50 text-purple-700 px-1.5 py-0.5 rounded">
+                      {benStats.orgCount + benStats.institutionCount} struct.
+                    </span>
+                  </div>
+                </div>
+                <div className="h-10 w-10 rounded-xl bg-amber-50 text-amber-600 flex items-center justify-center">
+                  <PieChart className="h-5 w-5" />
+                </div>
+              </div>
+            </div>
+
+            {/* ── 2. BARRE D'ORGANISATION, FILTRES & MODE DE VUE ── */}
+            <div className="rounded-xl border bg-white p-4 shadow-sm space-y-3">
+              <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3">
+                {/* Switcher Mode: Vue Regroupée par Projet vs Vue Linéaire */}
+                <div className="inline-flex rounded-lg border border-slate-200 bg-slate-100 p-1 text-xs">
+                  <button
+                    type="button"
+                    onClick={() => setBenGroupingMode('flat')}
+                    className={`flex items-center gap-1.5 rounded-md px-3 py-1.5 font-bold transition ${
+                      benGroupingMode === 'flat'
+                        ? 'bg-white text-indigo-700 shadow-xs'
+                        : 'text-slate-600 hover:text-slate-900'
+                    }`}
+                  >
+                    <Users className="h-3.5 w-3.5" />
+                    Vue Liste globale ({filteredBeneficiaries.length})
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setBenGroupingMode('by_project')}
+                    className={`flex items-center gap-1.5 rounded-md px-3 py-1.5 font-bold transition ${
+                      benGroupingMode === 'by_project'
+                        ? 'bg-white text-indigo-700 shadow-xs'
+                        : 'text-slate-600 hover:text-slate-900'
+                    }`}
+                  >
+                    <FolderKanban className="h-3.5 w-3.5" />
+                    Vue par Projet
+                  </button>
+                </div>
+
+                {/* Champ de recherche */}
+                <div className="w-full md:w-80">
                   <Input
                     value={searchQuery}
                     onChange={(e) => setSearchQuery(e.target.value)}
-                    placeholder={t('people.filters.searchBeneficiaryPlaceholder')}
-                    className="h-8 text-xs bg-white"
+                    placeholder="Rechercher par nom, ville, référent, courriel..."
+                    className="h-9 text-xs bg-white"
                   />
                 </div>
               </div>
 
-              {isLoading ? (
-                <div className="p-6 text-center text-slate-500">{t('people.loading')}</div>
-              ) : filteredBeneficiaries.length === 0 ? (
-                <div className="p-8 text-center text-slate-500">{t('people.emptyStates.noBeneficiaries')}</div>
-              ) : (
-                <table className="w-full text-left text-sm text-slate-600">
-                  <thead className="bg-slate-50 text-xs uppercase text-slate-500">
-                    <tr>
-                      <th className="px-6 py-3">{t('people.fullName')}</th>
-                      <th className="px-6 py-3">{t('people.email')}</th>
-                      <th className="px-6 py-3">{t('people.phone')}</th>
-                      <th className="px-6 py-3">{t('common.status')}</th>
-                      <th className="px-6 py-3 text-right">{t('common.actions')}</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y">
-                    {filteredBeneficiaries.map((p: any) => (
-                      <tr key={p.id} className="hover:bg-slate-50">
-                        <td className="px-6 py-4 font-semibold text-slate-900">
-                          {p.firstName} {p.lastName}
-                        </td>
-                        <td className="px-6 py-4">{p.email || '—'}</td>
-                        <td className="px-6 py-4">{p.phone || '—'}</td>
-                        <td className="px-6 py-4">
-                          <span className="inline-flex items-center rounded-full bg-emerald-100 px-2.5 py-0.5 text-xs font-semibold text-emerald-800">
-                            {t('people.statuses.active')}
-                          </span>
-                        </td>
-                        <td className="px-6 py-4 text-right">
-                          <Button variant="ghost" size="sm" onClick={() => navigate(`/people/${p.id}`)}>
-                            {t('common.viewProfile')}
-                            <ArrowRight className="ml-1 h-3 w-3" />
-                          </Button>
-                        </td>
-                      </tr>
+              {/* Filtres multicritères */}
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 pt-2 border-t border-slate-100">
+                <div>
+                  <label className="text-[11px] font-bold uppercase tracking-wider text-slate-500 block mb-1">
+                    Projet rattaché
+                  </label>
+                  <select
+                    value={benProjectFilter}
+                    onChange={(e) => setBenProjectFilter(e.target.value)}
+                    className="w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-1.5 text-xs font-semibold text-slate-800 focus:bg-white"
+                  >
+                    <option value="all">Tous les projets</option>
+                    <option value="unassigned">⚠️ Non affectés à un projet</option>
+                    {projects.map((proj: any) => (
+                      <option key={proj.id} value={proj.id}>
+                        {proj.code ? `[${proj.code}] ` : ''}{proj.name}
+                      </option>
                     ))}
-                  </tbody>
-                </table>
-              )}
+                  </select>
+                </div>
+
+                <div>
+                  <label className="text-[11px] font-bold uppercase tracking-wider text-slate-500 block mb-1">
+                    Typologie de bénéficiaire
+                  </label>
+                  <select
+                    value={benCategoryFilter}
+                    onChange={(e) => setBenCategoryFilter(e.target.value)}
+                    className="w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-1.5 text-xs font-semibold text-slate-800 focus:bg-white"
+                  >
+                    <option value="all">Toutes les typologies</option>
+                    <option value="individual">👤 Individu (personne physique)</option>
+                    <option value="household">🏡 Ménage / Foyer familial</option>
+                    <option value="community">🏘️ Village / Communauté locale</option>
+                    <option value="organization">🏢 Organisation / Coopérative</option>
+                    <option value="institution">🎓 Établissement / École / Hôpital</option>
+                  </select>
+                </div>
+
+                <div>
+                  <label className="text-[11px] font-bold uppercase tracking-wider text-slate-500 block mb-1">
+                    Consentement Loi 25
+                  </label>
+                  <select
+                    value={benConsentFilter}
+                    onChange={(e) => setBenConsentFilter(e.target.value)}
+                    className="w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-1.5 text-xs font-semibold text-slate-800 focus:bg-white"
+                  >
+                    <option value="all">Tous les statuts de consentement</option>
+                    <option value="granted">✅ Consentement valide accordé</option>
+                    <option value="missing">⏳ En attente / Non consigné</option>
+                  </select>
+                </div>
+              </div>
             </div>
+
+            {/* ── 3. LISTES ET AFFICHAGE DES RÉSULTATS ── */}
+            {isLoading ? (
+              <div className="rounded-xl border bg-white p-12 text-center text-slate-500">
+                {t('people.loading')}
+              </div>
+            ) : filteredBeneficiaries.length === 0 ? (
+              <div className="rounded-xl border border-dashed border-slate-200 bg-white p-12 text-center space-y-3">
+                <Users className="mx-auto h-12 w-12 text-slate-300" />
+                <h3 className="text-base font-bold text-slate-800">Aucun bénéficiaire correspondant aux critères</h3>
+                <p className="text-sm text-slate-500 max-w-md mx-auto">
+                  Modifiez vos filtres ou cliquez sur « + Nouveau Bénéficiaire » pour en ajouter un nouveau.
+                </p>
+              </div>
+            ) : benGroupingMode === 'by_project' ? (
+              /* VUE PAR PROJET */
+              <div className="space-y-6">
+                {(() => {
+                  // Group beneficiaries by project
+                  const projectGroups: Record<string, { project: any; beneficiaries: any[] }> = {};
+                  const unassigned: any[] = [];
+
+                  for (const b of filteredBeneficiaries) {
+                    const deliveries: any[] = b.serviceDeliveries || [];
+                    if (deliveries.length === 0) {
+                      unassigned.push(b);
+                    } else {
+                      const seenProjects = new Set<string>();
+                      for (const d of deliveries) {
+                        if (d.projectId && !seenProjects.has(d.projectId)) {
+                          seenProjects.add(d.projectId);
+                          if (!projectGroups[d.projectId]) {
+                            const pObj = projects.find((p: any) => p.id === d.projectId) || {
+                              id: d.projectId,
+                              name: d.projectName || 'Projet',
+                              code: d.projectCode || '',
+                            };
+                            projectGroups[d.projectId] = { project: pObj, beneficiaries: [] };
+                          }
+                          projectGroups[d.projectId].beneficiaries.push(b);
+                        }
+                      }
+                    }
+                  }
+
+                  const groupEntries = Object.values(projectGroups);
+
+                  return (
+                    <>
+                      {groupEntries.map(({ project: pInfo, beneficiaries: groupBens }) => (
+                        <div key={pInfo.id} className="rounded-xl border bg-white shadow-sm overflow-hidden">
+                          <div className="bg-slate-50 border-b px-6 py-3 flex items-center justify-between">
+                            <div className="flex items-center gap-3">
+                              <span className="font-mono text-xs font-bold px-2 py-0.5 rounded bg-indigo-100 text-indigo-800">
+                                {pInfo.code || 'PROJ'}
+                              </span>
+                              <h3 className="font-bold text-slate-900 text-base">{pInfo.name}</h3>
+                              <span className="text-xs text-slate-500 font-semibold">
+                                ({groupBens.length} bénéficiaire{groupBens.length > 1 ? 's' : ''})
+                              </span>
+                            </div>
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              className="text-xs text-indigo-600 hover:text-indigo-800"
+                              onClick={() => navigate(`/projects/${pInfo.id}`)}
+                            >
+                              Ouvrir le projet
+                              <ExternalLink className="ml-1.5 h-3.5 w-3.5" />
+                            </Button>
+                          </div>
+
+                          <div className="overflow-x-auto">
+                            <table className="w-full text-left text-sm text-slate-600">
+                              <thead className="bg-slate-50/50 text-[11px] uppercase tracking-wider text-slate-500 border-b">
+                                <tr>
+                                  <th className="px-6 py-3">Bénéficiaire / Cible</th>
+                                  <th className="px-6 py-3">Dernière Prestation / Service</th>
+                                  <th className="px-6 py-3">Zone / Localisation</th>
+                                  <th className="px-6 py-3">Loi 25</th>
+                                  <th className="px-6 py-3 text-right">Fiche</th>
+                                </tr>
+                              </thead>
+                              <tbody className="divide-y divide-slate-100">
+                                {groupBens.map((p: any) => {
+                                  const custom = p.profile?.customFields;
+                                  const bType = custom?.beneficiaryType || (p.kind === 'organization' ? 'community' : 'individual');
+                                  const displayName = p.kind === 'organization' ? (p.lastName || p.firstName) : `${p.firstName || ''} ${p.lastName || ''}`.trim();
+                                  const projDeliveries = (p.serviceDeliveries || []).filter((d: any) => d.projectId === pInfo.id);
+                                  const latestDeliv = projDeliveries[projDeliveries.length - 1];
+                                  const hasConsent = (p.consents || []).some((c: any) => c.status === 'granted');
+
+                                  const TYPE_BADGES: Record<string, { label: string; icon: any; color: string }> = {
+                                    individual: { label: 'Individu', icon: Users, color: 'bg-indigo-50 text-indigo-700 border-indigo-200' },
+                                    household: { label: 'Ménage', icon: Home, color: 'bg-emerald-50 text-emerald-800 border-emerald-200' },
+                                    community: { label: 'Village', icon: Building2, color: 'bg-amber-100 text-amber-800 border-amber-200' },
+                                    organization: { label: 'Organisation', icon: Users, color: 'bg-purple-50 text-purple-800 border-purple-200' },
+                                    institution: { label: 'Établissement', icon: GraduationCap, color: 'bg-sky-50 text-sky-800 border-sky-200' },
+                                  };
+                                  const badgeCfg = TYPE_BADGES[bType] || TYPE_BADGES.individual;
+                                  const BadgeIcon = badgeCfg.icon;
+
+                                  return (
+                                    <tr key={p.id} className="hover:bg-slate-50 transition-colors">
+                                      <td className="px-6 py-4 font-semibold text-slate-900">
+                                        <div className="flex items-center gap-2">
+                                          <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs font-semibold border ${badgeCfg.color}`}>
+                                            <BadgeIcon className="h-3 w-3" /> {badgeCfg.label}
+                                          </span>
+                                          <span>{displayName}</span>
+                                        </div>
+                                      </td>
+                                      <td className="px-6 py-4 text-xs">
+                                        {latestDeliv ? (
+                                          <div>
+                                            <span className="font-semibold text-slate-800 block">{latestDeliv.serviceType}</span>
+                                            <span className="text-slate-400">
+                                              {latestDeliv.deliveredAt ? new Date(latestDeliv.deliveredAt).toLocaleDateString() : ''}
+                                              {latestDeliv.notes ? ` • ${latestDeliv.notes}` : ''}
+                                            </span>
+                                          </div>
+                                        ) : (
+                                          <span className="text-slate-400 italic">Associé au projet</span>
+                                        )}
+                                      </td>
+                                      <td className="px-6 py-4 text-xs text-slate-600">
+                                        {custom?.location || '—'}
+                                      </td>
+                                      <td className="px-6 py-4 text-xs">
+                                        {hasConsent ? (
+                                          <span className="inline-flex items-center gap-1 text-emerald-700 bg-emerald-50 border border-emerald-200 px-2 py-0.5 rounded font-semibold text-[11px]">
+                                            <ShieldCheck className="h-3 w-3" /> Conforme
+                                          </span>
+                                        ) : (
+                                          <span className="inline-flex items-center gap-1 text-amber-700 bg-amber-50 border border-amber-200 px-2 py-0.5 rounded font-semibold text-[11px]">
+                                            <ShieldAlert className="h-3 w-3" /> En attente
+                                          </span>
+                                        )}
+                                      </td>
+                                      <td className="px-6 py-4 text-right">
+                                        <Button variant="ghost" size="sm" onClick={() => navigate(`/people/${p.id}`)}>
+                                          Voir fiche
+                                          <ArrowRight className="ml-1 h-3 w-3" />
+                                        </Button>
+                                      </td>
+                                    </tr>
+                                  );
+                                })}
+                              </tbody>
+                            </table>
+                          </div>
+                        </div>
+                      ))}
+
+                      {/* Section Non Affectés */}
+                      {unassigned.length > 0 && (
+                        <div className="rounded-xl border border-dashed border-amber-300 bg-amber-50/40 shadow-sm overflow-hidden">
+                          <div className="bg-amber-100/60 border-b border-amber-200 px-6 py-3 flex items-center justify-between">
+                            <div className="flex items-center gap-2">
+                              <span className="font-bold text-amber-900 text-sm">
+                                ⚠️ Bénéficiaires non affectés à un projet ({unassigned.length})
+                              </span>
+                            </div>
+                            <span className="text-xs text-amber-700">À rattacher via la fiche ou dans l'onglet du projet</span>
+                          </div>
+                          <div className="overflow-x-auto">
+                            <table className="w-full text-left text-sm text-slate-600">
+                              <tbody className="divide-y divide-amber-100">
+                                {unassigned.map((p: any) => {
+                                  const custom = p.profile?.customFields;
+                                  const bType = custom?.beneficiaryType || (p.kind === 'organization' ? 'community' : 'individual');
+                                  const displayName = p.kind === 'organization' ? (p.lastName || p.firstName) : `${p.firstName || ''} ${p.lastName || ''}`.trim();
+
+                                  return (
+                                    <tr key={p.id} className="hover:bg-amber-100/30">
+                                      <td className="px-6 py-3 font-semibold text-slate-900">
+                                        {displayName}
+                                      </td>
+                                      <td className="px-6 py-3 text-xs text-slate-500">
+                                        {custom?.location ? `Zone: ${custom.location}` : '—'}
+                                      </td>
+                                      <td className="px-6 py-3 text-right">
+                                        <Button variant="ghost" size="sm" onClick={() => navigate(`/people/${p.id}`)}>
+                                          Voir fiche
+                                          <ArrowRight className="ml-1 h-3 w-3" />
+                                        </Button>
+                                      </td>
+                                    </tr>
+                                  );
+                                })}
+                              </tbody>
+                            </table>
+                          </div>
+                        </div>
+                      )}
+                    </>
+                  );
+                })()}
+              </div>
+            ) : (
+              /* VUE LINÉAIRE GLOBALE AVEC PROJETS ASSOCIÉS */
+              <div className="overflow-hidden rounded-xl border bg-white shadow-sm">
+                <div className="overflow-x-auto">
+                  <table className="w-full text-left text-sm text-slate-600">
+                    <thead className="bg-slate-50 text-xs uppercase text-slate-500 border-b">
+                      <tr>
+                        <th className="px-6 py-3">Bénéficiaire & Typologie</th>
+                        <th className="px-6 py-3">Projet(s) Associé(s)</th>
+                        <th className="px-6 py-3">Détails Cibles & Localisation</th>
+                        <th className="px-6 py-3">Loi 25</th>
+                        <th className="px-6 py-3">Contact</th>
+                        <th className="px-6 py-3 text-right">{t('common.actions')}</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-100">
+                      {filteredBeneficiaries.map((p: any) => {
+                        const custom = p.profile?.customFields;
+                        const bType = custom?.beneficiaryType || (p.kind === 'organization' ? 'community' : 'individual');
+                        const displayName = p.kind === 'organization' ? (p.lastName || p.firstName) : `${p.firstName || ''} ${p.lastName || ''}`.trim();
+                        const pDeliveries: any[] = p.serviceDeliveries || [];
+                        const hasConsent = (p.consents || []).some((c: any) => c.status === 'granted');
+
+                        const TYPE_BADGES: Record<string, { label: string; icon: any; color: string }> = {
+                          individual: { label: 'Individu', icon: Users, color: 'bg-indigo-50 text-indigo-700 border-indigo-200' },
+                          household: { label: 'Ménage / Foyer', icon: Home, color: 'bg-emerald-50 text-emerald-800 border-emerald-200' },
+                          community: { label: 'Village / Communauté', icon: Building2, color: 'bg-amber-100 text-amber-800 border-amber-200' },
+                          organization: { label: 'Organisation / Coop', icon: Users, color: 'bg-purple-50 text-purple-800 border-purple-200' },
+                          institution: { label: 'Établissement / École', icon: GraduationCap, color: 'bg-sky-50 text-sky-800 border-sky-200' },
+                        };
+
+                        const badgeCfg = TYPE_BADGES[bType] || TYPE_BADGES.individual;
+                        const BadgeIcon = badgeCfg.icon;
+
+                        return (
+                          <tr key={p.id} className="hover:bg-slate-50 transition-colors">
+                            <td className="px-6 py-4 font-semibold text-slate-900">
+                              <div className="flex items-center gap-2">
+                                <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs font-semibold border ${badgeCfg.color}`}>
+                                  <BadgeIcon className="h-3 w-3" /> {badgeCfg.label}
+                                </span>
+                                <span className="text-base text-slate-900 font-bold">{displayName}</span>
+                              </div>
+                            </td>
+                            <td className="px-6 py-4 text-xs">
+                              {pDeliveries.length === 0 ? (
+                                <span className="inline-flex items-center text-slate-400 italic">
+                                  Non rattaché
+                                </span>
+                              ) : (
+                                <div className="flex flex-wrap gap-1">
+                                  {pDeliveries.map((del: any) => (
+                                    <span
+                                      key={del.id}
+                                      className="inline-flex items-center gap-1 rounded bg-indigo-50 px-2 py-0.5 text-xs font-medium text-indigo-700 border border-indigo-100"
+                                      title={del.notes ? `Prestation: ${del.serviceType} (${del.notes})` : `Prestation: ${del.serviceType}`}
+                                    >
+                                      <FolderKanban className="h-3 w-3 text-indigo-500" />
+                                      {del.projectCode ? `[${del.projectCode}] ` : ''}{del.projectName || 'Projet'}
+                                    </span>
+                                  ))}
+                                </div>
+                              )}
+                            </td>
+                            <td className="px-6 py-4 text-xs text-slate-600">
+                              <div className="space-y-0.5">
+                                {custom?.location && (
+                                  <div>📍 Zone : <strong>{custom.location}</strong></div>
+                                )}
+                                {custom?.memberCount && (
+                                  <div>👥 Effectif : <strong>{custom.memberCount} pers.</strong> {custom.childCount ? `(${custom.childCount} enfants)` : ''}</div>
+                                )}
+                                {custom?.contactPerson && (
+                                  <div>👤 Référent : <strong>{custom.contactPerson}</strong></div>
+                                )}
+                                {!custom?.location && !custom?.memberCount && !custom?.contactPerson && (
+                                  <span className="text-slate-400">—</span>
+                                )}
+                              </div>
+                            </td>
+                            <td className="px-6 py-4 text-xs">
+                              {hasConsent ? (
+                                <span className="inline-flex items-center gap-1 text-emerald-700 bg-emerald-50 border border-emerald-200 px-2 py-0.5 rounded font-semibold text-[11px]">
+                                  <ShieldCheck className="h-3 w-3" /> Conforme
+                                </span>
+                              ) : (
+                                <span className="inline-flex items-center gap-1 text-amber-700 bg-amber-50 border border-amber-200 px-2 py-0.5 rounded font-semibold text-[11px]">
+                                  <ShieldAlert className="h-3 w-3" /> En attente
+                                </span>
+                              )}
+                            </td>
+                            <td className="px-6 py-4 text-xs text-slate-500">
+                              <div>{p.email || '—'}</div>
+                              {p.phone && <div className="text-[11px] text-slate-400">{p.phone}</div>}
+                            </td>
+                            <td className="px-6 py-4 text-right">
+                              <Button variant="ghost" size="sm" onClick={() => navigate(`/people/${p.id}`)}>
+                                {t('common.viewProfile')}
+                                <ArrowRight className="ml-1 h-3 w-3" />
+                              </Button>
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            )}
           </div>
         )}
 
@@ -1440,8 +2013,16 @@ export function PeopleListScreen() {
         {/* ═════════════════════════════════════════════════════════════════ */}
         {showBeneficiaryModal && (
           <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
-            <div className="w-full max-w-md rounded-lg bg-white p-6 shadow-lg space-y-4">
-              <h2 className="text-lg font-bold text-slate-800">{t('people.modals.newBeneficiary')}</h2>
+            <div className="w-full max-w-lg rounded-xl bg-white p-6 shadow-2xl space-y-4 max-h-[90vh] overflow-y-auto">
+              <div className="flex items-center justify-between border-b pb-3">
+                <h2 className="text-lg font-bold text-slate-800 flex items-center gap-2">
+                  <UserPlus className="h-5 w-5 text-indigo-600" />
+                  {t('people.modals.newBeneficiary')}
+                </h2>
+                <Button variant="ghost" size="sm" onClick={() => setShowBeneficiaryModal(false)}>
+                  <X className="h-4 w-4" />
+                </Button>
+              </div>
 
               {error && <div className="rounded bg-red-50 p-3 text-sm text-red-700">{error}</div>}
 
@@ -1455,16 +2036,249 @@ export function PeopleListScreen() {
               )}
 
               <form onSubmit={handleBeneficiarySubmit} className="space-y-4">
-                <Input label={`${t('people.firstName')} *`} value={benFirstName} onChange={(e) => setBenFirstName(e.target.value)} required />
-                <Input label={`${t('people.lastName')} *`} value={benLastName} onChange={(e) => setBenLastName(e.target.value)} required />
-                <Input label={t('people.email')} type="email" value={benEmail} onChange={(e) => setBenEmail(e.target.value)} />
-                <Input label={t('people.phone')} value={benPhone} onChange={(e) => setBenPhone(e.target.value)} />
+                {/* Choix des 5 types de bénéficiaires */}
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 uppercase mb-2">Type de bénéficiaire</label>
+                  <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+                    {[
+                      { key: 'individual', label: 'Individu', icon: Users, desc: 'Personne physique' },
+                      { key: 'household', label: 'Ménage / Famille', icon: Home, desc: 'Foyer partagé' },
+                      { key: 'community', label: 'Village / Quartier', icon: Building2, desc: 'Communauté locale' },
+                      { key: 'organization', label: 'Organisation / Coop', icon: Users, desc: 'Collectif ou GIE' },
+                      { key: 'institution', label: 'Établissement', icon: GraduationCap, desc: 'École, Dispensaire' },
+                    ].map((item) => {
+                      const Icon = item.icon;
+                      const isSelected = benType === item.key;
+                      return (
+                        <button
+                          key={item.key}
+                          type="button"
+                          onClick={() => setBenType(item.key as any)}
+                          className={`flex flex-col items-start p-2.5 rounded-lg border text-left transition-all ${
+                            isSelected
+                              ? 'border-indigo-600 bg-indigo-50/80 text-indigo-950 ring-2 ring-indigo-500/20'
+                              : 'border-slate-200 bg-white text-slate-600 hover:bg-slate-50'
+                          }`}
+                        >
+                          <div className="flex items-center gap-1.5 font-bold text-xs">
+                            <Icon className={`h-3.5 w-3.5 ${isSelected ? 'text-indigo-600' : 'text-slate-400'}`} />
+                            <span>{item.label}</span>
+                          </div>
+                          <span className="text-[10px] text-slate-400 mt-0.5">{item.desc}</span>
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
 
-                <div className="flex justify-end space-x-3 pt-4">
+                {/* Formulaire spécifique selon le type */}
+                {benType === 'individual' ? (
+                  <div className="space-y-3">
+                    <div className="grid grid-cols-2 gap-3">
+                      <Input label={`${t('people.firstName')} *`} value={benFirstName} onChange={(e) => setBenFirstName(e.target.value)} required />
+                      <Input label={`${t('people.lastName')} *`} value={benLastName} onChange={(e) => setBenLastName(e.target.value)} required />
+                    </div>
+                    <div className="grid grid-cols-2 gap-3">
+                      <Input label="Date de naissance" type="date" value={benBirthDate} onChange={(e) => setBenBirthDate(e.target.value)} />
+                      <div>
+                        <label className="mb-1 block text-xs font-bold text-slate-700">Genre</label>
+                        <select
+                          value={benGender}
+                          onChange={(e) => setBenGender(e.target.value)}
+                          className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm"
+                        >
+                          <option value="">— Non spécifié —</option>
+                          <option value="F">Femme</option>
+                          <option value="M">Homme</option>
+                          <option value="O">Autre</option>
+                        </select>
+                      </div>
+                    </div>
+                  </div>
+                ) : benType === 'household' ? (
+                  <div className="space-y-3 bg-emerald-50/40 p-3.5 rounded-lg border border-emerald-200/60">
+                    <Input
+                      label="Nom de famille ou du ménage *"
+                      placeholder="Ex: Famille Diallo (Foyer A)"
+                      value={benEntityName}
+                      onChange={(e) => setBenEntityName(e.target.value)}
+                      required
+                    />
+                    <div className="grid grid-cols-2 gap-3">
+                      <Input
+                        label="Nombre total de membres"
+                        type="number"
+                        placeholder="Ex: 6"
+                        value={benMemberCount}
+                        onChange={(e) => setBenMemberCount(e.target.value)}
+                      />
+                      <Input
+                        label="Nombre d'enfants / dépendants"
+                        type="number"
+                        placeholder="Ex: 4"
+                        value={benChildCount}
+                        onChange={(e) => setBenChildCount(e.target.value)}
+                      />
+                    </div>
+                    <div className="grid grid-cols-2 gap-3">
+                      <Input
+                        label="Chef de famille / Référent"
+                        placeholder="Ex: Amadou Diallo"
+                        value={benContactPerson}
+                        onChange={(e) => setBenContactPerson(e.target.value)}
+                      />
+                      <Input
+                        label="Adresse / Localisation"
+                        placeholder="Ex: Rue 14, Porte 3"
+                        value={benLocation}
+                        onChange={(e) => setBenLocation(e.target.value)}
+                      />
+                    </div>
+                  </div>
+                ) : benType === 'community' ? (
+                  <div className="space-y-3 bg-amber-50/40 p-3.5 rounded-lg border border-amber-200/60">
+                    <Input
+                      label="Nom du village ou de la communauté *"
+                      placeholder="Ex: Population du village Fatou"
+                      value={benEntityName}
+                      onChange={(e) => setBenEntityName(e.target.value)}
+                      required
+                    />
+                    <div className="grid grid-cols-2 gap-3">
+                      <Input
+                        label="Nombre estimé d'habitants"
+                        type="number"
+                        placeholder="Ex: 1500"
+                        value={benMemberCount}
+                        onChange={(e) => setBenMemberCount(e.target.value)}
+                      />
+                      <Input
+                        label="Nombre de ménages"
+                        type="number"
+                        placeholder="Ex: 25"
+                        value={benChildCount}
+                        onChange={(e) => setBenChildCount(e.target.value)}
+                      />
+                    </div>
+                    <div className="grid grid-cols-2 gap-3">
+                      <Input
+                        label="Commune / Région"
+                        placeholder="Ex: Région Centre"
+                        value={benLocation}
+                        onChange={(e) => setBenLocation(e.target.value)}
+                      />
+                      <Input
+                        label="Chef de village / Référent"
+                        placeholder="Ex: Amadou Traoré"
+                        value={benContactPerson}
+                        onChange={(e) => setBenContactPerson(e.target.value)}
+                      />
+                    </div>
+                  </div>
+                ) : benType === 'organization' ? (
+                  <div className="space-y-3 bg-purple-50/40 p-3.5 rounded-lg border border-purple-200/60">
+                    <Input
+                      label="Nom de l'organisation ou de la coopérative *"
+                      placeholder="Ex: Coopérative des maraîchères de Fatou"
+                      value={benEntityName}
+                      onChange={(e) => setBenEntityName(e.target.value)}
+                      required
+                    />
+                    <div className="grid grid-cols-2 gap-3">
+                      <Input
+                        label="Nombre d'adhérents / membres"
+                        type="number"
+                        placeholder="Ex: 45"
+                        value={benMemberCount}
+                        onChange={(e) => setBenMemberCount(e.target.value)}
+                      />
+                      <Input
+                        label="Secteur / Domaine d'activité"
+                        placeholder="Ex: Agriculture maraîchère"
+                        value={benSubCategory}
+                        onChange={(e) => setBenSubCategory(e.target.value)}
+                      />
+                    </div>
+                    <div className="grid grid-cols-2 gap-3">
+                      <Input
+                        label="Représentant(e) légal(e)"
+                        placeholder="Ex: Aminata Sow"
+                        value={benContactPerson}
+                        onChange={(e) => setBenContactPerson(e.target.value)}
+                      />
+                      <Input
+                        label="Siège / Adresse"
+                        placeholder="Ex: Case communautaire"
+                        value={benLocation}
+                        onChange={(e) => setBenLocation(e.target.value)}
+                      />
+                    </div>
+                  </div>
+                ) : (
+                  <div className="space-y-3 bg-sky-50/40 p-3.5 rounded-lg border border-sky-200/60">
+                    <Input
+                      label="Nom de l'établissement (École, Centre de santé) *"
+                      placeholder="Ex: École primaire publique Fatou"
+                      value={benEntityName}
+                      onChange={(e) => setBenEntityName(e.target.value)}
+                      required
+                    />
+                    <div className="grid grid-cols-2 gap-3">
+                      <Input
+                        label="Capacité / Effectif (élèves ou lits)"
+                        type="number"
+                        placeholder="Ex: 320"
+                        value={benMemberCount}
+                        onChange={(e) => setBenMemberCount(e.target.value)}
+                      />
+                      <div>
+                        <label className="mb-1 block text-xs font-bold text-slate-700">Type d'établissement</label>
+                        <select
+                          value={benSubCategory}
+                          onChange={(e) => setBenSubCategory(e.target.value)}
+                          className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm"
+                        >
+                          <option value="ecole">École / Éducation</option>
+                          <option value="sante">Centre de santé / Dispensaire</option>
+                          <option value="formation">Centre de formation professionnelle</option>
+                          <option value="autre">Autre établissement public</option>
+                        </select>
+                      </div>
+                    </div>
+                    <div className="grid grid-cols-2 gap-3">
+                      <Input
+                        label="Directeur / Responsable"
+                        placeholder="Ex: Mamadou Diop"
+                        value={benContactPerson}
+                        onChange={(e) => setBenContactPerson(e.target.value)}
+                      />
+                      <Input
+                        label="Localisation"
+                        placeholder="Ex: Village Fatou"
+                        value={benLocation}
+                        onChange={(e) => setBenLocation(e.target.value)}
+                      />
+                    </div>
+                  </div>
+                )}
+
+                <div className="grid grid-cols-2 gap-3">
+                  <Input label={t('people.email')} type="email" placeholder="contact@..." value={benEmail} onChange={(e) => setBenEmail(e.target.value)} />
+                  <Input label={t('people.phone')} placeholder="+221..." value={benPhone} onChange={(e) => setBenPhone(e.target.value)} />
+                </div>
+
+                <div className="flex justify-end space-x-3 pt-4 border-t">
                   <Button type="button" variant="outline" onClick={() => setShowBeneficiaryModal(false)}>
                     {t('common.cancel')}
                   </Button>
-                  <Button type="submit" disabled={createBeneficiaryMutation.isPending || !benFirstName.trim() || !benLastName.trim()}>
+                  <Button
+                    type="submit"
+                    disabled={
+                      createBeneficiaryMutation.isPending ||
+                      (benType === 'individual' && (!benFirstName.trim() || !benLastName.trim())) ||
+                      (benType !== 'individual' && !benEntityName.trim())
+                    }
+                  >
                     {benWarnings.length > 0 ? t('common.confirm') : t('common.create')}
                   </Button>
                 </div>

@@ -1,21 +1,36 @@
 import { z } from 'zod';
 
 export const CreatePersonSchema = z.object({
-  firstName: z.string().min(1, 'Le prénom est requis'),
-  lastName: z.string().min(1, 'Le nom est requis'),
+  kind: z.enum(['person', 'organization']).default('person'),
+  beneficiaryType: z.enum(['individual', 'household', 'community', 'organization', 'institution']).default('individual'),
+  firstName: z.string().optional(),
+  lastName: z.string().optional(),
+  name: z.string().optional(), // Used for collective entities (household, community, org, institution)
   email: z.string().email('Courriel invalide').optional().or(z.literal('')),
   phone: z.string().optional(),
   birthDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Format YYYY-MM-DD').optional(),
   genderCode: z.string().optional(),
   preferredLang: z.enum(['fr', 'en']).default('fr'),
-});
+  customFields: z.record(z.any()).optional(),
+}).refine(
+  (data) => {
+    if (data.beneficiaryType !== 'individual') {
+      return (data.name && data.name.trim().length > 0) || (data.lastName && data.lastName.trim().length > 0);
+    }
+    return !!(data.lastName && data.lastName.trim().length > 0);
+  },
+  {
+    message: 'Le nom est requis',
+    path: ['lastName'],
+  }
+);
 
 export type CreatePersonInput = z.infer<typeof CreatePersonSchema>;
 
 export const RecordConsentSchema = z.object({
-  purposeId: z.string().uuid(),
+  purposeCode: z.string().default('loi_25_general'),
   version: z.string().default('1.0'),
-  status: z.enum(['given', 'withdrawn', 'expired']).default('given'),
+  status: z.enum(['granted', 'refused', 'withdrawn', 'given', 'expired']).default('granted'),
   mode: z.enum(['written', 'verbal', 'electronic']).default('written'),
 });
 
@@ -29,9 +44,9 @@ export const CreateHouseholdSchema = z.object({
 export type CreateHouseholdInput = z.infer<typeof CreateHouseholdSchema>;
 
 export const AddServiceDeliverySchema = z.object({
-  serviceTypeId: z.string().uuid(),
-  projectId: z.string().uuid().optional(),
-  deliveredAt: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+  serviceType: z.string().min(1, 'Le type de prestation est requis'),
+  projectId: z.string().uuid().optional().nullable(),
+  deliveredAt: z.string().optional(),
   notes: z.string().optional(),
 });
 

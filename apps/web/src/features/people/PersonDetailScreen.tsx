@@ -51,6 +51,20 @@ export function PersonDetailScreen() {
   const [accountPassword, setAccountPassword] = useState('OrgDash2026!');
   const [accountRoleId, setAccountRoleId] = useState('');
 
+  // Service delivery modal
+  const [showServiceModal, setShowServiceModal] = useState(false);
+  const [serviceType, setServiceType] = useState('Distribution de matériel de propreté');
+  const [serviceProjectId, setServiceProjectId] = useState('');
+  const [serviceDeliveredAt, setServiceDeliveredAt] = useState(new Date().toISOString().split('T')[0]);
+  const [serviceNotes, setServiceNotes] = useState('');
+  const [serviceError, setServiceError] = useState('');
+
+  // Consent modal
+  const [showConsentModal, setShowConsentModal] = useState(false);
+  const [consentPurpose, setConsentPurpose] = useState('loi_25_general');
+  const [consentStatus, setConsentStatus] = useState<'granted' | 'refused' | 'withdrawn'>('granted');
+  const [consentError, setConsentError] = useState('');
+
   const { data, isLoading } = useQuery({
     queryKey: ['person', id],
     queryFn: async () => {
@@ -59,6 +73,60 @@ export function PersonDetailScreen() {
       return res.json();
     },
     enabled: !!id,
+  });
+
+  const { data: projects = [] } = useQuery({
+    queryKey: ['projects'],
+    queryFn: async () => {
+      const res = await fetch('/api/v1/projects');
+      if (!res.ok) return [];
+      return res.json();
+    },
+  });
+
+  const addServiceDeliveryMutation = useMutation({
+    mutationFn: async (payload: any) => {
+      const res = await fetch(`/api/v1/people/${id}/service-deliveries`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      });
+      if (!res.ok) {
+        const errData = await res.json();
+        throw new Error(errData.message || 'Erreur enregistrement prestation');
+      }
+      return res.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['person', id] });
+      setShowServiceModal(false);
+      setServiceNotes('');
+    },
+    onError: (err: any) => {
+      setServiceError(err.message);
+    },
+  });
+
+  const recordConsentMutation = useMutation({
+    mutationFn: async (payload: any) => {
+      const res = await fetch(`/api/v1/people/${id}/consents`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      });
+      if (!res.ok) {
+        const errData = await res.json();
+        throw new Error(errData.message || 'Erreur enregistrement consentement');
+      }
+      return res.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['person', id] });
+      setShowConsentModal(false);
+    },
+    onError: (err: any) => {
+      setConsentError(err.message);
+    },
   });
 
   const { data: departments = [] } = useQuery({
@@ -345,24 +413,30 @@ export function PersonDetailScreen() {
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
           {/* Consents Section */}
           <div className="rounded-xl border bg-white p-6 shadow-sm space-y-4">
-            <h2 className="text-base font-bold text-slate-900 flex items-center gap-2 border-b pb-3">
-              <ShieldCheck className="h-5 w-5 text-emerald-600" />
-              {t('people.consentStatus')}
-            </h2>
+            <div className="flex items-center justify-between border-b pb-3">
+              <h2 className="text-base font-bold text-slate-900 flex items-center gap-2">
+                <ShieldCheck className="h-5 w-5 text-emerald-600" />
+                {t('people.consentStatus')}
+              </h2>
+              <Button size="sm" variant="outline" onClick={() => { setConsentError(''); setShowConsentModal(true); }}>
+                + Gérer consentement
+              </Button>
+            </div>
+
             {consents.length === 0 ? (
-              <p className="text-xs text-slate-400 italic">{t('common.empty')}</p>
+              <p className="text-xs text-slate-400 italic">Aucun enregistrement de consentement (Loi 25)</p>
             ) : (
               <div className="divide-y text-sm">
                 {consents.map((c: any) => (
                   <div key={c.id} className="py-2.5 flex justify-between items-center">
                     <div>
                       <span className="font-semibold text-slate-800">{c.purposeCode || 'Loi 25'}</span>
-                      <div className="text-xs text-slate-400">v{c.version}</div>
+                      <div className="text-xs text-slate-400">Version {c.version} — {c.grantedAt ? new Date(c.grantedAt).toLocaleDateString() : ''}</div>
                     </div>
                     <span className={`rounded-full px-2.5 py-0.5 text-xs font-bold ${
-                      c.status === 'granted' ? 'bg-emerald-100 text-emerald-800' : 'bg-red-100 text-red-800'
+                      c.status === 'granted' || c.status === 'given' ? 'bg-emerald-100 text-emerald-800' : 'bg-red-100 text-red-800'
                     }`}>
-                      {c.status === 'granted' ? t('common.yes') : c.status}
+                      {c.status === 'granted' || c.status === 'given' ? 'Accordé' : c.status === 'withdrawn' ? 'Retiré' : c.status}
                     </span>
                   </div>
                 ))}
@@ -370,22 +444,41 @@ export function PersonDetailScreen() {
             )}
           </div>
 
-          {/* Service Deliveries */}
+          {/* Service Deliveries & Project Allocations */}
           <div className="rounded-xl border bg-white p-6 shadow-sm space-y-4">
-            <h2 className="text-base font-bold text-slate-900 flex items-center gap-2 border-b pb-3">
-              <HeartHandshake className="h-5 w-5 text-indigo-600" />
-              {t('cases.interventionPlan')}
-            </h2>
+            <div className="flex items-center justify-between border-b pb-3">
+              <h2 className="text-base font-bold text-slate-900 flex items-center gap-2">
+                <HeartHandshake className="h-5 w-5 text-indigo-600" />
+                Distributions & Prestations reçues
+              </h2>
+              <Button size="sm" onClick={() => { setServiceError(''); setShowServiceModal(true); }}>
+                + Enregistrer une prestation
+              </Button>
+            </div>
+
             {serviceDeliveries.length === 0 ? (
-              <p className="text-xs text-slate-400 italic">{t('common.empty')}</p>
+              <p className="text-xs text-slate-400 italic">Aucune prestation ou distribution consignée à ce jour.</p>
             ) : (
               <div className="divide-y text-sm">
-                {serviceDeliveries.map((s: any) => (
-                  <div key={s.id} className="py-2.5">
-                    <div className="font-semibold text-slate-900">{s.serviceType || 'Service'}</div>
-                    <div className="text-xs text-slate-500">{s.deliveredAt} — {s.notes || '—'}</div>
-                  </div>
-                ))}
+                {serviceDeliveries.map((s: any) => {
+                  const linkedProj = projects.find((p: any) => p.id === s.projectId);
+                  return (
+                    <div key={s.id} className="py-2.5 space-y-1">
+                      <div className="flex items-center justify-between">
+                        <span className="font-semibold text-slate-900">{s.serviceType || 'Service'}</span>
+                        <span className="text-xs text-slate-400">{s.deliveredAt ? new Date(s.deliveredAt).toLocaleDateString() : '—'}</span>
+                      </div>
+                      {linkedProj && (
+                        <div className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded text-xs font-medium bg-blue-50 text-blue-700 border border-blue-200">
+                          <span>Projet :</span>
+                          <span className="font-bold">{linkedProj.name}</span>
+                          <span className="text-blue-500 font-mono">({linkedProj.code})</span>
+                        </div>
+                      )}
+                      {s.notes && <div className="text-xs text-slate-600 italic">Notes: {s.notes}</div>}
+                    </div>
+                  );
+                })}
               </div>
             )}
           </div>
@@ -534,6 +627,158 @@ export function PersonDetailScreen() {
       )}
 
       {/* Account Activation Modal */}
+      {/* Modal Enregistrer une prestation / distribution */}
+      {showServiceModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
+          <div className="w-full max-w-lg rounded-xl bg-white p-6 shadow-2xl space-y-4">
+            <div className="flex items-center justify-between border-b pb-3">
+              <h3 className="text-base font-bold text-slate-900 flex items-center gap-2">
+                <HeartHandshake className="h-5 w-5 text-indigo-600" />
+                Enregistrer une prestation / distribution
+              </h3>
+              <Button variant="ghost" size="sm" onClick={() => setShowServiceModal(false)}>
+                <X className="h-4 w-4" />
+              </Button>
+            </div>
+
+            {serviceError && <div className="rounded bg-red-50 p-3 text-sm text-red-700">{serviceError}</div>}
+
+            <form
+              onSubmit={(e) => {
+                e.preventDefault();
+                addServiceDeliveryMutation.mutate({
+                  serviceType,
+                  projectId: serviceProjectId || undefined,
+                  deliveredAt: serviceDeliveredAt,
+                  notes: serviceNotes,
+                });
+              }}
+              className="space-y-4"
+            >
+              <div>
+                <label className="mb-1 block text-xs font-bold text-slate-700">Projet rattaché (Optionnel)</label>
+                <select
+                  value={serviceProjectId}
+                  onChange={(e) => setServiceProjectId(e.target.value)}
+                  className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm"
+                >
+                  <option value="">— Aucun projet particulier —</option>
+                  {projects.map((p: any) => (
+                    <option key={p.id} value={p.id}>
+                      {p.name} ({p.code})
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div>
+                <label className="mb-1 block text-xs font-bold text-slate-700">Type de service / aide apportée *</label>
+                <Input
+                  value={serviceType}
+                  onChange={(e) => setServiceType(e.target.value)}
+                  placeholder="Ex: Distribution matériel de propreté, Kit hygiène..."
+                  required
+                />
+              </div>
+
+              <div>
+                <label className="mb-1 block text-xs font-bold text-slate-700">Date de distribution</label>
+                <Input
+                  type="date"
+                  value={serviceDeliveredAt}
+                  onChange={(e) => setServiceDeliveredAt(e.target.value)}
+                  required
+                />
+              </div>
+
+              <div>
+                <label className="mb-1 block text-xs font-bold text-slate-700">Notes & Détails (Quantités, observations)</label>
+                <textarea
+                  value={serviceNotes}
+                  onChange={(e) => setServiceNotes(e.target.value)}
+                  placeholder="Ex: Remise de 25 kits pour les 25 ménages recensés du village Fatou..."
+                  className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm"
+                  rows={3}
+                />
+              </div>
+
+              <div className="flex justify-end gap-2 pt-3 border-t">
+                <Button type="button" variant="ghost" size="sm" onClick={() => setShowServiceModal(false)}>
+                  {t('common.cancel')}
+                </Button>
+                <Button type="submit" size="sm" disabled={addServiceDeliveryMutation.isPending || !serviceType.trim()}>
+                  {addServiceDeliveryMutation.isPending ? 'Enregistrement...' : 'Confirmer la prestation'}
+                </Button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Modal Gérer consentement (Loi 25) */}
+      {showConsentModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
+          <div className="w-full max-w-md rounded-xl bg-white p-6 shadow-2xl space-y-4">
+            <div className="flex items-center justify-between border-b pb-3">
+              <h3 className="text-base font-bold text-slate-900 flex items-center gap-2">
+                <ShieldCheck className="h-5 w-5 text-emerald-600" />
+                Consentement Loi 25
+              </h3>
+              <Button variant="ghost" size="sm" onClick={() => setShowConsentModal(false)}>
+                <X className="h-4 w-4" />
+              </Button>
+            </div>
+
+            {consentError && <div className="rounded bg-red-50 p-3 text-sm text-red-700">{consentError}</div>}
+
+            <div className="space-y-4">
+              <div>
+                <label className="mb-1 block text-xs font-bold text-slate-700">Finalité du recueil</label>
+                <select
+                  value={consentPurpose}
+                  onChange={(e) => setConsentPurpose(e.target.value)}
+                  className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm"
+                >
+                  <option value="loi_25_general">Consentement général de suivi & services</option>
+                  <option value="distribution_materiel">Distribution de matériel & aides communautaires</option>
+                  <option value="partage_partenaire">Partage avec partenaires de projet</option>
+                </select>
+              </div>
+
+              <div>
+                <label className="mb-1 block text-xs font-bold text-slate-700">Statut</label>
+                <select
+                  value={consentStatus}
+                  onChange={(e: any) => setConsentStatus(e.target.value)}
+                  className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm"
+                >
+                  <option value="granted">Accordé (Actif)</option>
+                  <option value="withdrawn">Retiré / Révoqué</option>
+                  <option value="refused">Refusé</option>
+                </select>
+              </div>
+            </div>
+
+            <div className="flex justify-end gap-2 pt-3 border-t">
+              <Button variant="ghost" size="sm" onClick={() => setShowConsentModal(false)}>
+                {t('common.cancel')}
+              </Button>
+              <Button
+                size="sm"
+                onClick={() => recordConsentMutation.mutate({
+                  purposeCode: consentPurpose,
+                  status: consentStatus,
+                  version: '1.0',
+                })}
+                disabled={recordConsentMutation.isPending}
+              >
+                {recordConsentMutation.isPending ? 'Enregistrement...' : 'Enregistrer'}
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {showAccountModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
           <div className="w-full max-w-md rounded-xl bg-white p-6 shadow-2xl space-y-4">

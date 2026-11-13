@@ -20,20 +20,27 @@ export function LoginScreen() {
     setLoading(true);
 
     try {
+      const cleanEmail = email.trim();
       const res = await fetch('/api/v1/auth/login', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email, password }),
+        body: JSON.stringify({ email: cleanEmail, password }),
       });
 
-      const data = await res.json();
+      let data: any = null;
+      try {
+        data = await res.json();
+      } catch {
+        data = null;
+      }
+
       if (!res.ok) {
-        throw new Error(data.message || 'Identifiants invalides');
+        throw new Error(data?.message || 'Identifiants invalides');
       }
 
       await refetchAuth();
 
-      if (data.user?.isPlatformAdmin) {
+      if (data?.user?.isPlatformAdmin) {
         navigate('/platform/dashboard');
       } else {
         navigate('/dashboard');
